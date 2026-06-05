@@ -1,0 +1,74 @@
+{
+  "SBIN_ONE_MINUTE": {
+    "symbol": "SBIN",
+    "interval": "ONE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\ONE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:29:00+05:30",
+    "records_count": 1875,
+    "updated_at": "2026-06-05 18:22:06"
+  },
+  "SBIN_FIVE_MINUTE": {
+    "symbol": "SBIN",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:25:00+05:30",
+    "records_count": 375,
+    "updated_at": "2026-06-05 18:34:46"
+  },
+  "99926000_FIVE_MINUTE": {
+    "symbol": "99926000",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\99926000\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 380,
+    "updated_at": "2026-06-05 17:47:20"
+  },
+  "26000_FIVE_MINUTE": {
+    "symbol": "26000",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\26000\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 380,
+    "updated_at": "2026-06-05 17:50:35"
+  },
+  "RELIANCE_FIVE_MINUTE": {
+    "symbol": "RELIANCE",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\RELIANCE\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 380,
+    "updated_at": "2026-06-05 17:54:28"
+  },
+  "SBIN-EQ_ONE_MINUTE": {
+    "symbol": "SBIN-EQ",
+    "interval": "ONE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN-EQ\\ONE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 1880,
+    "updated_at": "2026-06-05 18:05:30"
+  },
+  "NIFTY 50_FIFTEEN_MINUTE": {
+    "symbol": "NIFTY 50",
+    "interval": "FIFTEEN_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NIFTY 50\\FIFTEEN_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 130,
+    "updated_at": "2026-06-05 18:07:23"
+  },
+  "RELIANCE-EQ_FIFTEEN_MINUTE": {
+    "symbol": "RELIANCE-EQ",
+    "interval": "FIFTEEN_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\RELIANCE-EQ\\FIFTEEN_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 130,
+    "updated_at": "2026-06-05 18:09:44"
+  }
+}
