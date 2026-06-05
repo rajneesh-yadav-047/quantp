@@ -2,7 +2,6 @@ import os
 import json
 import time
 import requests
-import pyotp
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -14,18 +13,17 @@ class SmartAPIClient:
         api_key: Optional[str] = None,
         client_code: Optional[str] = None,
         password: Optional[str] = None,
-        totp_secret: Optional[str] = None,
         data_dir: str = "./datasets"
     ):
         self.api_key = api_key
         self.client_code = client_code
         self.password = password
-        self.totp_secret = totp_secret
         self.data_dir = data_dir
         
         self.jwt_token = None
         self.refresh_token = None
         self.feed_token = None
+        self.last_error: Optional[str] = None  # Stores last login/connection error message
         
         self.symbol_token_path = os.path.join(data_dir, "symbol_tokens.json")
         self.catalog_path = os.path.join(data_dir, "catalog.json")
@@ -37,21 +35,13 @@ class SmartAPIClient:
         return bool(self.api_key and self.client_code and self.password)
 
     def _get_totp(self, totp_override: Optional[str] = None) -> Optional[str]:
-        if totp_override:
-            return totp_override
-        if self.totp_secret:
-            return pyotp.TOTP(self.totp_secret).now()
-        env_totp = os.getenv("SMARTAPI_TOTP")
-        if env_totp:
-            return env_totp
-        try:
-            return input("Enter current TOTP: ").strip()
-        except EOFError:
-            return None
+        return totp_override
 
     def connect(self, totp: Optional[str] = None) -> bool:
         """Logs into Angel One SmartAPI and obtains session tokens."""
+        self.last_error = None  # Reset on each attempt
         if not self.is_configured():
+            self.last_error = "SmartAPI credentials not configured."
             print("SmartAPI not configured. Running in Mock Mode.")
             return False
 
@@ -59,6 +49,7 @@ class SmartAPIClient:
             # Generate or prompt for TOTP
             totp = self._get_totp(totp_override=totp)
             if not totp:
+                self.last_error = "Missing TOTP code."
                 print("SmartAPI login failed: missing TOTP.")
                 return False
             
@@ -66,7 +57,8 @@ class SmartAPIClient:
             payload = {
                 "clientcode": self.client_code,
                 "password": self.password,
-                "totp": totp
+                "totp": totp,
+                "state": "local_test"  # Matches Angel One API requirements
             }
             headers = {
                 "Content-Type": "application/json",
@@ -79,7 +71,7 @@ class SmartAPIClient:
                 "X-MACAddress": os.getenv("SMARTAPI_MAC_ADDRESS", "00:00:00:00:00:00"),
             }
             
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
             res_data = response.json()
             
             if res_data.get("status") is True:
@@ -91,9 +83,14 @@ class SmartAPIClient:
                 self.download_symbol_tokens()
                 return True
             else:
-                print(f"SmartAPI login failed: {res_data.get('message')}")
+                # Capture the specific error message from Angel One API
+                api_message = res_data.get('message') or res_data.get('errorMessage') or "Unknown error from Angel One API"
+                error_code = res_data.get('errorcode', '')
+                self.last_error = f"{api_message} (code: {error_code})" if error_code else api_message
+                print(f"SmartAPI login failed: {self.last_error}")
                 return False
         except Exception as e:
+            self.last_error = f"Connection exception: {str(e)}"
             print(f"Exception during SmartAPI connection: {str(e)}")
             return False
 
@@ -116,24 +113,125 @@ class SmartAPIClient:
         except Exception as e:
             print(f"Failed to download symbol tokens: {str(e)}")
 
-    def resolve_symbol(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Resolves a text symbol (e.g. SBIN, RELIANCE) to its Angel One token details."""
+    def resolve_symbol(self, symbol: str, from_date: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Resolves a text symbol (e.g. NSE:SBIN, NFO:SBIN-FUT) or numeric token to its Angel One token details."""
         if not os.path.exists(self.symbol_token_path):
             self.download_symbol_tokens(force=True)
             if not os.path.exists(self.symbol_token_path):
                 return None
                 
         try:
-            with open(self.symbol_token_path, "r") as f:
+            with open(self.symbol_token_path, "r", encoding="utf-8") as f:
                 tokens = json.load(f)
                 
-            # Search by symbol EQ (e.g. SBIN-EQ) or exact symbol match
             target = symbol.upper()
+            is_digit = symbol.isdigit()
+            
+            # 1. Match by token directly if input is numeric
+            if is_digit:
+                for item in tokens:
+                    if item.get("token") == symbol:
+                        return item
+                return None
+                
+            # 2. Check for exchange prefix
+            exch_filter = None
+            if ":" in target:
+                parts = target.split(":", 1)
+                exch_filter = parts[0]
+                target = parts[1]
+                
             target_eq = f"{target}-EQ"
             
+            # 3. Check for generic FUT suffix
+            is_generic_fut = False
+            base_symbol = target
+            if target.endswith("-FUT"):
+                is_generic_fut = True
+                base_symbol = target[:-4] # strip -FUT
+                
+            # Keep track of candidates if generic FUT is requested
+            candidates = []
+            
             for item in tokens:
-                if item.get("symbol") in (target, target_eq) and item.get("exch_seg") in ("NSE", "NFO"):
-                    return item
+                item_symbol = str(item.get("symbol", "")).upper()
+                item_name = str(item.get("name", "")).upper()
+                item_exch = str(item.get("exch_seg", "")).upper()
+                item_inst = str(item.get("instrumenttype", "")).upper()
+                
+                # Apply exchange filter if specified
+                if exch_filter and item_exch != exch_filter:
+                    continue
+                # If no exchange filter is specified, restrict default search to NSE, NFO, MCX, BSE for safety
+                elif not exch_filter and item_exch not in ("NSE", "NFO", "MCX", "BSE"):
+                    continue
+                    
+                if is_generic_fut:
+                    # Generic future match
+                    # name must match base_symbol (e.g. SBIN) and instrument type must start with FUT
+                    if item_name == base_symbol and item_inst.startswith("FUT"):
+                        candidates.append(item)
+                else:
+                    # Direct match by symbol or name
+                    if item_symbol in (target, target_eq) or item_name == target:
+                        # If no exchange filter, prefer equity/default first
+                        # We return immediately on exact symbol match
+                        if item_symbol == target or item_symbol == target_eq:
+                            return item
+                            
+            # If we were looking for generic futures and have candidates, resolve the near-month contract
+            if is_generic_fut and candidates:
+                # Filter candidates that have an expiry
+                valid_candidates = []
+                for c in candidates:
+                    exp_str = c.get("expiry")
+                    if exp_str:
+                        try:
+                            # format like 30JUN2026
+                            exp_dt = datetime.strptime(exp_str, "%d%b%Y").date()
+                            valid_candidates.append((c, exp_dt))
+                        except Exception:
+                            pass
+                            
+                if valid_candidates:
+                    # Determine target date for near-month calculation
+                    target_date = datetime.today().date()
+                    if from_date:
+                        try:
+                            # Parse from_date which can be YYYY-MM-DD or YYYY-MM-DD HH:MM
+                            if " " in from_date:
+                                target_date = datetime.strptime(from_date.split(" ")[0], "%Y-%m-%d").date()
+                            else:
+                                target_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+                        except Exception:
+                            pass
+                            
+                    # Filter candidates whose expiry is on or after the target_date
+                    future_candidates = [vc for vc in valid_candidates if vc[1] >= target_date]
+                    if future_candidates:
+                        # Sort by expiry date ascending (earliest expiry first)
+                        future_candidates.sort(key=lambda x: x[1])
+                        return future_candidates[0][0]
+                    else:
+                        # If all expiries are in the past relative to target_date (e.g. historical backtest query for an old date range),
+                        # return the one with the closest expiry date to target_date
+                        valid_candidates.sort(key=lambda x: abs((x[1] - target_date).days))
+                        return valid_candidates[0][0]
+                        
+            # Fallback direct loop for item_name == target if not returned already
+            if not is_generic_fut:
+                for item in tokens:
+                    item_symbol = str(item.get("symbol", "")).upper()
+                    item_name = str(item.get("name", "")).upper()
+                    item_exch = str(item.get("exch_seg", "")).upper()
+                    if exch_filter and item_exch != exch_filter:
+                        continue
+                    elif not exch_filter and item_exch not in ("NSE", "NFO", "MCX", "BSE"):
+                        continue
+                        
+                    if item_name == target:
+                        return item
+                        
         except Exception as e:
             print(f"Error resolving symbol token: {str(e)}")
             
@@ -148,7 +246,7 @@ class SmartAPIClient:
     ) -> pd.DataFrame:
         """Fetches candles from SmartAPI if connected, otherwise falls back to Mock candles."""
         if self.jwt_token and self.is_configured():
-            token_info = self.resolve_symbol(symbol)
+            token_info = self.resolve_symbol(symbol, from_date=from_date)
             if not token_info:
                 print(f"Symbol {symbol} not found in token list. Falling back to Mock.")
                 return self.generate_mock_candles(symbol, from_date, to_date, interval)
@@ -156,7 +254,7 @@ class SmartAPIClient:
             token = token_info.get("token")
             exchange = token_info.get("exch_seg", "NSE")
             
-            url = "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleInfo"
+            url = "https://apiconnect.angelone.in/rest/secure/angelbroking/historical/v1/getCandleData"
             payload = {
                 "exchange": exchange,
                 "symboltoken": token,
@@ -233,11 +331,20 @@ class SmartAPIClient:
         
         records = []
         base_price = 500.0
-        if symbol.upper() == "NIFTY":
+        sym_upper = symbol.upper()
+        if ":" in sym_upper:
+            sym_upper = sym_upper.split(":", 1)[1]
+            
+        clean_name = sym_upper
+        for suffix in ("-EQ", "-FUT", "FUT"):
+            if clean_name.endswith(suffix):
+                clean_name = clean_name[:-len(suffix)]
+                
+        if clean_name.startswith("NIFTY") or clean_name in ("99926000", "NIFTY 50", "NIFTY-50", "NIFTY50"):
             base_price = 22000.0
-        elif symbol.upper() == "RELIANCE":
+        elif clean_name.startswith("RELIANCE"):
             base_price = 2500.0
-        elif symbol.upper() == "SBIN":
+        elif clean_name.startswith("SBIN"):
             base_price = 800.0
             
         np.random.seed(hash(symbol) % 1234567)
@@ -324,7 +431,8 @@ class SmartAPIClient:
     def save_dataset_parquet(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
         """Saves a candle DataFrame as Parquet and indexes it in the catalog."""
         # Folder structure: /datasets/parquet/{symbol}/{interval}/data.parquet
-        dir_path = os.path.join(self.data_dir, "parquet", symbol.upper(), interval.upper())
+        clean_symbol = symbol.upper().replace(":", "_")
+        dir_path = os.path.join(self.data_dir, "parquet", clean_symbol, interval.upper())
         os.makedirs(dir_path, exist_ok=True)
         file_path = os.path.join(dir_path, "data.parquet")
         

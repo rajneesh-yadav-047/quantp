@@ -22,12 +22,16 @@ export default function Home() {
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [smartapiConfigured, setSmartapiConfigured] = useState<boolean>(false);
   const [smartapiConnected, setSmartapiConnected] = useState<boolean>(false);
+
+  // TOTP Popup State
+  const [isTotpModalOpen, setIsTotpModalOpen] = useState<boolean>(false);
+  const [totpInput, setTotpInput] = useState<string>("");
+  const [pendingAction, setPendingAction] = useState<"AUTH" | "DOWNLOAD" | null>(null);
+
   const [smartapiCreds, setSmartapiCreds] = useState({
     apiKey: "",
     clientCode: "",
     password: "",
-    totpSecret: "",
-    totp: "",
     rememberMe: true
   });
 
@@ -115,6 +119,11 @@ export default function Home() {
   const [dlToDate, setDlToDate] = useState<string>("2026-06-07");
   const [downloading, setDownloading] = useState<boolean>(false);
 
+  // Autocomplete suggestions
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+
+
   // Status Alerts
   const [notif, setNotif] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
 
@@ -126,6 +135,22 @@ export default function Home() {
     const interval = setInterval(checkBackendHealth, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch symbol suggestions with debounce
+  useEffect(() => {
+    if (!dlSymbol || dlSymbol.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(() => {
+      fetch(`${API_BASE}/data/symbols/search?q=${dlSymbol}`)
+        .then(res => res.json())
+        .then(data => setSuggestions(data))
+        .catch(err => console.error("Error fetching suggestions:", err));
+    }, 250);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [dlSymbol]);
 
   const triggerNotif = (type: "success" | "error" | "info", msg: string) => {
     setNotif({ type, msg });
@@ -488,18 +513,17 @@ export default function Home() {
 
   // --- API ROUTE DISPATCHERS (IF ONLINE) ---
 
-  const handleConfigureSmartAPI = async (e: React.FormEvent) => {
+  const triggerAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (!backendOnline) {
       triggerNotif("error", "Backend is offline. Start the server to authenticate SmartAPI.");
       return;
     }
+    setPendingAction("AUTH");
+    setIsTotpModalOpen(true);
+  };
 
-    if (!smartapiCreds.totp) {
-      triggerNotif("error", "Please enter the current TOTP.");
-      return;
-    }
-
+  const finalizeAuth = async (code: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/smartapi/configure`, {
         method: "POST",
@@ -509,8 +533,7 @@ export default function Home() {
           api_key: smartapiCreds.apiKey,
           client_code: smartapiCreds.clientCode,
           password: smartapiCreds.password,
-          totp_secret: smartapiCreds.totpSecret || null,
-          totp: smartapiCreds.totp,
+          totp: code,
           remember_me: smartapiCreds.rememberMe
         })
       });
@@ -518,7 +541,6 @@ export default function Home() {
       if (res.ok && data.connection_success) {
         setSmartapiConfigured(true);
         setSmartapiConnected(true);
-        setSmartapiCreds(prev => ({ ...prev, totp: "" }));
         triggerNotif("success", "SmartAPI Authenticated & Connected!");
         fetchCoreData();
       } else {
@@ -529,8 +551,13 @@ export default function Home() {
     }
   };
 
-  const handleDownloadDataset = async (e: React.FormEvent) => {
+  const triggerDownload = (e: React.FormEvent) => {
     e.preventDefault();
+    setPendingAction("DOWNLOAD");
+    setIsTotpModalOpen(true);
+  };
+
+  const finalizeDownload = async (code: string) => {
     setDownloading(true);
     triggerNotif("info", `Downloading historical candles for ${dlSymbol}...`);
 
@@ -561,7 +588,8 @@ export default function Home() {
           symbol: dlSymbol,
           interval: dlInterval,
           from_date: dlFromDate + " 09:15",
-          to_date: dlToDate + " 15:30"
+          to_date: dlToDate + " 15:30",
+          totp: code
         })
       });
       const data = await res.json();
@@ -576,6 +604,20 @@ export default function Home() {
       setDownloading(false);
       triggerNotif("error", "Error requesting download from API.");
     }
+  };
+
+  const handleTotpConfirm = () => {
+    if (totpInput.length !== 6) {
+      triggerNotif("error", "Invalid code. Please enter 6 digits.");
+      return;
+    }
+    const code = totpInput;
+    setIsTotpModalOpen(false);
+    setTotpInput("");
+    
+    if (pendingAction === "AUTH") finalizeAuth(code);
+    else if (pendingAction === "DOWNLOAD") finalizeDownload(code);
+    setPendingAction(null);
   };
 
   const handleSaveStrategy = async () => {
@@ -651,7 +693,9 @@ export default function Home() {
       return;
     }
 
-    const [symbol, interval] = selectedDataset.split("_");
+    const parts = selectedDataset.split("_");
+    const symbol = parts[0];
+    const interval = parts.slice(1).join("_");
     triggerNotif("info", `Initiating backtest on ${symbol}...`);
 
     try {
@@ -740,7 +784,9 @@ export default function Home() {
       return;
     }
 
-    const [symbol, interval] = selectedDataset.split("_");
+    const parts = selectedDataset.split("_");
+    const symbol = parts[0];
+    const interval = parts.slice(1).join("_");
     const catalogItem = datasets.find(d => `${d.symbol}_${d.interval}` === selectedDataset);
     const start_date = catalogItem ? catalogItem.start_date.split(" ")[0] : "2026-06-01";
     const end_date = catalogItem ? catalogItem.end_date.split(" ")[0] : "2026-06-07";
@@ -1024,7 +1070,7 @@ export default function Home() {
                       Connect to Angel One SmartAPI to download real historical market ticks. Credentials are encrypted and stored in local catalog.
                     </p>
                     
-                    <form onSubmit={handleConfigureSmartAPI} className="space-y-3">
+                    <form onSubmit={triggerAuth} className="space-y-3">
                       <div>
                         <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">API Key</label>
                         <input
@@ -1053,26 +1099,6 @@ export default function Home() {
                           onChange={e => setSmartapiCreds({ ...smartapiCreds, password: e.target.value })}
                           className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
                           placeholder="SmartAPI Account Password"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Current TOTP</label>
-                        <input
-                          type="password"
-                          value={smartapiCreds.totp}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, totp: e.target.value })}
-                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
-                          placeholder="One-time password"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">TOTP Secret (Optional)</label>
-                        <input
-                          type="password"
-                          value={smartapiCreds.totpSecret}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, totpSecret: e.target.value })}
-                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
-                          placeholder="Authenticator secret (optional)"
                         />
                       </div>
                       <label className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400">
@@ -1257,16 +1283,45 @@ export default function Home() {
                   Submit symbol requests. Files are indexed in standard Parquet formats under `/datasets/parquet/`.
                 </p>
 
-                <form onSubmit={handleDownloadDataset} className="space-y-4">
-                  <div>
+                <form onSubmit={triggerDownload} className="space-y-4">
+                  <div className="relative">
                     <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Asset Symbol</label>
                     <input
                       type="text"
                       value={dlSymbol}
-                      onChange={e => setDlSymbol(e.target.value.toUpperCase())}
+                      onChange={e => {
+                        setDlSymbol(e.target.value.toUpperCase());
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => {
+                        // Delay closing to allow onClick to fire
+                        setTimeout(() => setShowSuggestions(false), 200);
+                      }}
                       className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
                       placeholder="e.g. SBIN, RELIANCE, NIFTY"
                     />
+                    
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded shadow-2xl divide-y divide-slate-800/60 custom-scrollbar">
+                        {suggestions.map(s => (
+                          <div
+                            key={s.token}
+                            onClick={() => {
+                              setDlSymbol(s.symbol);
+                              setShowSuggestions(false);
+                            }}
+                            className="px-3 py-2 text-xs hover:bg-slate-900 cursor-pointer flex justify-between items-center transition-colors duration-150"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-slate-200">{s.symbol}</span>
+                              <span className="text-[9px] text-slate-500 truncate max-w-[160px]">{s.name}</span>
+                            </div>
+                            <span className="text-[9px] font-mono bg-slate-900 border border-slate-800/80 rounded px-1.5 py-0.5 text-slate-400">{s.token}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1944,6 +1999,49 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      {/* TOTP Modal Popup */}
+      {isTotpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="glass-panel p-6 rounded-2xl w-full max-w-sm border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.15)] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-blue-600 rounded-xl text-white">
+                <Shield size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-100">Verification Required</h3>
+            </div>
+            <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+              {pendingAction === "AUTH" 
+                ? "Authorize SmartAPI session via Angel One TOTP." 
+                : "Authorize market data download request."}
+            </p>
+            <input
+              autoFocus
+              type="text"
+              maxLength={6}
+              placeholder="000000"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-4 text-center text-3xl font-mono tracking-[0.4em] text-blue-400 focus:outline-none focus:border-blue-500 shadow-inner"
+              value={totpInput}
+              onChange={(e) => setTotpInput(e.target.value.replace(/\D/g, ""))}
+              onKeyDown={(e) => e.key === "Enter" && handleTotpConfirm()}
+            />
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => { setIsTotpModalOpen(false); setTotpInput(""); setPendingAction(null); }}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTotpConfirm}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-xs font-bold text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+              >
+                Confirm Code
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

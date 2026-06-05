@@ -31,8 +31,8 @@ def classify_market_regimes(df: pd.DataFrame, fast_period: int = 20, slow_period
             (df['low'] - df['prev_close']).abs()
         )
     )
-    df['atr'] = df['tr'].rolling(window=atr_period).mean().fillna(method='bfill')
-    df['atr_ma'] = df['atr'].rolling(window=atr_period * 2).mean().fillna(method='bfill')
+    df['atr'] = df['tr'].rolling(window=atr_period).mean().bfill()
+    df['atr_ma'] = df['atr'].rolling(window=atr_period * 2).mean().bfill()
     
     # Simple Gap detection: (open - prev_close) / prev_close
     df['gap_pct'] = ((df['open'] - df['prev_close']) / df['prev_close']).fillna(0)

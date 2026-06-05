@@ -22,12 +22,52 @@ from engine.research import attribute_performance_by_regime
 from engine.capital import analyze_capital_requirements
 from engine.optimization import run_parameter_sweep
 
+# Global in-memory cache for active SmartAPI clients
+active_clients: Dict[str, SmartAPIClient] = {}
+
+# Global symbols cache for autocomplete suggestions
+symbol_suggestions: List[Dict[str, str]] = []
+
+def load_symbol_suggestions():
+    global symbol_suggestions
+    token_path = os.path.join("./datasets", "symbol_tokens.json")
+    if os.path.exists(token_path):
+        try:
+            with open(token_path, "r", encoding="utf-8") as f:
+                tokens = json.load(f)
+            seen = set()
+            temp = []
+            for item in tokens:
+                exch = item.get("exch_seg")
+                inst_type = item.get("instrumenttype", "")
+                if exch in ("NSE", "NFO", "MCX", "BSE", "CDS", "BFO", "NCDEX", "NCO"):
+                    # Exclude option contracts to keep the catalog compact and relevant
+                    if not inst_type.startswith("OPT"):
+                        symbol = item.get("symbol")
+                        name = item.get("name")
+                        token = item.get("token")
+                        if symbol:
+                            sym_key = f"{exch}:{symbol}"
+                            if sym_key not in seen:
+                                seen.add(sym_key)
+                                temp.append({
+                                    "symbol": sym_key,
+                                    "name": f"{name} ({exch} - {inst_type or 'EQUITY'})",
+                                    "token": token
+                                })
+            symbol_suggestions = temp
+            print(f"INFO: Loaded {len(symbol_suggestions)} symbol suggestions into memory.")
+        except Exception as e:
+            print(f"ERROR: Failed to load symbol suggestions: {e}")
+
 # Lifespan context manager for startup and shutdown logic
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("INFO: Initializing Database...")
     init_db()
     print("INFO: Database Initialization Complete.")
+    print("INFO: Loading symbol suggestions...")
+    load_symbol_suggestions()
     yield
 
 # Initialize FastAPI App
@@ -71,8 +111,7 @@ class SmartAPICredsRequest(BaseModel):
     api_key: str
     client_code: str
     password: str
-    totp_secret: Optional[str] = None
-    totp: Optional[str] = None
+    totp: str
     remember_me: bool = True
 
 class DownloadDataRequest(BaseModel):
@@ -150,17 +189,17 @@ def configure_smartapi(req: SmartAPICredsRequest, db: Session = Depends(get_db))
         user.smartapi_api_key = req.api_key
         user.smartapi_client_code = req.client_code
         user.smartapi_password = req.password
-        user.smartapi_totp_secret = req.totp_secret
         db.commit()
     
     # Try connecting immediately to verify credentials
     client = SmartAPIClient(
         api_key=req.api_key,
         client_code=req.client_code,
-        password=req.password,
-        totp_secret=req.totp_secret
+        password=req.password
     )
     success = client.connect(totp=req.totp)
+    if success:
+        active_clients[req.username] = client
     
     return {
         "message": "Configuration updated" if req.remember_me else "Configuration validated",
@@ -175,19 +214,12 @@ def smartapi_status(username: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
         
     configured = bool(user.smartapi_api_key)
-    connected = False
     
-    if configured:
-        client = SmartAPIClient(
-            api_key=user.smartapi_api_key,
-            client_code=user.smartapi_client_code,
-            password=user.smartapi_password,
-            totp_secret=user.smartapi_totp_secret
-        )
-        if user.smartapi_totp_secret:
-            connected = client.connect()
-        else:
-            connected = False
+    # Check if there is an active client that is connected
+    client = active_clients.get(username)
+    connected = False
+    if client and client.jwt_token and client.is_configured():
+        connected = True
         
     return {
         "configured": configured,
@@ -199,7 +231,9 @@ def smartapi_status(username: str, db: Session = Depends(get_db)):
 
 @app.post("/api/data/download")
 def download_data(req: DownloadDataRequest, username: Optional[str] = None, db: Session = Depends(get_db)):
-    # Initialize client, use credentials from DB if provided, else run in Mock fallback
+    if not req.totp:
+        raise HTTPException(status_code=400, detail="TOTP required to authenticate SmartAPI.")
+        
     client_args = {}
     if username:
         user = db.query(UserDB).filter(UserDB.username == username).first()
@@ -207,17 +241,20 @@ def download_data(req: DownloadDataRequest, username: Optional[str] = None, db: 
             client_args = {
                 "api_key": user.smartapi_api_key,
                 "client_code": user.smartapi_client_code,
-                "password": user.smartapi_password,
-                "totp_secret": user.smartapi_totp_secret
+                "password": user.smartapi_password
             }
             
     client = SmartAPIClient(**client_args)
     if not client.is_configured():
         raise HTTPException(status_code=400, detail="SmartAPI credentials not configured.")
-    if not client.totp_secret and not req.totp:
-        raise HTTPException(status_code=400, detail="TOTP required to authenticate SmartAPI.")
-    client.connect(totp=req.totp)
-    
+        
+    success = client.connect(totp=req.totp)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Failed to connect to SmartAPI: {client.last_error or 'Unknown error'}")
+        
+    if username:
+        active_clients[username] = client
+            
     df = client.fetch_historical_candles(
         symbol=req.symbol,
         from_date=req.from_date,
@@ -243,6 +280,36 @@ def download_data(req: DownloadDataRequest, username: Optional[str] = None, db: 
 def list_datasets():
     client = SmartAPIClient()
     return client.load_catalog()
+
+@app.get("/api/data/symbols/search")
+def search_symbols(q: str):
+    if not q:
+        return []
+    query = q.upper()
+    
+    # Priority 1: Exact matches
+    # Priority 2: Starts with matches
+    # Priority 3: Contains matches
+    p1, p2, p3 = [], [], []
+    for item in symbol_suggestions:
+        sym = item["symbol"].upper()
+        name = item["name"].upper()
+        tok = item["token"]
+        
+        if query == sym or query == name or query == tok:
+            p1.append(item)
+        elif sym.startswith(query) or name.startswith(query):
+            p2.append(item)
+        elif query in sym or query in name:
+            p3.append(item)
+            
+    # Sort matches by symbol length to prioritize shorter/cleaner symbols
+    p1.sort(key=lambda x: len(x["symbol"]))
+    p2.sort(key=lambda x: len(x["symbol"]))
+    p3.sort(key=lambda x: len(x["symbol"]))
+    
+    combined = (p1 + p2 + p3)[:15]
+    return combined
 
 @app.get("/api/data/datasets/{symbol}/{interval}")
 def get_dataset(symbol: str, interval: str):
@@ -340,8 +407,23 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Parquet dataset not found for {req.symbol} ({req.interval}). Download it first.")
 
     # Slice date range
-    df['time_dt'] = pd.to_datetime(df['time'])
-    df = df[(df['time_dt'] >= pd.to_datetime(req.start_date)) & (df['time_dt'] <= pd.to_datetime(req.end_date))]
+    time_series = pd.to_datetime(df['time'])
+    if time_series.dt.tz is not None:
+        df['time_dt'] = time_series.dt.tz_localize(None)
+    else:
+        df['time_dt'] = time_series
+        
+    start_dt = pd.to_datetime(req.start_date)
+    if start_dt.tz is not None:
+        start_dt = start_dt.tz_localize(None)
+        
+    end_dt = pd.to_datetime(req.end_date)
+    if end_dt.tz is not None:
+        end_dt = end_dt.tz_localize(None)
+        
+    if len(req.end_date.strip()) <= 10:
+        end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
     
     if df.empty:
         raise HTTPException(status_code=400, detail="Target date range contains 0 candles.")
@@ -500,8 +582,23 @@ def get_capital_analysis(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Parquet dataset not found.")
         
     # Filter dates
-    df['time_dt'] = pd.to_datetime(df['time'])
-    df = df[(df['time_dt'] >= pd.to_datetime(r.start_time)) & (df['time_dt'] <= pd.to_datetime(r.end_time))]
+    time_series = pd.to_datetime(df['time'])
+    if time_series.dt.tz is not None:
+        df['time_dt'] = time_series.dt.tz_localize(None)
+    else:
+        df['time_dt'] = time_series
+        
+    start_dt = pd.to_datetime(r.start_time)
+    if start_dt.tz is not None:
+        start_dt = start_dt.tz_localize(None)
+        
+    end_dt = pd.to_datetime(r.end_time)
+    if end_dt.tz is not None:
+        end_dt = end_dt.tz_localize(None)
+        
+    if len(r.end_time.strip()) <= 10:
+        end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
     df_dict = {r.symbol: df.drop(columns=['time_dt'])}
     
     # Run multi-pass capital simulations
@@ -525,8 +622,23 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
     if df is None:
         raise HTTPException(status_code=404, detail="Parquet dataset not found.")
         
-    df['time_dt'] = pd.to_datetime(df['time'])
-    df = df[(df['time_dt'] >= pd.to_datetime(req.start_date)) & (df['time_dt'] <= pd.to_datetime(req.end_date))]
+    time_series = pd.to_datetime(df['time'])
+    if time_series.dt.tz is not None:
+        df['time_dt'] = time_series.dt.tz_localize(None)
+    else:
+        df['time_dt'] = time_series
+        
+    start_dt = pd.to_datetime(req.start_date)
+    if start_dt.tz is not None:
+        start_dt = start_dt.tz_localize(None)
+        
+    end_dt = pd.to_datetime(req.end_date)
+    if end_dt.tz is not None:
+        end_dt = end_dt.tz_localize(None)
+        
+    if len(req.end_date.strip()) <= 10:
+        end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
+    df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
     df_dict = {req.symbol.upper(): df.drop(columns=['time_dt'])}
     
     try:

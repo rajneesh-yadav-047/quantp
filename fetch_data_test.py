@@ -23,18 +23,28 @@ def main():
         print("Login failed, aborting data fetch test.")
         return 1
         
-    print("Successfully connected. Attempting to fetch historical candles for SBIN...")
-    
+    print("\n--- Testing Symbol Resolution ---")
+    symbols_to_test = ["SBIN", "NSE:SBIN-EQ", "NFO:SBIN-FUT"]
+    for s in symbols_to_test:
+        res = client.resolve_symbol(s, from_date="2024-05-20")
+        if res:
+            print(f"Symbol '{s}' resolved to: token={res.get('token')}, symbol={res.get('symbol')}, exch_seg={res.get('exch_seg')}, inst_type={res.get('instrumenttype')}, expiry={res.get('expiry')}")
+        else:
+            print(f"Symbol '{s}' failed to resolve.")
+            
+    print("\nAttempting to fetch historical candles for NSE:SBIN-EQ...")
     df = client.fetch_historical_candles(
-        symbol="SBIN",
-        from_date="2024-05-20 09:15",
-        to_date="2024-05-20 15:30",
+        symbol="NSE:SBIN-EQ",
+        from_date="2026-06-02 09:15",
+        to_date="2026-06-02 15:30",
         interval="FIVE_MINUTE"
     )
     
-    print("Data fetch result:")
+    print("\nData fetch result:")
     if df is not None and not df.empty:
         print(f"Fetched {len(df)} records.")
+        print("Data columns:", list(df.columns))
+        print("First 5 records:")
         print(df.head())
     else:
         print("No records fetched.")

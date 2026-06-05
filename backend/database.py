@@ -30,7 +30,6 @@ class UserDB(Base):
     smartapi_api_key = Column(String, nullable=True)
     smartapi_client_code = Column(String, nullable=True)
     smartapi_password = Column(String, nullable=True)
-    smartapi_totp_secret = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -75,8 +74,22 @@ class BacktestResultDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 def init_db():
-    """Initializes and creates all database tables."""
+    """Initializes and creates all database tables and seeds the default user."""
     Base.metadata.create_all(bind=engine)
+    
+    db = SessionLocal()
+    try:
+        default_user = db.query(UserDB).filter(UserDB.username == "default_user").first()
+        if not default_user:
+            print("INFO: Seeding default_user into database...")
+            user = UserDB(username="default_user", password_hash="password")
+            db.add(user)
+            db.commit()
+            print("INFO: Seeding complete.")
+    except Exception as e:
+        print(f"ERROR: Failed to seed default user: {e}")
+    finally:
+        db.close()
 
 def get_db() -> Generator[Session, None, None]:
     """Dependency to inject database session into FastAPI routes."""
