@@ -17,12 +17,14 @@ class BacktestEngine:
         initial_capital: float = 100000.0,
         slippage_pct: float = 0.0005,
         default_trade_type: str = "INTRADAY",
+        max_position_size: Optional[int] = None,
         log_dir: str = "./logs",
         parameters: Optional[Dict[str, Any]] = None
     ):
         self.df_dict = df_dict
         self.strategy_code = strategy_code
         self.initial_capital = initial_capital
+        self.max_position_size = max_position_size
         self.log_dir = log_dir
         
         # Init components
@@ -85,6 +87,7 @@ class BacktestEngine:
             for step, ts in enumerate(self.all_timestamps):
                 # 1. Gather current candle for this timestamp
                 current_candles: Dict[str, Candle] = {}
+                liquidation_logs: List[str] = []
                 for symbol, df in self.df_dict.items():
                     # Find candle for ts
                     # Assumes df has time column or indexed by time string
@@ -183,7 +186,7 @@ class BacktestEngine:
                 # 4. Check Margin Call / Liquidation (Risk of Ruin)
                 if portfolio.equity <= 0 or portfolio.margin_free < 0:
                     # Liquidation Trigger
-                    liquidation_logs = ["MARGIN CALL: Liquidating all positions and cancelling pending orders!"]
+                    liquidation_logs.append("MARGIN CALL: Liquidating all positions and cancelling pending orders!")
                     active_orders.clear()
                     # Liquidate positions at current candle closes
                     for sym, pos in list(portfolio.positions.items()):
@@ -237,21 +240,26 @@ class BacktestEngine:
                 strategy_logs = self.runtime.get_logs()
                 
                 # Append liquidation logs if triggered
-                if 'liquidation_logs' in locals():
+                if liquidation_logs:
                     strategy_logs.extend(liquidation_logs)
-                    del liquidation_logs
 
                 new_orders: List[Order] = []
                 for req in submitted_order_reqs:
                     # Construct Order
                     order_id = f"O-{uuid.uuid4().hex[:8].upper()}"
+                    
+                    # Cap the order quantity by the max position size if defined
+                    final_qty = req.qty
+                    if self.max_position_size and self.max_position_size > 0:
+                        final_qty = min(req.qty, self.max_position_size)
+
                     new_order = Order(
                         id=order_id,
                         symbol=req.symbol,
                         direction=req.direction,
                         type=req.type,
                         price=req.price,
-                        qty=req.qty,
+                        qty=final_qty,
                         status="PENDING",
                         trigger_price=req.trigger_price,
                         created_at=ts
@@ -324,7 +332,9 @@ class BacktestEngine:
                     "cash": portfolio.cash,
                     "unrealized_pnl": portfolio.unrealized_pnl,
                     "margin_used": portfolio.margin_used,
-                    "fees": portfolio.total_fees
+                    "fees": portfolio.total_fees,
+                    "position_count": len(portfolio.positions),
+                    "total_qty": sum(abs(p.qty) for p in portfolio.positions.values())
                 })
 
                 # Create ReplayEvent

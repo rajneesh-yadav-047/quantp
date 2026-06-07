@@ -6,7 +6,7 @@
     "start_date": "2026-06-01T09:15:00+05:30",
     "end_date": "2026-06-05T15:29:00+05:30",
     "records_count": 1875,
-    "updated_at": "2026-06-05 18:22:06"
+    "updated_at": "2026-06-06 02:01:32"
   },
   "SBIN_FIVE_MINUTE": {
     "symbol": "SBIN",
@@ -70,5 +70,32 @@
     "end_date": "2026-06-05 15:30:00",
     "records_count": 130,
     "updated_at": "2026-06-05 18:09:44"
+  },
+  "NSE:OLAELEC-EQ_ONE_MINUTE": {
+    "symbol": "NSE:OLAELEC-EQ",
+    "interval": "ONE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_OLAELEC-EQ\\ONE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:29:00+05:30",
+    "records_count": 1875,
+    "updated_at": "2026-06-06 02:52:30"
+  },
+  "NSE:NIFTY 50_FIVE_MINUTE": {
+    "symbol": "NSE:NIFTY 50",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_NIFTY 50\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:25:00+05:30",
+    "records_count": 375,
+    "updated_at": "2026-06-06 02:55:15"
+  },
+  "NSE:IDEA-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:IDEA-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_IDEA-EQ\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:25:00+05:30",
+    "records_count": 375,
+    "updated_at": "2026-06-06 02:58:09"
   }
 }

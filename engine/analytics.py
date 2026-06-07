@@ -141,6 +141,10 @@ def calculate_metrics(
             loss_rate = 1.0 - win_rate
             expectancy = (win_rate * avg_win) + (loss_rate * avg_loss)
 
+        # Calculate Average Holding Duration
+        durations = [(pd.to_datetime(mt['sell_time']) - pd.to_datetime(mt['buy_time'])).total_seconds() / 60 for mt in matched_trades]
+        avg_holding_time = np.mean(durations) if durations else 0.0
+
     # 6. Exposure (percentage of bars with open positions)
     steps_with_position = sum(1 for eq in equity_curve if eq.get('margin_used', 0.0) > 0.0)
     total_steps = len(equity_curve)
@@ -164,6 +168,7 @@ def calculate_metrics(
         "exposure": float(exposure),
         "capital_efficiency": float(capital_efficiency),
         "max_margin_used": float(max_margin_used),
+        "avg_holding_time_mins": float(avg_holding_time),
         "trade_metrics": {
             "total_trades": total_trades,
             "matched_trades_count": len(trade_pnls) if 'trade_pnls' in locals() else 0,
@@ -220,7 +225,8 @@ def match_trades_fifo(trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                         "buy_price": price,
                         "sell_price": sell_price,
                         "qty": match_qty,
-                        "pnl": pnl - (fee + sell_fee) * match_qty
+                        "pnl": pnl - (fee + sell_fee) * match_qty,
+                        "duration_mins": (pd.to_datetime(ts) - pd.to_datetime(sell_ts)).total_seconds() / 60
                     })
                     
                     needed -= match_qty
@@ -255,7 +261,8 @@ def match_trades_fifo(trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                         "buy_price": buy_price,
                         "sell_price": price,
                         "qty": match_qty,
-                        "pnl": pnl - (buy_fee + fee) * match_qty
+                        "pnl": pnl - (buy_fee + fee) * match_qty,
+                        "duration_mins": (pd.to_datetime(ts) - pd.to_datetime(buy_ts)).total_seconds() / 60
                     })
                     
                     needed -= match_qty

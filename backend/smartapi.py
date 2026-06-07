@@ -313,16 +313,14 @@ class SmartAPIClient:
     ) -> pd.DataFrame:
         """Generates realistic market candles according to Indian standard trading hours."""
         # Convert date strings to datetime objects
-        # Allowed formats: YYYY-MM-DD or YYYY-MM-DD HH:MM
         try:
-            start_dt = datetime.strptime(from_date, "%Y-%m-%d %H:%M")
-        except ValueError:
-            start_dt = datetime.strptime(from_date, "%Y-%m-%d")
-            
-        try:
-            end_dt = datetime.strptime(to_date, "%Y-%m-%d %H:%M")
-        except ValueError:
-            end_dt = datetime.strptime(to_date, "%Y-%m-%d")
+            # Use pandas to handle ISO strings, timezone offsets, and simple dates robustly
+            start_dt = pd.to_datetime(from_date).tz_localize(None).to_pydatetime()
+            end_dt = pd.to_datetime(to_date).tz_localize(None).to_pydatetime()
+        except Exception as e:
+            print(f"Mock Generator Date Error: {e}. Falling back to default range.")
+            start_dt = datetime.now() - timedelta(days=30)
+            end_dt = datetime.now()
 
         # Trading Hours: 9:15 AM to 3:30 PM (375 minutes)
         # We step day-by-day

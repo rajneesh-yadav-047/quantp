@@ -90,12 +90,16 @@ export default function LightweightChart({
     // Format candle times to UTC/epoch timestamp or clean string
     const formattedCandles = candles.map(c => {
       let timeVal: any = c.time;
-      // Convert standard "YYYY-MM-DD HH:MM:SS" to timestamp or valid string
-      if (typeof timeVal === "string" && timeVal.includes(" ")) {
-        // Parse "YYYY-MM-DD HH:MM:SS" into date and convert to epoch seconds
-        const dt = new Date(timeVal.replace(" ", "T") + "Z");
+      if (typeof timeVal === "string") {
+        // Robust parsing for ISO strings, timestamps, and space-separated formats
+        let cleanStr = timeVal;
+        if (timeVal.includes(" ") && !timeVal.includes("T")) {
+          cleanStr = timeVal.replace(" ", "T");
+        }
+        
+        const dt = new Date(cleanStr);
         if (!isNaN(dt.getTime())) {
-          timeVal = (dt.getTime() / 1000) as UTCTimestamp;
+          timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
         }
       }
       return {
@@ -148,10 +152,14 @@ export default function LightweightChart({
     if (trades.length > 0) {
       const markers = trades.map(t => {
         let timeVal: any = t.time;
-        if (typeof timeVal === "string" && timeVal.includes(" ")) {
-          const dt = new Date(timeVal.replace(" ", "T") + "Z");
+        if (typeof timeVal === "string") {
+          let cleanStr = timeVal;
+          if (timeVal.includes(" ") && !timeVal.includes("T")) {
+            cleanStr = timeVal.replace(" ", "T");
+          }
+          const dt = new Date(cleanStr);
           if (!isNaN(dt.getTime())) {
-            timeVal = (dt.getTime() / 1000) as UTCTimestamp;
+            timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
           }
         }
 

@@ -6,15 +6,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import List, Dict, Any, Optional, cast
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.database import init_db, get_db, UserDB, StrategyDB, BacktestResultDB
+from backend.database import init_db, get_db, StrategyDB, BacktestResultDB
 from backend.smartapi import SmartAPIClient
 from engine.backtester import BacktestEngine
 from engine.analytics import calculate_metrics
@@ -22,11 +22,14 @@ from engine.research import attribute_performance_by_regime
 from engine.capital import analyze_capital_requirements
 from engine.optimization import run_parameter_sweep
 
-# Global in-memory cache for active SmartAPI clients
-active_clients: Dict[str, SmartAPIClient] = {}
+# Global instance for the sole user
+global_smart_client: Optional[SmartAPIClient] = None
 
 # Global symbols cache for autocomplete suggestions
 symbol_suggestions: List[Dict[str, str]] = []
+
+# Global state to track the active feed across sessions
+active_feed_key: Optional[str] = None
 
 def load_symbol_suggestions():
     global symbol_suggestions
@@ -85,35 +88,19 @@ app.add_middleware(
 # Debug middleware to log every request
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     print(f"DEBUG: {request.method} {request.url.path} - Processing...")
     response = await call_next(request)
-    process_time = (datetime.utcnow() - start_time).total_seconds()
+    process_time = (datetime.now(timezone.utc) - start_time).total_seconds()
     print(f"DEBUG: {request.method} {request.url.path} - Completed in {process_time:.4f}s with Status {response.status_code}")
     return response
 
 # Health Check Endpoint for diagnostics
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "online", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # Pydantic Schemas for Requests
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-class SmartAPICredsRequest(BaseModel):
-    username: str  # DB user association
-    api_key: str
-    client_code: str
-    password: str
-    totp: str
-    remember_me: bool = True
-
 class DownloadDataRequest(BaseModel):
     symbol: str
     interval: str
@@ -135,6 +122,7 @@ class BacktestRequest(BaseModel):
     initial_capital: float = 100000.0
     slippage_pct: float = 0.0005
     trade_type: str = "INTRADAY"
+    max_position_size: Optional[int] = None
 
 class OptimizationRequest(BaseModel):
     strategy_id: str
@@ -146,114 +134,77 @@ class OptimizationRequest(BaseModel):
     initial_capital: float = 100000.0
     trade_type: str = "INTRADAY"
 
-# --- AUTH & SMARTAPI BRIDGE ENDPOINTS ---
+class SmartAPIConnectRequest(BaseModel):
+    totp: str
 
-@app.post("/api/auth/register")
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    existing = db.query(UserDB).filter(UserDB.username == req.username).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
+
+
+@app.get("/api/auth/smartapi/status")
+def smartapi_status():
+    api_key = os.getenv("SMARTAPI_API_KEY")
+    client_code = os.getenv("SMARTAPI_CLIENT_CODE")
+    password = os.getenv("SMARTAPI_PASSWORD")
     
-    # In production use bcrypt, plain hashes for simplicity of zero-config setup
-    user = UserDB(username=req.username, password_hash=req.password)
-    db.add(user)
-    db.commit()
-    return {"message": "Registration successful", "user_id": user.id}
-
-@app.post("/api/auth/login")
-def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.username == req.username).first()
-    if not user or user.password_hash != req.password:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    return {
-        "message": "Login successful",
-        "user_id": user.id,
-        "smartapi_configured": bool(user.smartapi_api_key)
-    }
-
-@app.get("/api/auth/smartapi/env")
-def get_smartapi_env():
-    return {
-        "client_code": os.getenv("SMARTAPI_CLIENT_CODE", ""),
-        "password": os.getenv("SMARTAPI_PASSWORD", ""),
-        "api_key": os.getenv("SMARTAPI_API_KEY", "")
-    }
-
-@app.post("/api/auth/smartapi/configure")
-def configure_smartapi(req: SmartAPICredsRequest, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.username == req.username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if req.remember_me:
-        user.smartapi_api_key = req.api_key
-        user.smartapi_client_code = req.client_code
-        user.smartapi_password = req.password
-        db.commit()
+    configured = bool(api_key and client_code and password)
     
-    # Try connecting immediately to verify credentials
-    client = SmartAPIClient(
-        api_key=req.api_key,
-        client_code=req.client_code,
-        password=req.password
-    )
-    success = client.connect(totp=req.totp)
-    if success:
-        active_clients[req.username] = client
-    
-    return {
-        "message": "Configuration updated" if req.remember_me else "Configuration validated",
-        "connection_success": success,
-        "remembered": req.remember_me
-    }
-
-@app.get("/api/auth/smartapi/status/{username}")
-def smartapi_status(username: str, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.username == username).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    configured = bool(user.smartapi_api_key)
-    
-    # Check if there is an active client that is connected
-    client = active_clients.get(username)
+    # Check if the global client is connected
     connected = False
-    if client and client.jwt_token and client.is_configured():
+    if global_smart_client and global_smart_client.jwt_token and global_smart_client.is_configured():
         connected = True
         
     return {
         "configured": configured,
         "connected": connected,
-        "client_code": user.smartapi_client_code if configured else None
+        "client_code": client_code if configured else None
     }
+
+@app.post("/api/auth/smartapi/connect")
+def smartapi_connect(req: SmartAPIConnectRequest):
+    global global_smart_client
+    
+    api_key = os.getenv("SMARTAPI_API_KEY")
+    client_code = os.getenv("SMARTAPI_CLIENT_CODE")
+    password = os.getenv("SMARTAPI_PASSWORD")
+    
+    if not (api_key and client_code and password):
+        raise HTTPException(status_code=400, detail="SmartAPI credentials missing in .env file.")
+        
+    client = SmartAPIClient(
+        api_key=api_key,
+        client_code=client_code,
+        password=password
+    )
+    
+    success = client.connect(totp=req.totp)
+    if success:
+        global_smart_client = client
+        return {"connection_success": True, "message": "Connected successfully"}
+    else:
+        return {"connection_success": False, "message": client.last_error}
 
 # --- DATA STORAGE & DOWNLOAD ENDPOINTS ---
 
 @app.post("/api/data/download")
-def download_data(req: DownloadDataRequest, username: Optional[str] = None, db: Session = Depends(get_db)):
-    if not req.totp:
-        raise HTTPException(status_code=400, detail="TOTP required to authenticate SmartAPI.")
-        
-    client_args = {}
-    if username:
-        user = db.query(UserDB).filter(UserDB.username == username).first()
-        if user and user.smartapi_api_key:
-            client_args = {
-                "api_key": user.smartapi_api_key,
-                "client_code": user.smartapi_client_code,
-                "password": user.smartapi_password
-            }
-            
-    client = SmartAPIClient(**client_args)
+def download_data(req: DownloadDataRequest):
+    global global_smart_client, active_feed_key
+    
+    # Use existing client if already authenticated
+    client = global_smart_client if global_smart_client and global_smart_client.jwt_token else SmartAPIClient(
+        api_key=os.getenv("SMARTAPI_API_KEY"),
+        client_code=os.getenv("SMARTAPI_CLIENT_CODE"),
+        password=os.getenv("SMARTAPI_PASSWORD")
+    )
+    
     if not client.is_configured():
-        raise HTTPException(status_code=400, detail="SmartAPI credentials not configured.")
+        raise HTTPException(status_code=400, detail="SmartAPI credentials not configured in .env file.")
         
-    success = client.connect(totp=req.totp)
-    if not success:
-        raise HTTPException(status_code=400, detail=f"Failed to connect to SmartAPI: {client.last_error or 'Unknown error'}")
-        
-    if username:
-        active_clients[username] = client
+    # Connect if not already authenticated or if TOTP provided for refresh
+    if req.totp or not client.jwt_token:
+        if not req.totp:
+            raise HTTPException(status_code=400, detail="TOTP required for SmartAPI authentication.")
+        if not client.connect(totp=req.totp):
+            raise HTTPException(status_code=400, detail=f"SmartAPI login failed: {client.last_error}")
+        global_smart_client = client
             
     df = client.fetch_historical_candles(
         symbol=req.symbol,
@@ -271,15 +222,30 @@ def download_data(req: DownloadDataRequest, username: Optional[str] = None, db: 
     catalog = client.load_catalog()
     key = f"{req.symbol.upper()}_{req.interval.upper()}"
     
+    # Mark this as the active feed immediately
+    active_feed_key = key
+    
     return {
         "message": "Dataset downloaded and cataloged successfully.",
-        "details": catalog.get(key, {})
+        "details": catalog.get(key, {}),
+        "active_feed": key,
+        "catalog": catalog # Returning full catalog ensures the list updates in the UI
     }
 
 @app.get("/api/data/datasets")
 def list_datasets():
     client = SmartAPIClient()
     return client.load_catalog()
+
+@app.get("/api/data/active")
+def get_active_feed():
+    return {"active_feed_key": active_feed_key}
+
+@app.post("/api/data/active")
+def set_active_feed(req: Dict[str, str]):
+    global active_feed_key
+    active_feed_key = req.get("key")
+    return {"status": "success", "active_feed_key": active_feed_key}
 
 @app.get("/api/data/symbols/search")
 def search_symbols(q: str):
@@ -318,12 +284,32 @@ def get_dataset(symbol: str, interval: str):
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail="Dataset not found or empty.")
         
+    # Format time column for Lightweight Charts compatibility
+    # Intraday data requires Unix timestamps (seconds), Daily data requires YYYY-MM-DD
+    try:
+        # Convert the time column to datetime objects to ensure clean formatting
+        times = pd.to_datetime(df['time'])
+        
+        if interval.upper() == "ONE_DAY":
+            # Daily bars: Lightweight Charts expects "YYYY-MM-DD"
+            df['time'] = times.dt.strftime('%Y-%m-%d')
+        else:
+            # Intraday bars: Lightweight Charts expects Unix timestamp (integer seconds)
+            df['time'] = times.apply(lambda x: int(x.timestamp()))
+    except Exception as e:
+        print(f"DEBUG: Date formatting error for {symbol}: {e}")
+
+    # Calculate a suggested max position size based on current price and default 1L capital
+    avg_price = df['close'].iloc[-100:].mean() if not df.empty else 0
+    suggested_max_pos = int(100000 / avg_price) if avg_price > 0 else 0
+
     # Return first 2000 rows as list of dicts for safety of JSON size
     data = df.to_dict(orient="records")
     return {
         "symbol": symbol.upper(),
         "interval": interval.upper(),
         "total_records": len(df),
+        "suggested_max_position": suggested_max_pos,
         "candles": data[:2000]  # Limit payload
     }
 
@@ -372,11 +358,11 @@ def update_strategy(strategy_id: str, req: StrategyCreateRequest, db: Session = 
     if not s:
         raise HTTPException(status_code=404, detail="Strategy not found")
         
-    s.name = req.name
-    s.description = req.description
-    s.code = req.code
-    s.version += 1
-    s.updated_at = datetime.utcnow()
+    setattr(s, 'name', req.name)
+    setattr(s, 'description', req.description)
+    setattr(s, 'code', req.code)
+    setattr(s, 'version', cast(int, s.version) + 1)
+    setattr(s, 'updated_at', datetime.now(timezone.utc))
     
     db.commit()
     return {"message": "Strategy updated successfully", "id": s.id, "version": s.version}
@@ -428,16 +414,22 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     if df.empty:
         raise HTTPException(status_code=400, detail="Target date range contains 0 candles.")
 
+    # Calculate or use provided max_position_size
+    avg_price = df['close'].mean()
+    auto_max_pos = int(req.initial_capital / avg_price) if avg_price > 0 else 1
+    final_max_pos = req.max_position_size if (req.max_position_size and req.max_position_size > 0) else auto_max_pos
+
     # 3. Instantiate engine and run backtest
     run_id = f"B-{uuid.uuid4().hex[:8].upper()}"
     df_dict = {req.symbol.upper(): df.drop(columns=['time_dt'])}
     
     engine = BacktestEngine(
         df_dict=df_dict,
-        strategy_code=s.code,
+        strategy_code=cast(str, s.code),
         initial_capital=req.initial_capital,
         slippage_pct=req.slippage_pct,
-        default_trade_type=req.trade_type
+        default_trade_type=req.trade_type,
+        max_position_size=final_max_pos
     )
 
     try:
@@ -447,6 +439,9 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
 
     # 4. Process analytics metrics
     metrics = calculate_metrics(res['equity_curve'], res['trades'], req.initial_capital)
+    
+    # Persist the equity curve (including position data) in the metrics JSON
+    metrics['equity_curve'] = res['equity_curve']
     
     # 5. Catalog the results in database
     result = BacktestResultDB(
@@ -467,8 +462,9 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
         win_rate=metrics.get("win_rate", 0.0),
         profit_factor=metrics.get("profit_factor", 0.0),
         total_fees=metrics.get("cost_breakdown", {}).get("total_fees", 0.0),
+        max_position_size=final_max_pos,
         log_file_path=res['log_file_path'],
-        metrics_json=json.dumps(metrics)
+        metrics_json=cast(str, json.dumps(metrics))
     )
     
     db.add(result)
@@ -477,6 +473,7 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     return {
         "run_id": run_id,
         "metrics": metrics,
+        "equity_curve": res['equity_curve'],
         "final_equity": res['final_portfolio']['equity']
     }
 
@@ -494,6 +491,7 @@ def list_backtest_results(db: Session = Depends(get_db)):
         "cagr": r.cagr,
         "sharpe_ratio": r.sharpe_ratio,
         "max_drawdown": r.max_drawdown,
+        "max_position_size": r.max_position_size,
         "created_at": r.created_at
     } for r in results]
 
@@ -521,7 +519,7 @@ def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
         "win_rate": r.win_rate,
         "profit_factor": r.profit_factor,
         "total_fees": r.total_fees,
-        "metrics": json.loads(r.metrics_json),
+        "metrics": json.loads(cast(str, r.metrics_json)),
         "created_at": r.created_at
     }
 
@@ -531,13 +529,13 @@ def get_backtest_logs(run_id: str, db: Session = Depends(get_db)):
     if not r:
         raise HTTPException(status_code=404, detail="Backtest run not found")
         
-    if not os.path.exists(r.log_file_path):
+    if not os.path.exists(cast(str, r.log_file_path)):
         raise HTTPException(status_code=404, detail="Log file missing on disk")
         
     events = []
-    with open(r.log_file_path, "r") as f:
+    with open(cast(str, r.log_file_path), "r") as f:
         for line in f:
-            events.append(json.loads(line.strip()))
+            events.append(json.loads(cast(str, line.strip())))
             
     return events
 
@@ -550,7 +548,7 @@ def get_regime_attribution(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Backtest run not found")
         
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(r.symbol, r.interval)
+    df = client.load_dataset_parquet(cast(str, r.symbol), cast(str, r.interval))
     if df is None:
         raise HTTPException(status_code=404, detail="Original Parquet dataset missing from catalog.")
         
@@ -560,7 +558,7 @@ def get_regime_attribution(run_id: str, db: Session = Depends(get_db)):
     for ev in events:
         trades.extend(ev.get('orders_filled', []))
         
-    attribution = attribute_performance_by_regime({r.symbol: df}, trades)
+    attribution = attribute_performance_by_regime({cast(str, r.symbol): df}, trades)
     return attribution
 
 # --- CAPITAL STUDIO ---
@@ -577,7 +575,7 @@ def get_capital_analysis(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Strategy script missing in DB.")
         
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(r.symbol, r.interval)
+    df = client.load_dataset_parquet(cast(str, r.symbol), cast(str, r.interval))
     if df is None:
         raise HTTPException(status_code=404, detail="Parquet dataset not found.")
         
@@ -588,24 +586,24 @@ def get_capital_analysis(run_id: str, db: Session = Depends(get_db)):
     else:
         df['time_dt'] = time_series
         
-    start_dt = pd.to_datetime(r.start_time)
+    start_dt = pd.to_datetime(cast(str, r.start_time))
     if start_dt.tz is not None:
         start_dt = start_dt.tz_localize(None)
         
-    end_dt = pd.to_datetime(r.end_time)
+    end_dt = pd.to_datetime(cast(str, r.end_time))
     if end_dt.tz is not None:
         end_dt = end_dt.tz_localize(None)
         
     if len(r.end_time.strip()) <= 10:
         end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
     df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
-    df_dict = {r.symbol: df.drop(columns=['time_dt'])}
+    df_dict = {cast(str, r.symbol): df.drop(columns=['time_dt'])}
     
     # Run multi-pass capital simulations
     analysis = analyze_capital_requirements(
         df_dict=df_dict,
-        strategy_code=s.code,
-        default_trade_type=r.interval
+        strategy_code=cast(str, s.code),
+        default_trade_type=cast(str, r.interval)
     )
     return analysis
 
@@ -648,7 +646,7 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
         
     sweep_results = run_parameter_sweep(
         df_dict=df_dict,
-        strategy_code=s.code,
+        strategy_code=cast(str, s.code),
         param_grid=param_grid,
         initial_capital=req.initial_capital,
         default_trade_type=req.trade_type
