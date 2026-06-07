@@ -28,13 +28,6 @@ export default function Home() {
   const [totpInput, setTotpInput] = useState<string>("");
   const [pendingAction, setPendingAction] = useState<"AUTH" | "DOWNLOAD" | null>(null);
 
-  const [smartapiCreds, setSmartapiCreds] = useState({
-    apiKey: "",
-    clientCode: "",
-    password: "",
-    rememberMe: true
-  });
-
   // Data Collections
   const [datasets, setDatasets] = useState<any[]>([]);
   const [strategies, setStrategies] = useState<any[]>([]);
@@ -51,6 +44,7 @@ export default function Home() {
         self.name = "EMA Crossover Template"
         self.ema_fast = 9
         self.ema_slow = 21
+        self.trade_qty = 10 # Quantity to buy/sell per signal
 
     def on_bar(self, state):
         orders = []
@@ -67,22 +61,27 @@ export default function Home() {
             pos = state.positions.get(symbol)
             qty = pos.qty if pos else 0
             
+            # Entry/Exit logic with quantity tracking
+            # Note: The engine enforces the 'Max Position Limit' automatically
+            
             if ema_f > ema_s and qty <= 0:
+                # Buy signal: enter or flip long
                 orders.append({
                     "symbol": symbol,
                     "direction": "BUY",
                     "type": "MARKET",
                     "price": 0.0,
-                    "qty": 10 if qty == 0 else 20
+                    "qty": self.trade_qty if qty == 0 else (self.trade_qty * 2)
                 })
                 print(f"BUY Signal generated at {state.current_time}")
             elif ema_f < ema_s and qty >= 0:
+                # Sell signal: enter or flip short
                 orders.append({
                     "symbol": symbol,
                     "direction": "SELL",
                     "type": "MARKET",
                     "price": 0.0,
-                    "qty": 10 if qty == 0 else 20
+                    "qty": self.trade_qty if qty == 0 else (self.trade_qty * 2)
                 })
                 print(f"SELL Signal generated at {state.current_time}")
                 
@@ -100,6 +99,7 @@ export default function Home() {
   const [initialCapital, setInitialCapital] = useState<number>(100000);
   const [slippagePct, setSlippagePct] = useState<number>(0.05);
   const [tradeType, setTradeType] = useState<string>("INTRADAY");
+  const [maxPositionSize, setMaxPositionSize] = useState<number>(0);
 
   // Research, Capital, and Optimization Dashboards States
   const [researchData, setResearchData] = useState<any>(null);
@@ -173,46 +173,29 @@ export default function Home() {
 
   const fetchCoreData = async () => {
     try {
+      // Use independent catchers for each fetch to prevent "Failed to fetch" from crashing the loop
       // 1. Fetch Strategies
-      const resStrat = await fetch(`${API_BASE}/strategies`);
-      if (resStrat.ok) {
-        const data = await resStrat.json();
-        setStrategies(data);
-      }
-      
+      const stratReq = fetch(`${API_BASE}/strategies`).then(r => r.ok ? r.json() : null).catch(() => null);
+
       // 2. Fetch Parquet Catalog
-      const resCat = await fetch(`${API_BASE}/data/datasets`);
-      if (resCat.ok) {
-        const data = await resCat.json();
-        setDatasets(Object.values(data));
-      }
+      const catReq = fetch(`${API_BASE}/data/datasets`).then(r => r.ok ? r.json() : null).catch(() => null);
 
       // 3. Fetch Runs Catalog
-      const resRuns = await fetch(`${API_BASE}/backtest/results`);
-      if (resRuns.ok) {
-        const data = await resRuns.json();
-        setBacktestRuns(data);
-      }
+      const runsReq = fetch(`${API_BASE}/backtest/results`).then(r => r.ok ? r.json() : null).catch(() => null);
 
       // 4. Fetch SmartAPI Status
-      const resSapi = await fetch(`${API_BASE}/auth/smartapi/status/default_user`);
-      if (resSapi.ok) {
-        const data = await resSapi.json();
-        setSmartapiConfigured(data.configured);
-        setSmartapiConnected(data.connected);
+      const sapiReq = fetch(`${API_BASE}/auth/smartapi/status`).then(r => r.ok ? r.json() : null).catch(() => null);
+
+      const [stratData, catData, runsData, sapiData] = await Promise.all([stratReq, catReq, runsReq, sapiReq]);
+
+      if (stratData) setStrategies(stratData);
+      if (catData) setDatasets(Object.values(catData));
+      if (runsData) setBacktestRuns(runsData);
+      if (sapiData) {
+        setSmartapiConfigured(sapiData.configured);
+        setSmartapiConnected(sapiData.connected);
       }
 
-      // 5. Fetch SmartAPI Env Defaults
-      const resEnv = await fetch(`${API_BASE}/auth/smartapi/env`);
-      if (resEnv.ok) {
-        const envData = await resEnv.json();
-        setSmartapiCreds(prev => ({
-          ...prev,
-          clientCode: prev.clientCode || envData.client_code,
-          password: prev.password || envData.password,
-          apiKey: prev.apiKey || envData.api_key,
-        }));
-      }
     } catch (e) {
       console.error("Error fetching dashboard catalog: ", e);
     }
@@ -408,6 +391,7 @@ export default function Home() {
       sortino_ratio: 2.12,
       max_drawdown: 0.042,
       win_rate: 0.60,
+      max_position_size: maxPositionSize,
       profit_factor: 1.74,
       total_fees: fees,
       metrics: {
@@ -445,6 +429,7 @@ export default function Home() {
         total_pnl: resultObj.final_portfolio.equity - initialCapital,
         cagr: 0.154,
         sharpe_ratio: 1.84,
+        max_position_size: maxPositionSize,
         max_drawdown: 0.042,
         created_at: new Date().toISOString()
       },
@@ -525,16 +510,11 @@ export default function Home() {
 
   const finalizeAuth = async (code: string) => {
     try {
-      const res = await fetch(`${API_BASE}/auth/smartapi/configure`, {
+      const res = await fetch(`${API_BASE}/auth/smartapi/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: "default_user",
-          api_key: smartapiCreds.apiKey,
-          client_code: smartapiCreds.clientCode,
-          password: smartapiCreds.password,
-          totp: code,
-          remember_me: smartapiCreds.rememberMe
+          totp: code
         })
       });
       const data = await res.json();
@@ -581,7 +561,7 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/data/download?username=default_user`, {
+      const res = await fetch(`${API_BASE}/data/download`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -715,7 +695,8 @@ export default function Home() {
           end_date,
           initial_capital: initialCapital,
           slippage_pct: slippagePct / 100.0,
-          trade_type: tradeType
+          trade_type: tradeType,
+          max_position_size: maxPositionSize
         })
       });
       
@@ -912,6 +893,43 @@ export default function Home() {
     return trades;
   }, [replayEvents, currentStep]);
 
+  // Calculate Position Exposure Curve (Total Quantity held over time)
+  const positionCurveData = useMemo(() => {
+    if (replayEvents.length === 0) return [];
+    return replayEvents.slice(0, currentStep + 1).map(ev => ({
+      time: ev.timestamp,
+      value: ev.portfolio.positions 
+        ? Object.values(ev.portfolio.positions).reduce((acc: number, p: any) => acc + p.qty, 0) 
+        : 0
+    }));
+  }, [replayEvents, currentStep]);
+
+  const handleDatasetChange = async (val: string) => {
+    setSelectedDataset(val);
+    if (!val) {
+      setMaxPositionSize(0);
+      return;
+    }
+
+    if (backendOnline) {
+      try {
+        const parts = val.split("_");
+        const symbol = parts[0];
+        const interval = parts.slice(1).join("_");
+        const res = await fetch(`${API_BASE}/data/datasets/${symbol}/${interval}`);
+        if (res.ok) {
+          const data = await res.json();
+          // Initialize slider with the backend's suggested optimal value
+          setMaxPositionSize(data.suggested_max_position || 0);
+        }
+      } catch (err) {
+        console.error("Error fetching dataset metadata:", err);
+      }
+    } else {
+      setMaxPositionSize(Math.floor(initialCapital / 500));
+    }
+  };
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#050811] text-[#E2E8F0]">
       {/* Sidebar Navigation */}
@@ -1070,49 +1088,13 @@ export default function Home() {
                       Connect to Angel One SmartAPI to download real historical market ticks. Credentials are encrypted and stored in local catalog.
                     </p>
                     
-                    <form onSubmit={triggerAuth} className="space-y-3">
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">API Key</label>
-                        <input
-                          type="password"
-                          value={smartapiCreds.apiKey}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, apiKey: e.target.value })}
-                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
-                          placeholder="SmartAPI Developer API Key"
-                        />
+                    <form onSubmit={triggerAuth}>
+                      <div className="p-3 bg-slate-900/50 border border-dashed border-slate-800 rounded-lg text-center mb-4">
+                        <p className="text-[10px] text-slate-500 uppercase font-bold">Authenticated via .env</p>
                       </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Client Code</label>
-                        <input
-                          type="text"
-                          value={smartapiCreds.clientCode}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, clientCode: e.target.value })}
-                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
-                          placeholder="e.g. S123456"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Password</label>
-                        <input
-                          type="password"
-                          value={smartapiCreds.password}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, password: e.target.value })}
-                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
-                          placeholder="SmartAPI Account Password"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400">
-                        <input
-                          type="checkbox"
-                          checked={smartapiCreds.rememberMe}
-                          onChange={e => setSmartapiCreds({ ...smartapiCreds, rememberMe: e.target.checked })}
-                          className="h-3 w-3 rounded border border-slate-700 bg-slate-950 text-blue-600"
-                        />
-                        Remember credentials (never store TOTP)
-                      </label>
                       <button
                         type="submit"
-                        className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all"
                       >
                         Authenticate SmartAPI
                       </button>
@@ -1150,7 +1132,7 @@ export default function Home() {
                         <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Select Dataset (Parquet)</label>
                         <select
                           value={selectedDataset}
-                          onChange={e => setSelectedDataset(e.target.value)}
+                          onChange={e => handleDatasetChange(e.target.value)}
                           className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
                         >
                           <option value="">-- Choose Dataset --</option>
@@ -1203,6 +1185,22 @@ export default function Home() {
                         </div>
                       </div>
 
+                      <div className="col-span-2">
+                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex justify-between">
+                          <span>Max Position Limit (Quantity)</span>
+                          <span className="text-blue-400 font-mono">{maxPositionSize} Qty</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="1"
+                          max={maxPositionSize > 0 ? Math.max(maxPositionSize * 5, 2000) : 2000}
+                          value={maxPositionSize}
+                          onChange={e => setMaxPositionSize(Number(e.target.value))}
+                          className="w-full accent-blue-500 h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer border border-slate-800"
+                        />
+                        <p className="text-[9px] text-slate-500 mt-1 italic font-medium">Optimal value calculated based on capital vs asset price. Limits total held quantity.</p>
+                      </div>
+
                       <div className="flex items-end">
                         <button
                           onClick={handleRunBacktest}
@@ -1231,6 +1229,7 @@ export default function Home() {
                         <th>Period Dates</th>
                         <th>Net Profit</th>
                         <th>Sharpe Ratio</th>
+                        <th>Max Qty</th>
                         <th className="text-right">Action</th>
                       </tr>
                     </thead>
@@ -1246,6 +1245,7 @@ export default function Home() {
                             ₹{run.total_pnl.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                           </td>
                           <td className="font-bold">{run.sharpe_ratio.toFixed(2)}</td>
+                          <td className="font-mono text-slate-500">{run.max_position_size || "Auto"}</td>
                           <td className="text-right">
                             <button
                               onClick={() => handleSelectRun(run.id)}
@@ -1626,6 +1626,43 @@ export default function Home() {
                     )}
                   </div>
 
+                  {/* Position Exposure Baseline Chart */}
+                  <div className="glass-panel rounded-xl overflow-hidden h-32 flex flex-col shrink-0 border border-slate-800/50">
+                    <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers size={12} className="text-blue-400" />
+                        <span>Net Position Exposure (Inventory)</span>
+                      </div>
+                      <span className={positionCurveData[positionCurveData.length - 1]?.value >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                        {positionCurveData[positionCurveData.length - 1]?.value || 0} Units
+                      </span>
+                    </div>
+                    <div className="flex-1 p-2 bg-slate-950/40 relative">
+                       {/* Zero Baseline reference */}
+                       <div className="absolute left-0 right-0 top-1/2 border-t border-slate-800/50 z-0" />
+                       
+                       <div className="absolute inset-0 flex items-center px-2 gap-[1px] z-10">
+                          {(() => {
+                            const dataToDisplay = positionCurveData.slice(-100);
+                            const maxAbs = Math.max(...dataToDisplay.map(v => Math.abs(v.value)), 1);
+                            return dataToDisplay.map((d, i) => {
+                              const height = (Math.abs(d.value) / maxAbs) * 50;
+                              return (
+                                <div key={i} className="flex-1 flex flex-col h-full">
+                                  <div className="flex-1 flex flex-col justify-end">
+                                    {d.value > 0 && <div className="bg-emerald-500/40 w-full rounded-t-sm transition-all duration-300" style={{ height: `${height}%` }} />}
+                                  </div>
+                                  <div className="flex-1 flex flex-col justify-start">
+                                    {d.value < 0 && <div className="bg-rose-500/40 w-full rounded-b-sm transition-all duration-300" style={{ height: `${height}%` }} />}
+                                  </div>
+                                </div>
+                              );
+                            });
+                          })()}
+                       </div>
+                    </div>
+                  </div>
+
                   {/* Sandbox Print Logs Output */}
                   <div className="glass-panel rounded-xl overflow-hidden h-36 flex flex-col shrink-0">
                     <div className="px-3 py-1.5 bg-slate-950 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400 flex items-center justify-between">
@@ -1658,6 +1695,7 @@ export default function Home() {
                       { label: "Margin Used", val: `₹${currentPortfolio?.margin_used?.toLocaleString(undefined, { maximumFractionDigits: 1 }) || "0.0"}` },
                       { label: "Margin Free", val: `₹${currentPortfolio?.margin_free?.toLocaleString(undefined, { maximumFractionDigits: 1 }) || "0.0"}` },
                       { label: "Total Fees Paid", val: `₹${currentPortfolio?.total_fees?.toLocaleString(undefined, { maximumFractionDigits: 1 }) || "0.0"}` },
+                      { label: "Max Pos Limit", val: `${backtestDetail?.max_position_size || "Auto"}` },
                     ].map((row, i) => (
                       <div key={i} className="flex justify-between items-center text-xs py-1 border-b border-slate-800/40">
                         <span className="text-slate-400">{row.label}</span>

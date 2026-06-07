@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime
 from typing import Generator
-from sqlalchemy import create_engine, Column, String, Integer, Float, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Float, Text, DateTime, ForeignKey, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -17,21 +17,6 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
-# 1. User Table
-class UserDB(Base):
-    __tablename__ = "users"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    
-    # SmartAPI configurations
-    smartapi_api_key = Column(String, nullable=True)
-    smartapi_client_code = Column(String, nullable=True)
-    smartapi_password = Column(String, nullable=True)
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 # 2. Strategy Table
 class StrategyDB(Base):
@@ -68,6 +53,7 @@ class BacktestResultDB(Base):
     win_rate = Column(Float, nullable=False)
     profit_factor = Column(Float, nullable=False)
     total_fees = Column(Float, nullable=False)
+    max_position_size = Column(Integer, nullable=True)
     
     log_file_path = Column(String, nullable=False)
     metrics_json = Column(Text, nullable=False)  # Holds all detailed sub-metrics, trade metrics, and cost breakdown
@@ -76,20 +62,16 @@ class BacktestResultDB(Base):
 def init_db():
     """Initializes and creates all database tables and seeds the default user."""
     Base.metadata.create_all(bind=engine)
-    
-    db = SessionLocal()
+
+    # More robust migration for SQLite: try adding the column and ignore if it exists
     try:
-        default_user = db.query(UserDB).filter(UserDB.username == "default_user").first()
-        if not default_user:
-            print("INFO: Seeding default_user into database...")
-            user = UserDB(username="default_user", password_hash="password")
-            db.add(user)
-            db.commit()
-            print("INFO: Seeding complete.")
-    except Exception as e:
-        print(f"ERROR: Failed to seed default user: {e}")
-    finally:
-        db.close()
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE backtest_results ADD COLUMN max_position_size INTEGER"))
+            conn.commit()
+            print("INFO: Database migration: Added 'max_position_size' to 'backtest_results' table.")
+    except Exception:
+        # Column likely already exists, ignore error
+        pass
 
 def get_db() -> Generator[Session, None, None]:
     """Dependency to inject database session into FastAPI routes."""
