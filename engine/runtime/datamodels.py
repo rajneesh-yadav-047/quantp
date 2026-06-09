@@ -1,11 +1,11 @@
 """
-Prosperity-compatible runtime datamodels.
+QuantLab unified trading strategy runtime.
 
-Defines the contract between the backtester and user strategies:
+Defines the contract between backtester and user strategies:
 - OrderDepth: market microstructure (bid/ask levels)
-- TradingState: complete market state per tick (orders, trades, positions, observations)
+- TradingState: complete market state per tick
 - Logger: structured logging with JSON flush
-- Trade, Order, Listing: transaction and instrument metadata
+- Unified runtime for all strategy types
 """
 
 from typing import Dict, List, Optional, Any, Tuple
@@ -15,7 +15,7 @@ import json
 
 
 class OrderType(str, Enum):
-    """Order types in Prosperity."""
+    """Order types."""
     BUY = "BUY"
     SELL = "SELL"
 
@@ -94,7 +94,7 @@ class Position:
 
 @dataclass
 class Listing:
-    """Instrument metadata (optional; for future use)."""
+    """Instrument metadata."""
     symbol: str
     name: Optional[str] = None
     exchange: Optional[str] = None
@@ -106,7 +106,7 @@ class Listing:
 
 @dataclass
 class Observation:
-    """Observations about market state (custom strategy data)."""
+    """Custom observations about market state."""
     data: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -118,9 +118,8 @@ class TradingState:
     """
     Complete market state snapshot for a single tick.
     
-    This is the interface between the backtester and user strategy.
-    Replaces raw DataFrame rows and provides structured access to
-    orders, trades, positions, and observations.
+    This is the unified interface between backtester and strategy.
+    Provides structured access to orders, trades, positions, and market data.
     """
     timestamp: str
     order_depths: Dict[str, OrderDepth]      # Symbol -> order book
@@ -129,9 +128,9 @@ class TradingState:
     positions: Dict[str, Position]           # Symbol -> current position
     portfolio_value: float                   # Total equity
     cash: float                              # Available cash
-    trader_data: str                         # JSON-serialized strategy memory
-    listings: Dict[str, Listing] = field(default_factory=dict)  # Instrument metadata
-    observations: Dict[str, Observation] = field(default_factory=dict)  # Custom data
+    strategy_state: str                      # JSON-serialized strategy memory (persisted across ticks)
+    listings: Dict[str, Listing] = field(default_factory=dict)
+    observations: Dict[str, Observation] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict for logging."""
@@ -143,7 +142,7 @@ class TradingState:
             "positions": {k: v.to_dict() for k, v in self.positions.items()},
             "portfolio_value": self.portfolio_value,
             "cash": self.cash,
-            "trader_data": self.trader_data,
+            "strategy_state": self.strategy_state,
             "listings": {k: v.to_dict() for k, v in self.listings.items()},
             "observations": {k: v.to_dict() for k, v in self.observations.items()},
         }
@@ -153,8 +152,7 @@ class Logger:
     """
     Structured logging for strategies.
     
-    Captures logs as JSON and flushes them to a list.
-    Used by strategies to record decisions and debug info.
+    Captures logs as JSON and flushes them as a compressed JSON line.
     """
 
     def __init__(self):
@@ -179,9 +177,9 @@ class Logger:
 
     def flush(self) -> str:
         """
-        Flush logs as a single JSON-encoded string.
+        Flush logs as a single JSON-encoded string (compressed format).
         
-        Returns: JSON-encoded list of log entries (compressed format).
+        Returns: JSON-encoded list of log entries.
         """
         result = json.dumps(self._logs, separators=(',', ':'), default=str)
         self._logs.clear()
