@@ -112,6 +112,8 @@ class StrategyCreateRequest(BaseModel):
     name: str
     description: Optional[str] = ""
     code: str
+    runtime_type: Optional[str] = "legacy_on_bar"  # NEW: "legacy_on_bar" or "prosperity_trader"
+    entrypoint: Optional[str] = None  # NEW: e.g. "trader.py:Trader"
 
 class BacktestRequest(BaseModel):
     strategy_id: str
@@ -322,6 +324,7 @@ def list_strategies(db: Session = Depends(get_db)):
         "id": s.id,
         "name": s.name,
         "description": s.description,
+        "runtime_type": getattr(s, 'runtime_type', 'legacy_on_bar'),
         "version": s.version,
         "updated_at": s.updated_at
     } for s in strategies]
@@ -336,6 +339,8 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
         "name": s.name,
         "description": s.description,
         "code": s.code,
+        "runtime_type": getattr(s, 'runtime_type', 'legacy_on_bar'),
+        "entrypoint": getattr(s, 'entrypoint', None),
         "version": s.version,
         "updated_at": s.updated_at
     }
@@ -346,11 +351,13 @@ def create_strategy(req: StrategyCreateRequest, db: Session = Depends(get_db)):
         name=req.name,
         description=req.description,
         code=req.code,
+        runtime_type=req.runtime_type or "legacy_on_bar",
+        entrypoint=req.entrypoint,
         version=1
     )
     db.add(s)
     db.commit()
-    return {"message": "Strategy created successfully", "id": s.id}
+    return {"message": "Strategy created successfully", "id": s.id, "runtime_type": s.runtime_type}
 
 @app.put("/api/strategies/{strategy_id}")
 def update_strategy(strategy_id: str, req: StrategyCreateRequest, db: Session = Depends(get_db)):
@@ -361,11 +368,13 @@ def update_strategy(strategy_id: str, req: StrategyCreateRequest, db: Session = 
     setattr(s, 'name', req.name)
     setattr(s, 'description', req.description)
     setattr(s, 'code', req.code)
+    setattr(s, 'runtime_type', req.runtime_type or "legacy_on_bar")
+    setattr(s, 'entrypoint', req.entrypoint)
     setattr(s, 'version', cast(int, s.version) + 1)
     setattr(s, 'updated_at', datetime.now(timezone.utc))
     
     db.commit()
-    return {"message": "Strategy updated successfully", "id": s.id, "version": s.version}
+    return {"message": "Strategy updated successfully", "id": s.id, "version": s.version, "runtime_type": s.runtime_type}
 
 @app.delete("/api/strategies/{strategy_id}")
 def delete_strategy(strategy_id: str, db: Session = Depends(get_db)):
@@ -429,7 +438,8 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
         initial_capital=req.initial_capital,
         slippage_pct=req.slippage_pct,
         default_trade_type=req.trade_type,
-        max_position_size=final_max_pos
+        max_position_size=final_max_pos,
+        runtime_type=getattr(s, 'runtime_type', 'legacy_on_bar'),  # NEW: pass runtime_type
     )
 
     try:
@@ -525,6 +535,10 @@ def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
 
 @app.get("/api/backtest/logs/{run_id}")
 def get_backtest_logs(run_id: str, db: Session = Depends(get_db)):
+    """
+    Get replay events for a backtest run.
+    Returns structured JSONL events with strategy logs, trades, and portfolio state.
+    """
     r = db.query(BacktestResultDB).filter(BacktestResultDB.id == run_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Backtest run not found")
@@ -535,7 +549,17 @@ def get_backtest_logs(run_id: str, db: Session = Depends(get_db)):
     events = []
     with open(cast(str, r.log_file_path), "r") as f:
         for line in f:
-            events.append(json.loads(cast(str, line.strip())))
+            try:
+                event = json.loads(line.strip())
+                # Parse strategy_logs if it's a JSON string
+                if isinstance(event.get('strategy_logs'), str):
+                    try:
+                        event['strategy_logs'] = json.loads(event['strategy_logs'])
+                    except json.JSONDecodeError:
+                        event['strategy_logs'] = []
+                events.append(event)
+            except json.JSONDecodeError:
+                pass  # Skip malformed lines
             
     return events
 
