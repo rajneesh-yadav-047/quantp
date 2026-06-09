@@ -142,6 +142,8 @@ export default function Home() {
       setSuggestions([]);
       return;
     }
+    if (!backendOnline) return;
+
     const delayDebounceFn = setTimeout(() => {
       fetch(`${API_BASE}/data/symbols/search?q=${dlSymbol}`)
         .then(res => res.json())
@@ -150,7 +152,7 @@ export default function Home() {
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [dlSymbol]);
+  }, [dlSymbol, backendOnline]);
 
   const triggerNotif = (type: "success" | "error" | "info", msg: string) => {
     setNotif({ type, msg });
