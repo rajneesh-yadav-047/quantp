@@ -4,15 +4,18 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
   LineChart, Play, Pause, SkipForward, SkipBack, Cpu, FileText, BarChart2,
-  PieChart, Settings, Database, Activity, Code, Shield, HelpCircle,
-  Plus, PlayCircle, RefreshCw, Layers, CheckCircle2, AlertTriangle, AlertCircle, Trash2, ArrowUpRight, ArrowDownRight
+  PieChart, Database, Code, Shield,
+  Plus, PlayCircle, RefreshCw, Layers, CheckCircle2, AlertTriangle, AlertCircle,
+  TrendingUp
 } from "lucide-react";
 
 // Dynamically import client-only libraries to prevent NextJS hydration / SSR errors
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const LightweightChart = dynamic(() => import("../components/LightweightChart"), { ssr: false });
+const PositionChart = dynamic(() => import("../components/PositionChart"), { ssr: false });
+const PnLChart = dynamic(() => import("../components/PnLChart"), { ssr: false });
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 export default function Home() {
   // Navigation State
@@ -41,6 +44,8 @@ export default function Home() {
   // Editor Code State
   const [code, setCode] = useState<string>(`class Strategy:
     def __init__(self):
+        # NEW: runtime_type can be "legacy_on_bar" or "prosperity_trader"
+        # NEW: entrypoint is required for "prosperity_trader" e.g. "trader.py:Trader"
         self.name = "EMA Crossover Template"
         self.ema_fast = 9
         self.ema_slow = 21
@@ -87,6 +92,8 @@ export default function Home() {
                 
         return orders
 `);
+  const [strategyRuntimeType, setStrategyRuntimeType] = useState<string>("legacy_on_bar");
+  const [strategyEntrypoint, setStrategyEntrypoint] = useState<string | null>(null);
 
   // Selected Backtest Details (Replay State)
   const [backtestDetail, setBacktestDetail] = useState<any>(null);
@@ -99,12 +106,42 @@ export default function Home() {
   const [initialCapital, setInitialCapital] = useState<number>(100000);
   const [slippagePct, setSlippagePct] = useState<number>(0.05);
   const [tradeType, setTradeType] = useState<string>("INTRADAY");
+  const [isAutoMaxPos, setIsAutoMaxPos] = useState<boolean>(true);
+  const [autoMaxPosValue, setAutoMaxPosValue] = useState<number>(0);
   const [maxPositionSize, setMaxPositionSize] = useState<number>(0);
 
   // Research, Capital, and Optimization Dashboards States
   const [researchData, setResearchData] = useState<any>(null);
   const [capitalData, setCapitalData] = useState<any>(null);
   const [optimizationGrid, setOptimizationGrid] = useState<any>(null);
+  
+  // Chart indicator toggles
+  const [showEmaFast, setShowEmaFast] = useState<boolean>(true);
+  const [showEmaSlow, setShowEmaSlow] = useState<boolean>(true);
+  const [showBuyTrades, setShowBuyTrades] = useState<boolean>(true);
+  const [showSellTrades, setShowSellTrades] = useState<boolean>(true);
+  
+  // Multi-Asset Backtest State
+  const [multiSymbols, setMultiSymbols] = useState<string>("SBIN");
+  const [multiInterval, setMultiInterval] = useState<string>("ONE_MINUTE");
+  const [multiFromDate, setMultiFromDate] = useState<string>("2026-06-01");
+  const [multiToDate, setMultiToDate] = useState<string>("2026-06-07");
+  const [multiStrategyId, setMultiStrategyId] = useState<string>("");
+  const [isBacktestModalOpen, setIsBacktestModalOpen] = useState<boolean>(false);
+  const [modalCapital, setModalCapital] = useState<number>(100000);
+  const [modalSlippage, setModalSlippage] = useState<number>(0.05);
+  const [modalTradeType, setModalTradeType] = useState<string>("INTRADAY");
+  const [modalMaxPos, setModalMaxPos] = useState<number>(0);
+  const [modalAutoMaxPos, setModalAutoMaxPos] = useState<boolean>(true);
+  
+  // Multi-Asset Replay State (Prosperity-style)
+  const [multiReplayEvents, setMultiReplayEvents] = useState<any[]>([]);
+  const [multiCurrentStep, setMultiCurrentStep] = useState<number>(0);
+  const [multiIsPlaying, setMultiIsPlaying] = useState<boolean>(false);
+  const [multiPlaybackSpeed, setMultiPlaybackSpeed] = useState<number>(2);
+  const [multiSelectedSymbol, setMultiSelectedSymbol] = useState<string>("");
+  const [multiBacktestDetail, setMultiBacktestDetail] = useState<any>(null);
+  const [multiRunId, setMultiRunId] = useState<string>("");
   
   // Optimization Inputs
   const [optParamName1, setOptParamName1] = useState<string>("ema_fast");
@@ -148,7 +185,7 @@ export default function Home() {
       fetch(`${API_BASE}/data/symbols/search?q=${dlSymbol}`)
         .then(res => res.json())
         .then(data => setSuggestions(data))
-        .catch(err => console.error("Error fetching suggestions:", err));
+        .catch(() => {});
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
@@ -198,8 +235,8 @@ export default function Home() {
         setSmartapiConnected(sapiData.connected);
       }
 
-    } catch (e) {
-      console.error("Error fetching dashboard catalog: ", e);
+    } catch {
+      // Silently fail - health check will retry
     }
   };
 
@@ -620,7 +657,13 @@ export default function Home() {
         const res = await fetch(`${API_BASE}/strategies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, description: "Editor strategy", code })
+          body: JSON.stringify({ 
+            name, 
+            description: "Editor strategy", 
+            code,
+            runtime_type: strategyRuntimeType,
+            entrypoint: strategyEntrypoint
+          })
         });
         const data = await res.json();
         if (res.ok) {
@@ -645,7 +688,9 @@ export default function Home() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: stratMeta?.name || "Strategy",
+            name: stratMeta?.name || "Strategy", // Keep existing name
+            runtime_type: strategyRuntimeType,
+            entrypoint: strategyEntrypoint,
             description: stratMeta?.description || "",
             code
           })
@@ -667,6 +712,13 @@ export default function Home() {
     }
     if (!selectedDataset) {
       triggerNotif("info", "Please select a Parquet dataset first.");
+      return;
+    }
+    
+    // Get the selected strategy object to retrieve its runtime_type
+    const selectedStrategy = strategies.find(s => s.id === selectedStrategyId);
+    if (!selectedStrategy) {
+      triggerNotif("error", "Selected strategy not found.");
       return;
     }
 
@@ -691,14 +743,16 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           strategy_id: selectedStrategyId,
-          symbol,
+          symbols: [symbol],
           interval,
           start_date,
           end_date,
           initial_capital: initialCapital,
           slippage_pct: slippagePct / 100.0,
           trade_type: tradeType,
-          max_position_size: maxPositionSize
+          max_position_size: isAutoMaxPos ? autoMaxPosValue : maxPositionSize,
+          runtime_type: selectedStrategy.runtime_type || "legacy_on_bar",
+          auto_download: true
         })
       });
       
@@ -710,10 +764,33 @@ export default function Home() {
         loadBacktestReplay(data.run_id);
         setActiveTab("studio");
       } else {
-        triggerNotif("error", `Backtest failed: ${data.detail || "Engine error"}`);
+        const detail = typeof data.detail === "string" ? data.detail : (data.detail ? JSON.stringify(data.detail) : "Engine error");
+        triggerNotif("error", `Backtest failed: ${detail}`);
       }
-    } catch (e) {
-      triggerNotif("error", "Server communication failure during backtest.");
+    } catch (e: any) {
+      console.error("Backtest fetch error:", e);
+      triggerNotif("error", `Server communication failure: ${e?.message || "Unknown error"}`);
+    }
+  };
+
+  const loadMultiAssetReplay = async (runId: string) => {
+    if (!backendOnline) return;
+    try {
+      const resDet = await fetch(`${API_BASE}/backtest/results/${runId}`);
+      if (resDet.ok) {
+        const data = await resDet.json();
+        setMultiBacktestDetail(data);
+      }
+      const resLogs = await fetch(`${API_BASE}/backtest/logs/${runId}`);
+      if (resLogs.ok) {
+        const logs = await resLogs.json();
+        setMultiReplayEvents(logs);
+        setMultiCurrentStep(0);
+        setMultiIsPlaying(false);
+        setMultiSelectedSymbol("");
+      }
+    } catch {
+      triggerNotif("error", "Error loading multi-asset replay data.");
     }
   };
 
@@ -726,6 +803,8 @@ export default function Home() {
       if (resDet.ok) {
         const data = await resDet.json();
         setBacktestDetail(data);
+        // No need to set strategyRuntimeType/Entrypoint here, as it's for the IDE
+        // The backtestDetail already contains the runtime_type if needed for display
       }
 
       // 2. Fetch Replay Logs
@@ -828,12 +907,21 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setCode(data.code);
+        setStrategyRuntimeType(data.runtime_type || "legacy_on_bar");
+        setStrategyEntrypoint(data.entrypoint || null);
         triggerNotif("success", `Loaded strategy: ${data.name}`);
       }
     } catch {
       triggerNotif("error", "Failed to fetch strategy code.");
     }
   };
+
+  // Sync maxPositionSize when Auto toggle changes or auto value updates
+  useEffect(() => {
+    if (isAutoMaxPos && autoMaxPosValue > 0) {
+      setMaxPositionSize(autoMaxPosValue);
+    }
+  }, [isAutoMaxPos, autoMaxPosValue]);
 
   // --- REPLAY CONTROLS ---
 
@@ -864,7 +952,7 @@ export default function Home() {
     if (replayEvents.length === 0) return [];
     // Extract candles for currentSymbol up to currentStep
     return replayEvents.slice(0, currentStep + 1).map(ev => {
-      const c = ev.candle[currentSymbol];
+      const c = ev.candle?.[currentSymbol];
       return c ? {
         time: ev.timestamp,
         open: c.open,
@@ -900,15 +988,166 @@ export default function Home() {
     if (replayEvents.length === 0) return [];
     return replayEvents.slice(0, currentStep + 1).map(ev => ({
       time: ev.timestamp,
-      value: ev.portfolio.positions 
-        ? Object.values(ev.portfolio.positions).reduce((acc: number, p: any) => acc + p.qty, 0) 
+      value: ev.portfolio?.positions
+        ? Object.values(ev.portfolio.positions).reduce((acc: number, p: any) => acc + p.qty, 0)
         : 0
     }));
   }, [replayEvents, currentStep]);
 
+  // --- MULTI-ASSET REPLAY CONTROLS ---
+
+  useEffect(() => {
+    if (!multiIsPlaying || multiReplayEvents.length === 0) return;
+
+    const intervalVal = setInterval(() => {
+      setMultiCurrentStep(prev => {
+        if (prev >= multiReplayEvents.length - 1) {
+          setMultiIsPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 1000 / multiPlaybackSpeed);
+
+    return () => clearInterval(intervalVal);
+  }, [multiIsPlaying, multiPlaybackSpeed, multiReplayEvents]);
+
+  // Multi-asset derived values
+  const multiCurrentEvent = multiReplayEvents[multiCurrentStep] || null;
+  const multiCandleMap = multiCurrentEvent?.candle || {};
+  const multiSymbolsList = useMemo(() => {
+    if (multiReplayEvents.length === 0) return [];
+    const symbols = new Set<string>();
+    multiReplayEvents.forEach(ev => {
+      if (ev.candle) Object.keys(ev.candle).forEach(s => symbols.add(s));
+    });
+    return Array.from(symbols);
+  }, [multiReplayEvents]);
+
+  // Auto-select first symbol when replay loads
+  useEffect(() => {
+    if (multiSymbolsList.length > 0 && !multiSelectedSymbol) {
+      setMultiSelectedSymbol(multiSymbolsList[0]);
+    }
+  }, [multiSymbolsList, multiSelectedSymbol]);
+
+  const multiActiveCandles = useMemo(() => {
+    if (multiReplayEvents.length === 0 || !multiSelectedSymbol) return [];
+    return multiReplayEvents.slice(0, multiCurrentStep + 1).map(ev => {
+      const c = ev.candle?.[multiSelectedSymbol];
+      return c ? {
+        time: ev.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume
+      } : null;
+    }).filter(Boolean) as any[];
+  }, [multiReplayEvents, multiCurrentStep, multiSelectedSymbol]);
+
+  const multiActiveTrades = useMemo(() => {
+    if (multiReplayEvents.length === 0) return [];
+    const trades: any[] = [];
+    multiReplayEvents.slice(0, multiCurrentStep + 1).forEach(ev => {
+      if (ev.orders_filled && ev.orders_filled.length > 0) {
+        ev.orders_filled.forEach((t: any) => {
+          if (!multiSelectedSymbol || t.symbol === multiSelectedSymbol) {
+            trades.push({ time: ev.timestamp, direction: t.direction, price: t.price, qty: t.qty });
+          }
+        });
+      }
+    });
+    return trades;
+  }, [multiReplayEvents, multiCurrentStep, multiSelectedSymbol]);
+
+  const multiPnLCurveData = useMemo(() => {
+    if (multiReplayEvents.length === 0) return [];
+    // Build per-asset realized PnL curves from trade fills
+    const symbolPnLs: Record<string, number[]> = {};
+    const timestamps: string[] = [];
+    // Track running PnL per symbol using FIFO matching
+    const symbolPositions: Record<string, { qty: number; avgPrice: number; realizedPnL: number }> = {};
+    multiReplayEvents.slice(0, multiCurrentStep + 1).forEach(ev => {
+      timestamps.push(ev.timestamp);
+      // Process fills to update realized PnL
+      if (ev.orders_filled) {
+        ev.orders_filled.forEach((t: any) => {
+          const sym = t.symbol;
+          if (!symbolPositions[sym]) symbolPositions[sym] = { qty: 0, avgPrice: 0, realizedPnL: 0 };
+          const pos = symbolPositions[sym];
+          const dir = t.direction === "BUY" ? 1 : -1;
+          const tradeQty = t.qty * dir;
+          if ((pos.qty >= 0 && tradeQty > 0) || (pos.qty <= 0 && tradeQty < 0)) {
+            // Adding to position
+            const totalCost = pos.qty * pos.avgPrice + tradeQty * t.price;
+            pos.qty += tradeQty;
+            pos.avgPrice = pos.qty !== 0 ? totalCost / pos.qty : 0;
+          } else {
+            // Closing/reducing
+            const matchedQty = Math.min(Math.abs(pos.qty), Math.abs(tradeQty));
+            const pnl = (t.price - pos.avgPrice) * matchedQty * (pos.qty > 0 ? 1 : -1);
+            pos.realizedPnL += pnl;
+            pos.qty += tradeQty;
+            if (pos.qty !== 0) pos.avgPrice = t.price;
+          }
+        });
+      }
+      // Snapshot current realized PnL for each known symbol
+      Object.keys(symbolPositions).forEach(sym => {
+        if (!symbolPnLs[sym]) symbolPnLs[sym] = new Array(timestamps.length - 1).fill(0);
+        symbolPnLs[sym].push(symbolPositions[sym].realizedPnL);
+      });
+    });
+    // Pad any series that started late with zeros
+    Object.keys(symbolPnLs).forEach(sym => {
+      while (symbolPnLs[sym].length < timestamps.length) {
+        symbolPnLs[sym].unshift(0);
+      }
+    });
+    // Return array of { time, values: { symbol: pnl } }
+    return timestamps.map((time, i) => ({
+      time,
+      values: Object.fromEntries(Object.keys(symbolPnLs).map(sym => [sym, symbolPnLs[sym][i]]))
+    }));
+  }, [multiReplayEvents, multiCurrentStep]);
+
+  const multiPositionCurveData = useMemo(() => {
+    if (multiReplayEvents.length === 0 || !multiSelectedSymbol) return [];
+    return multiReplayEvents.slice(0, multiCurrentStep + 1).map(ev => ({
+      time: ev.timestamp,
+      value: ev.portfolio?.positions?.[multiSelectedSymbol]?.qty || 0
+    }));
+  }, [multiReplayEvents, multiCurrentStep, multiSelectedSymbol]);
+
+  const multiCurrentOrderDepths = multiCurrentEvent?.order_depths || {};
+  const multiCurrentPortfolio = multiCurrentEvent?.portfolio || null;
+  const multiCurrentSubmitted = multiCurrentEvent?.orders_submitted || [];
+  const multiCurrentFilled = multiCurrentEvent?.orders_filled || [];
+
+  // Order book for selected symbol
+  const multiOrderBook = multiCurrentOrderDepths[multiSelectedSymbol] || null;
+  const multiMidPrice = multiOrderBook
+    ? (multiOrderBook.bid_prices?.[0] + multiOrderBook.ask_prices?.[0]) / 2
+    : (multiCandleMap[multiSelectedSymbol]?.close || 0);
+  const multiSpread = multiOrderBook
+    ? (multiOrderBook.ask_prices?.[0] || 0) - (multiOrderBook.bid_prices?.[0] || 0)
+    : 0;
+
+  // Market pressure: bid volume vs ask volume
+  const multiMarketPressure = useMemo(() => {
+    if (!multiOrderBook) return 0;
+    const bidVol = multiOrderBook.bid_volumes?.reduce((a: number, b: number) => a + b, 0) || 0;
+    const askVol = multiOrderBook.ask_volumes?.reduce((a: number, b: number) => a + b, 0) || 0;
+    const total = bidVol + askVol;
+    if (total === 0) return 0;
+    return (bidVol / total) * 100; // 0 = all ask, 100 = all bid, 50 = neutral
+  }, [multiOrderBook]);
+
   const handleDatasetChange = async (val: string) => {
     setSelectedDataset(val);
     if (!val) {
+      setAutoMaxPosValue(0);
       setMaxPositionSize(0);
       return;
     }
@@ -921,14 +1160,21 @@ export default function Home() {
         const res = await fetch(`${API_BASE}/data/datasets/${symbol}/${interval}`);
         if (res.ok) {
           const data = await res.json();
-          // Initialize slider with the backend's suggested optimal value
-          setMaxPositionSize(data.suggested_max_position || 0);
+          const suggested = data.suggested_max_position || 0;
+          setAutoMaxPosValue(suggested);
+          if (isAutoMaxPos) {
+            setMaxPositionSize(suggested);
+          }
         }
-      } catch (err) {
-        console.error("Error fetching dataset metadata:", err);
+      } catch {
+        // Silently fail - dataset metadata is optional
       }
     } else {
-      setMaxPositionSize(Math.floor(initialCapital / 500));
+      const fallback = Math.floor(initialCapital / 500);
+      setAutoMaxPosValue(fallback);
+      if (isAutoMaxPos) {
+        setMaxPositionSize(fallback);
+      }
     }
   };
 
@@ -954,6 +1200,7 @@ export default function Home() {
           <nav className="space-y-1">
             {[
               { id: "dashboard", label: "Dashboard", icon: LineChart },
+              { id: "multiasset", label: "Multi-Asset", icon: TrendingUp },
               { id: "datasets", label: "Datasets", icon: Database },
               { id: "ide", label: "Strategy IDE", icon: Code },
               { id: "studio", label: "Replay Studio", icon: PlayCircle },
@@ -1189,18 +1436,57 @@ export default function Home() {
 
                       <div className="col-span-2">
                         <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex justify-between">
-                          <span>Max Position Limit (Quantity)</span>
-                          <span className="text-blue-400 font-mono">{maxPositionSize} Qty</span>
+                          <span>Max Position Limit</span>
+                          <span className="text-blue-400 font-mono">
+                            {isAutoMaxPos ? `${autoMaxPosValue} Qty (Auto)` : `${maxPositionSize} Qty (Custom)`}
+                          </span>
                         </label>
-                        <input
-                          type="range"
-                          min="1"
-                          max={maxPositionSize > 0 ? Math.max(maxPositionSize * 5, 2000) : 2000}
-                          value={maxPositionSize}
-                          onChange={e => setMaxPositionSize(Number(e.target.value))}
-                          className="w-full accent-blue-500 h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer border border-slate-800"
-                        />
-                        <p className="text-[9px] text-slate-500 mt-1 italic font-medium">Optimal value calculated based on capital vs asset price. Limits total held quantity.</p>
+                        <div className="flex items-center gap-3">
+                          {/* Toggle: Auto / Custom */}
+                          <div className="flex bg-slate-950 rounded border border-slate-800 overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setIsAutoMaxPos(true)}
+                              className={`px-3 py-1.5 text-[10px] font-bold transition-all ${
+                                isAutoMaxPos
+                                  ? "bg-blue-600 text-white"
+                                  : "text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              Auto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsAutoMaxPos(false)}
+                              className={`px-3 py-1.5 text-[10px] font-bold transition-all ${
+                                !isAutoMaxPos
+                                  ? "bg-blue-600 text-white"
+                                  : "text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              Custom
+                            </button>
+                          </div>
+
+                          {/* Custom input (only shown when Custom mode) */}
+                          {!isAutoMaxPos && (
+                            <input
+                              type="number"
+                              min="1"
+                              max="999999"
+                              value={maxPositionSize}
+                              onChange={e => setMaxPositionSize(Math.max(1, Number(e.target.value)))}
+                              className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                              placeholder="Enter qty..."
+                            />
+                          )}
+
+                          {isAutoMaxPos && (
+                            <span className="flex-1 text-xs text-slate-500 italic">
+                              Risk-based sizing: 2% capital / volatility stop
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-end">
@@ -1242,11 +1528,11 @@ export default function Home() {
                           <td>{run.strategy_name}</td>
                           <td className="font-bold text-slate-300">{run.symbol}</td>
                           <td>{run.interval}</td>
-                          <td className="text-slate-500">{run.start_time.split(" ")[0]} to {run.end_time.split(" ")[0]}</td>
+                          <td className="text-slate-500">{run.start_time?.split(" ")[0] || run.start_time} to {run.end_time?.split(" ")[0] || run.end_time}</td>
                           <td className={run.total_pnl >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold"}>
-                            ₹{run.total_pnl.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                            ₹{(run.total_pnl ?? 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                           </td>
-                          <td className="font-bold">{run.sharpe_ratio.toFixed(2)}</td>
+                          <td className="font-bold">{run.sharpe_ratio?.toFixed(2) ?? "-"}</td>
                           <td className="font-mono text-slate-500">{run.max_position_size || "Auto"}</td>
                           <td className="text-right">
                             <button
@@ -1403,10 +1689,10 @@ export default function Home() {
                         <tr key={`${d.symbol}_${d.interval}`} className="hover:bg-slate-900/30">
                           <td className="py-3 font-bold text-slate-200">{d.symbol}</td>
                           <td>{d.interval}</td>
-                          <td className="text-slate-500 font-mono text-[10px]">{d.start_date} - {d.end_date}</td>
-                          <td className="font-semibold text-blue-400 font-mono">{d.records_count}</td>
-                          <td className="text-slate-600 truncate max-w-xs text-[10px]" title={d.file_path}>
-                            {d.file_path}
+                          <td className="text-slate-500 font-mono text-[10px]">{d.start_date || "-"} - {d.end_date || "-"}</td>
+                          <td className="font-semibold text-blue-400 font-mono">{d.records_count ?? "-"}</td>
+                          <td className="text-slate-600 truncate max-w-xs text-[10px]" title={d.file_path || ""}>
+                            {d.file_path || "-"}
                           </td>
                           <td className="text-right">
                             <button
@@ -1471,7 +1757,7 @@ export default function Home() {
                             : "border-slate-800/80 bg-slate-950/20 hover:bg-slate-900/50"
                         }`}
                       >
-                        <h5 className="font-semibold text-slate-200 text-xs">{s.name}</h5>
+                        <h5 className="font-semibold text-slate-200 text-xs">{s.name} {s.runtime_type ? `(${s.runtime_type})` : ""}</h5>
                         <p className="text-[10px] text-slate-500 font-mono mt-1">v{s.version} • {new Date(s.updated_at).toLocaleDateString()}</p>
                       </div>
                     ))}
@@ -1481,6 +1767,33 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* New fields for runtime_type and entrypoint */}
+                <div className="space-y-3 pt-4 border-t border-slate-800">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Runtime Type</label>
+                    <select
+                      value={strategyRuntimeType}
+                      onChange={e => setStrategyRuntimeType(e.target.value)}
+                      className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="legacy_on_bar">Legacy On-Bar</option>
+                      <option value="prosperity_trader">Prosperity Trader</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Entrypoint (e.g., trader.py:Trader)</label>
+                    <input
+                      type="text"
+                      value={strategyEntrypoint || ""}
+                      onChange={e => setStrategyEntrypoint(e.target.value || null)}
+                      placeholder="Optional: e.g., trader.py:Trader"
+                      className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+
+                {/* Action buttons */}
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <button
                     onClick={handleSaveStrategy}
@@ -1614,10 +1927,59 @@ export default function Home() {
                 <div className="lg:col-span-3 flex flex-col gap-4 h-full min-h-0">
                   {/* Candlestick Interactive Chart */}
                   <div className="flex-1 min-h-[300px] flex flex-col justify-between">
+                    {/* Chart Controls */}
+                    <div className="flex items-center gap-2 mb-2 px-1 flex-wrap">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">Indicators:</span>
+                      <button
+                        onClick={() => setShowEmaFast(!showEmaFast)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                          showEmaFast
+                            ? "bg-blue-600/20 border-blue-500 text-blue-400"
+                            : "border-slate-800 text-slate-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        EMA 9
+                      </button>
+                      <button
+                        onClick={() => setShowEmaSlow(!showEmaSlow)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                          showEmaSlow
+                            ? "bg-amber-600/20 border-amber-500 text-amber-400"
+                            : "border-slate-800 text-slate-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        EMA 21
+                      </button>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase ml-2">Trades:</span>
+                      <button
+                        onClick={() => setShowBuyTrades(!showBuyTrades)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                          showBuyTrades
+                            ? "bg-emerald-600/20 border-emerald-500 text-emerald-400"
+                            : "border-slate-800 text-slate-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        BUY
+                      </button>
+                      <button
+                        onClick={() => setShowSellTrades(!showSellTrades)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${
+                          showSellTrades
+                            ? "bg-rose-600/20 border-rose-500 text-rose-400"
+                            : "border-slate-800 text-slate-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        SELL
+                      </button>
+                    </div>
                     {activeCandles.length > 0 ? (
                       <LightweightChart
                         candles={activeCandles}
                         trades={activeTrades}
+                        showEmaFast={showEmaFast}
+                        showEmaSlow={showEmaSlow}
+                        showBuyTrades={showBuyTrades}
+                        showSellTrades={showSellTrades}
                         height={350}
                       />
                     ) : (
@@ -1628,41 +1990,15 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Position Exposure Baseline Chart */}
-                  <div className="glass-panel rounded-xl overflow-hidden h-32 flex flex-col shrink-0 border border-slate-800/50">
+                  {/* Position Exposure Line Chart */}
+                  <div className="glass-panel rounded-xl overflow-hidden flex flex-col shrink-0 border border-slate-800/50">
                     <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Layers size={12} className="text-blue-400" />
                         <span>Net Position Exposure (Inventory)</span>
                       </div>
-                      <span className={positionCurveData[positionCurveData.length - 1]?.value >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                        {positionCurveData[positionCurveData.length - 1]?.value || 0} Units
-                      </span>
                     </div>
-                    <div className="flex-1 p-2 bg-slate-950/40 relative">
-                       {/* Zero Baseline reference */}
-                       <div className="absolute left-0 right-0 top-1/2 border-t border-slate-800/50 z-0" />
-                       
-                       <div className="absolute inset-0 flex items-center px-2 gap-[1px] z-10">
-                          {(() => {
-                            const dataToDisplay = positionCurveData.slice(-100);
-                            const maxAbs = Math.max(...dataToDisplay.map(v => Math.abs(v.value)), 1);
-                            return dataToDisplay.map((d, i) => {
-                              const height = (Math.abs(d.value) / maxAbs) * 50;
-                              return (
-                                <div key={i} className="flex-1 flex flex-col h-full">
-                                  <div className="flex-1 flex flex-col justify-end">
-                                    {d.value > 0 && <div className="bg-emerald-500/40 w-full rounded-t-sm transition-all duration-300" style={{ height: `${height}%` }} />}
-                                  </div>
-                                  <div className="flex-1 flex flex-col justify-start">
-                                    {d.value < 0 && <div className="bg-rose-500/40 w-full rounded-b-sm transition-all duration-300" style={{ height: `${height}%` }} />}
-                                  </div>
-                                </div>
-                              );
-                            });
-                          })()}
-                       </div>
-                    </div>
+                    <PositionChart data={positionCurveData} height={120} />
                   </div>
 
                   {/* Sandbox Print Logs Output */}
@@ -1738,10 +2074,10 @@ export default function Home() {
                             <span className={t.direction === "BUY" ? "text-emerald-400" : "text-rose-400"}>
                               {t.direction} {t.qty}
                             </span>
-                            <span className="text-slate-200 font-mono">₹{t.price.toFixed(1)}</span>
+                            <span className="text-slate-200 font-mono">₹{(t.price ?? 0).toFixed(1)}</span>
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-500">
-                            <span>Fees: ₹{t.total_charges.toFixed(1)}</span>
+                            <span>Fees: ₹{(t.total_charges ?? 0).toFixed(1)}</span>
                             <span>{t.id}</span>
                           </div>
                         </div>
@@ -1990,7 +2326,7 @@ export default function Home() {
                               <td className="font-mono">{(row.cagr * 100).toFixed(1)}%</td>
                               <td className="font-mono font-semibold text-slate-200">{row.sharpe.toFixed(2)}</td>
                               <td className="font-mono">{(row.max_drawdown * 100).toFixed(1)}%</td>
-                              <td className="font-mono text-slate-500">{row.total_trades}</td>
+                              <td className="font-mono text-slate-500">{row.total_trades ?? "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2037,8 +2373,598 @@ export default function Home() {
               )}
             </div>
           )}
+
+          {/* TAB 8: MULTI-ASSET BACKTEST & REPLAY */}
+          {activeTab === "multiasset" && (
+            <div className="flex flex-col gap-4 h-full">
+              {/* If no replay loaded, show config form */}
+              {multiReplayEvents.length === 0 ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Multi-Asset Config Panel */}
+                    <div className="glass-panel p-5 rounded-xl space-y-4">
+                      <h4 className="font-bold text-slate-200 flex items-center gap-2">
+                        <TrendingUp size={18} className="text-blue-400" />
+                        Multi-Asset Backtest
+                      </h4>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Enter one or more symbols. Data auto-downloads if missing. Supports pairs, spreads, and options multi-leg strategies.
+                      </p>
+
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Symbols (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={multiSymbols}
+                          onChange={e => setMultiSymbols(e.target.value.toUpperCase())}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
+                          placeholder="e.g. SBIN, RELIANCE, NIFTY"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Timeframe</label>
+                        <select
+                          value={multiInterval}
+                          onChange={e => setMultiInterval(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="ONE_MINUTE">1 Minute</option>
+                          <option value="FIVE_MINUTE">5 Minute</option>
+                          <option value="FIFTEEN_MINUTE">15 Minute</option>
+                          <option value="ONE_HOUR">1 Hour</option>
+                          <option value="ONE_DAY">Daily</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">From Date</label>
+                          <input
+                            type="date"
+                            value={multiFromDate}
+                            onChange={e => setMultiFromDate(e.target.value)}
+                            className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">To Date</label>
+                          <input
+                            type="date"
+                            value={multiToDate}
+                            onChange={e => setMultiToDate(e.target.value)}
+                            className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Select Strategy</label>
+                        <select
+                          value={multiStrategyId}
+                          onChange={e => setMultiStrategyId(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="">-- Choose Strategy --</option>
+                          {strategies.map(s => (
+                            <option key={s.id} value={s.id}>{s.name} ({s.runtime_type})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (!multiStrategyId) { triggerNotif("error", "Select a strategy first."); return; }
+                          if (!multiSymbols.trim()) { triggerNotif("error", "Enter at least one symbol."); return; }
+                          setIsBacktestModalOpen(true);
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Play size={14} fill="currentColor" />
+                        Configure & Run Backtest
+                      </button>
+                    </div>
+
+                    {/* Info / Help Panel */}
+                    <div className="glass-panel p-5 rounded-xl col-span-2 space-y-4">
+                      <h4 className="font-bold text-slate-200 text-sm">How Multi-Asset Backtesting Works</h4>
+                      <div className="space-y-3 text-xs text-slate-400">
+                        <div className="p-3 bg-slate-950/60 rounded border border-slate-800">
+                          <span className="text-[10px] uppercase font-bold text-blue-400 block mb-1">Auto-Download</span>
+                          If data is missing, the backend automatically downloads it via SmartAPI or generates mock candles. No manual dataset management needed.
+                        </div>
+                        <div className="p-3 bg-slate-950/60 rounded border border-slate-800">
+                          <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Multiple Symbols</span>
+                          Enter <code className="text-slate-200">SBIN, RELIANCE</code> for pairs trading, or <code className="text-slate-200">NIFTY24500CE, NIFTY24600CE, NIFTY24700CE</code> for options spreads.
+                        </div>
+                        <div className="p-3 bg-slate-950/60 rounded border border-slate-800">
+                          <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1">Strategy Access</span>
+                          In your Prosperity strategy, <code className="text-slate-200">state.order_depths</code> contains ALL symbols simultaneously. Loop through them to trade multi-leg.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* REPLAY MODE: Prosperity-style UI */
+                <>
+                  {/* Top: Symbol Filter Chips */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 mr-2">Symbols:</span>
+                    {multiSymbolsList.map(sym => (
+                      <button
+                        key={sym}
+                        onClick={() => setMultiSelectedSymbol(sym)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-all ${
+                          multiSelectedSymbol === sym
+                            ? "bg-slate-800 border-slate-600 text-white"
+                            : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600"
+                        }`}
+                      >
+                        {sym}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => { setMultiReplayEvents([]); setMultiBacktestDetail(null); setMultiRunId(""); }}
+                      className="px-3 py-1 rounded-full text-[10px] font-bold border border-rose-800 text-rose-400 hover:bg-rose-950/30 transition-all ml-auto"
+                    >
+                      Close Replay
+                    </button>
+                  </div>
+
+                  {/* Main Layout: Chart Left + Sidebar Right */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+                    {/* LEFT: Charts & Playback */}
+                    <div className="lg:col-span-2 flex flex-col gap-3 h-full min-h-0 overflow-y-auto">
+                      {/* Playback Control Bar */}
+                      <div className="glass-panel p-2.5 rounded-xl flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setMultiCurrentStep(0)}
+                            className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded text-[10px]"
+                            title="Reset"
+                          >
+                            <SkipBack size={12} />
+                          </button>
+                          <button
+                            onClick={() => setMultiIsPlaying(!multiIsPlaying)}
+                            className={`p-2 rounded text-white transition-all ${multiIsPlaying ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                          >
+                            {multiIsPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                          </button>
+                          <button
+                            onClick={() => setMultiCurrentStep(prev => Math.min(multiReplayEvents.length - 1, prev + 1))}
+                            className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded"
+                          >
+                            <SkipForward size={12} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 5, 10, 20].map(speed => (
+                            <button
+                              key={speed}
+                              onClick={() => setMultiPlaybackSpeed(speed)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all ${
+                                multiPlaybackSpeed === speed
+                                  ? "bg-blue-600/20 border-blue-500 text-blue-400"
+                                  : "border-slate-800 text-slate-500 hover:bg-slate-900"
+                              }`}
+                            >
+                              {speed}x
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex-1 min-w-[150px] flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={multiReplayEvents.length - 1}
+                            value={multiCurrentStep}
+                            onChange={e => setMultiCurrentStep(Number(e.target.value))}
+                            className="w-full accent-blue-500 cursor-pointer"
+                          />
+                          <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap">
+                            {multiCurrentStep} / {multiReplayEvents.length - 1}
+                          </span>
+                        </div>
+
+                        <div className="text-[10px] font-mono text-slate-400">
+                          {multiCurrentEvent?.timestamp?.split(" ")[1] || "--:--:--"}
+                        </div>
+                      </div>
+
+                      {/* Price Chart */}
+                      <div className="flex-1 min-h-[280px]">
+                        {multiActiveCandles.length > 0 ? (
+                          <LightweightChart
+                            candles={multiActiveCandles}
+                            trades={multiActiveTrades}
+                            showEmaFast={false}
+                            showEmaSlow={false}
+                            showBuyTrades={true}
+                            showSellTrades={true}
+                            height={300}
+                          />
+                        ) : (
+                          <div className="w-full h-[300px] bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-center text-slate-500 text-xs">
+                            No chart data for {multiSelectedSymbol}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PnL Chart */}
+                      <PnLChart data={multiPnLCurveData} height={120} title="PnL Performance" />
+
+                      {/* Position Chart */}
+                      <div className="glass-panel rounded-xl overflow-hidden flex flex-col shrink-0 border border-slate-800/50">
+                        <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400 flex items-center justify-between">
+                          <span>Position: {multiSelectedSymbol}</span>
+                          <span className="text-slate-500">{multiCurrentPortfolio?.positions?.[multiSelectedSymbol]?.qty || 0} qty</span>
+                        </div>
+                        <PositionChart data={multiPositionCurveData} height={100} />
+                      </div>
+
+                    </div>
+
+                    {/* RIGHT: Sidebar Panels */}
+                    <div className="space-y-3 h-full overflow-y-auto">
+                      {/* Strategy Management */}
+                      <div className="glass-panel p-3 rounded-xl">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Strategy Management</div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <div className="text-[10px] text-slate-400">{multiBacktestDetail?.strategy_name || "Unknown Strategy"}</div>
+                          <div className="text-[10px] font-mono text-slate-500 mt-1">Run: {multiRunId}</div>
+                        </div>
+                      </div>
+
+                      {/* Order Book */}
+                      <div className="glass-panel p-3 rounded-xl">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] uppercase font-bold text-slate-500">Order Book</span>
+                          <span className="text-[9px] font-mono text-slate-500">Spread: {multiSpread.toFixed(2)}</span>
+                        </div>
+                        {multiOrderBook ? (
+                          <div className="space-y-1">
+                            {/* Asks (red) - reverse to show worst first */}
+                            {[...multiOrderBook.ask_prices].reverse().map((price: number, i: number) => {
+                              const idx = multiOrderBook.ask_prices.length - 1 - i;
+                              const vol = multiOrderBook.ask_volumes[idx];
+                              return (
+                                <div key={`ask-${i}`} className="flex items-center justify-between text-[10px]">
+                                  <span className="font-mono text-rose-400">{price?.toFixed(2)}</span>
+                                  <div className="flex-1 mx-2 h-1.5 bg-slate-900 rounded overflow-hidden">
+                                    <div className="h-full bg-rose-500/30 rounded" style={{ width: `${Math.min(100, (vol / 100) * 100)}%` }} />
+                                  </div>
+                                  <span className="font-mono text-slate-400">{vol}</span>
+                                </div>
+                              );
+                            })}
+                            {/* Mid price */}
+                            <div className="py-1 border-y border-slate-800 text-center">
+                              <span className="text-[10px] font-mono text-slate-300">MID: {multiMidPrice.toFixed(2)}</span>
+                            </div>
+                            {/* Bids (green) */}
+                            {multiOrderBook.bid_prices.map((price: number, i: number) => {
+                              const vol = multiOrderBook.bid_volumes[i];
+                              return (
+                                <div key={`bid-${i}`} className="flex items-center justify-between text-[10px]">
+                                  <span className="font-mono text-emerald-400">{price?.toFixed(2)}</span>
+                                  <div className="flex-1 mx-2 h-1.5 bg-slate-900 rounded overflow-hidden">
+                                    <div className="h-full bg-emerald-500/30 rounded" style={{ width: `${Math.min(100, (vol / 100) * 100)}%` }} />
+                                  </div>
+                                  <span className="font-mono text-slate-400">{vol}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-500 text-center py-2">No order book data</div>
+                        )}
+                      </div>
+
+                      {/* Market Pressure */}
+                      <div className="glass-panel p-3 rounded-xl">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Market Pressure</div>
+                        <div className="relative h-2 bg-slate-900 rounded-full overflow-hidden">
+                          <div
+                            className="absolute top-0 left-0 h-full bg-emerald-500/60 transition-all"
+                            style={{ width: `${multiMarketPressure}%` }}
+                          />
+                          <div
+                            className="absolute top-0 right-0 h-full bg-rose-500/60 transition-all"
+                            style={{ width: `${100 - multiMarketPressure}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                          <span>Bid Heavy</span>
+                          <span className="font-mono">{multiMarketPressure.toFixed(1)}%</span>
+                          <span>Ask Heavy</span>
+                        </div>
+                      </div>
+
+                      {/* Product Summary */}
+                      <div className="glass-panel p-3 rounded-xl">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Product Summary: {multiSelectedSymbol}</div>
+                        <div className="space-y-2">
+                          {[
+                            { label: "Position", val: `${multiCurrentPortfolio?.positions?.[multiSelectedSymbol]?.qty || 0}` },
+                            { label: "PnL", val: `₹${(multiCurrentPortfolio?.positions?.[multiSelectedSymbol]?.unrealized_pnl || 0).toFixed(1)}` },
+                            { label: "Mid Price", val: `₹${multiMidPrice.toFixed(2)}` },
+                            { label: "Spread", val: `${multiSpread.toFixed(2)}` },
+                          ].map((row, i) => (
+                            <div key={i} className="flex justify-between text-[10px]">
+                              <span className="text-slate-500">{row.label}</span>
+                              <span className="font-mono text-slate-300">{row.val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Portfolio Snapshot */}
+                      <div className="glass-panel p-3 rounded-xl">
+                        <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Portfolio</div>
+                        <div className="space-y-2">
+                          {[
+                            { label: "Equity", val: `₹${(multiCurrentPortfolio?.equity || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` },
+                            { label: "Cash", val: `₹${(multiCurrentPortfolio?.cash || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` },
+                            { label: "Margin Used", val: `₹${(multiCurrentPortfolio?.margin_used || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` },
+                            { label: "Total PnL", val: `₹${(multiCurrentPortfolio?.total_pnl || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` },
+                            { label: "Total Fees", val: `₹${(multiCurrentPortfolio?.total_fees || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}` },
+                          ].map((row, i) => (
+                            <div key={i} className="flex justify-between text-[10px] border-b border-slate-800/30 pb-1 last:border-0">
+                              <span className="text-slate-500">{row.label}</span>
+                              <span className="font-mono text-slate-300">{row.val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BOTTOM: Orders & Trades Panels */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+                    {/* Submitted Orders */}
+                    <div className="glass-panel rounded-xl overflow-hidden border border-slate-800/50">
+                      <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400">
+                        Submitted Orders
+                      </div>
+                      <div className="p-2 max-h-32 overflow-y-auto">
+                        {multiCurrentSubmitted.length > 0 ? (
+                          multiCurrentSubmitted.map((o: any, i: number) => (
+                            <div key={i} className="flex justify-between text-[10px] py-1 border-b border-slate-800/20">
+                              <span className={`font-bold ${o.direction === "BUY" ? "text-emerald-400" : "text-rose-400"}`}>{o.direction}</span>
+                              <span className="font-mono text-slate-300">{o.symbol}</span>
+                              <span className="font-mono text-slate-400">{o.quantity} @ ₹{o.price?.toFixed(1) || "MKT"}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-slate-500 text-center py-2">No orders submitted</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bot Trades at This Tick */}
+                    <div className="glass-panel rounded-xl overflow-hidden border border-slate-800/50">
+                      <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400">
+                        Bot Trades at This Tick
+                      </div>
+                      <div className="p-2 max-h-32 overflow-y-auto">
+                        {multiCurrentFilled.length > 0 ? (
+                          multiCurrentFilled.map((t: any, i: number) => (
+                            <div key={i} className="flex justify-between text-[10px] py-1 border-b border-slate-800/20">
+                              <span className={`font-bold ${t.direction === "BUY" ? "text-emerald-400" : "text-rose-400"}`}>{t.direction}</span>
+                              <span className="font-mono text-slate-300">{t.symbol}</span>
+                              <span className="font-mono text-slate-400">{t.qty} @ ₹{t.price?.toFixed(2)}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-slate-500 text-center py-2">No fills this tick</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Market Trades (own trades by symbol) */}
+                    <div className="glass-panel rounded-xl overflow-hidden border border-slate-800/50">
+                      <div className="px-3 py-1.5 bg-slate-950/80 border-b border-slate-800 text-[10px] font-bold font-mono text-slate-400">
+                        Own Trades ({multiSelectedSymbol})
+                      </div>
+                      <div className="p-2 max-h-32 overflow-y-auto">
+                        {multiCurrentEvent?.trading_state?.own_trades?.[multiSelectedSymbol]?.length > 0 ? (
+                          multiCurrentEvent.trading_state.own_trades[multiSelectedSymbol].map((t: any, i: number) => (
+                            <div key={i} className="flex justify-between text-[10px] py-1 border-b border-slate-800/20">
+                              <span className={`font-bold ${t.direction === "BUY" ? "text-emerald-400" : "text-rose-400"}`}>{t.direction}</span>
+                              <span className="font-mono text-slate-400">{t.quantity} @ ₹{t.price?.toFixed(2)}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-slate-500 text-center py-2">No own trades</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Backtest Config Modal */}
+      {isBacktestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="glass-panel p-6 rounded-2xl w-full max-w-md border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-emerald-600 rounded-xl text-white">
+                <Play size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-100">Backtest Configuration</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Initial Capital (₹)</label>
+                  <input
+                    type="number"
+                    value={modalCapital}
+                    onChange={e => setModalCapital(Number(e.target.value))}
+                    className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Slippage (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={modalSlippage}
+                    onChange={e => setModalSlippage(Number(e.target.value))}
+                    className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Trade Type</label>
+                <div className="flex gap-2">
+                  {["INTRADAY", "DELIVERY", "FUTURES"].map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setModalTradeType(t)}
+                      className={`flex-1 text-[10px] font-bold border rounded py-1.5 transition-all ${
+                        modalTradeType === t
+                          ? "bg-emerald-600/15 border-emerald-500 text-emerald-400"
+                          : "border-slate-800 text-slate-400 bg-slate-950/50 hover:bg-slate-900"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex justify-between">
+                  <span>Max Position Limit</span>
+                  <span className="text-emerald-400 font-mono">
+                    {modalAutoMaxPos ? "Auto (Risk-based)" : `${modalMaxPos} Qty`}
+                  </span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="flex bg-slate-950 rounded border border-slate-800 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setModalAutoMaxPos(true)}
+                      className={`px-3 py-1.5 text-[10px] font-bold transition-all ${
+                        modalAutoMaxPos
+                          ? "bg-emerald-600 text-white"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Auto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalAutoMaxPos(false)}
+                      className={`px-3 py-1.5 text-[10px] font-bold transition-all ${
+                        !modalAutoMaxPos
+                          ? "bg-emerald-600 text-white"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                  {!modalAutoMaxPos && (
+                    <input
+                      type="number"
+                      min="1"
+                      value={modalMaxPos}
+                      onChange={e => setModalMaxPos(Math.max(1, Number(e.target.value)))}
+                      className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setIsBacktestModalOpen(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setIsBacktestModalOpen(false);
+                  const symbols = multiSymbols.split(",").map(s => s.trim()).filter(Boolean);
+                  
+                  // Ensure dates are YYYY-MM-DD format
+                  const formatDate = (d: string) => {
+                    if (!d) return "";
+                    // If already YYYY-MM-DD, return as-is
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+                    // Try to parse and reformat
+                    const dt = new Date(d);
+                    if (isNaN(dt.getTime())) return d;
+                    return dt.toISOString().split("T")[0];
+                  };
+                  
+                  const startDate = formatDate(multiFromDate);
+                  const endDate = formatDate(multiToDate);
+                  
+                  triggerNotif("info", `Running backtest on ${symbols.join(", ")}...`);
+                  
+                  try {
+                    const res = await fetch(`${API_BASE}/backtest/run`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        strategy_id: multiStrategyId,
+                        symbols,
+                        interval: multiInterval,
+                        start_date: startDate,
+                        end_date: endDate,
+                        initial_capital: modalCapital,
+                        slippage_pct: modalSlippage / 100.0,
+                        trade_type: modalTradeType,
+                        max_position_size: modalAutoMaxPos ? 0 : modalMaxPos,
+                        runtime_type: strategies.find(s => s.id === multiStrategyId)?.runtime_type || "legacy_on_bar",
+                        auto_download: true
+                      })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      triggerNotif("success", `Backtest complete! Run: ${data.run_id}`);
+                      if (data.downloaded_symbols?.length > 0) {
+                        triggerNotif("info", `Auto-downloaded: ${data.downloaded_symbols.join(", ")}`);
+                      }
+                      setSelectedRunId(data.run_id);
+                      setMultiRunId(data.run_id);
+                      fetchCoreData();
+                      // Load replay data into multi-asset state
+                      loadMultiAssetReplay(data.run_id);
+                      setActiveTab("multiasset");
+                    } else {
+                      const detail = typeof data.detail === "string" ? data.detail : (data.detail ? JSON.stringify(data.detail) : "Engine error");
+                      triggerNotif("error", `Backtest failed: ${detail}`);
+                    }
+                  } catch (err: any) {
+                    console.error("Backtest fetch error:", err);
+                    triggerNotif("error", `Server communication failure: ${err?.message || "Unknown error"}`);
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+              >
+                Execute Backtest
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TOTP Modal Popup */}
       {isTotpModalOpen && (

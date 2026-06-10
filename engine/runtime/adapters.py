@@ -240,20 +240,93 @@ class ReplayEventBuilder:
         trading_state: TradingState,
         orders_submitted: List[Dict[str, Any]],
         orders_filled: List[Dict[str, Any]],
-        strategy_logs: str = "",  # JSON string from Logger.flush()
+        strategy_logs: str = "",
+        portfolio: Any = None,
+        current_candles: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
-        Build a single replay event.
+        Build a single replay event matching the frontend's expected format.
 
-        Returns a dict suitable for JSONL logging and frontend replay.
+        Frontend expects:
+        - candle: { symbol: { open, high, low, close, volume } }
+        - orders_submitted: [...]
+        - orders_filled: [...]
+        - portfolio: { cash, margin_used, margin_free, equity, unrealized_pnl, total_fees, total_pnl, positions }
+        - log_messages: ["msg1", "msg2", ...]
         """
+        # Parse strategy_logs JSON string into log_messages array
+        log_messages = []
+        if strategy_logs:
+            try:
+                logs = json.loads(strategy_logs)
+                if isinstance(logs, list):
+                    for entry in logs:
+                        if isinstance(entry, dict):
+                            msg = entry.get("message", "")
+                            if msg:
+                                log_messages.append(msg)
+                        elif isinstance(entry, str):
+                            log_messages.append(entry)
+            except:
+                pass
+
+        # Build candle dict from order_depths (derive from best bid/ask midpoint)
+        candle = {}
+        if current_candles:
+            for sym, row in current_candles.items():
+                candle[sym] = {
+                    "open": float(row.get("open", row.get("close", 0))),
+                    "high": float(row.get("high", row.get("close", 0))),
+                    "low": float(row.get("low", row.get("close", 0))),
+                    "close": float(row.get("close", 0)),
+                    "volume": int(row.get("volume", 0)),
+                }
+        else:
+            # Fallback: derive from order_depths
+            for sym, od in trading_state.order_depths.items():
+                best_bid = od.bid_prices[0] if od.bid_prices else 0
+                best_ask = od.ask_prices[0] if od.ask_prices else 0
+                mid = (best_bid + best_ask) / 2 if best_bid and best_ask else 0
+                candle[sym] = {
+                    "open": mid,
+                    "high": mid,
+                    "low": mid,
+                    "close": mid,
+                    "volume": od.bid_volumes[0] + od.ask_volumes[0] if od.bid_volumes and od.ask_volumes else 0,
+                }
+
+        # Build portfolio snapshot
+        portfolio_snapshot = {
+            "cash": portfolio.cash if portfolio else trading_state.cash,
+            "margin_used": getattr(portfolio, "margin_used", 0.0) if portfolio else 0.0,
+            "margin_free": getattr(portfolio, "margin_free", 0.0) if portfolio else trading_state.cash,
+            "equity": getattr(portfolio, "equity", trading_state.portfolio_value) if portfolio else trading_state.portfolio_value,
+            "unrealized_pnl": getattr(portfolio, "unrealized_pnl", 0.0) if portfolio else 0.0,
+            "total_fees": getattr(portfolio, "total_fees", 0.0) if portfolio else 0.0,
+            "total_pnl": getattr(portfolio, "total_pnl", 0.0) if portfolio else 0.0,
+            "positions": {
+                sym: {
+                    "symbol": sym,
+                    "qty": pos.quantity,
+                    "avg_price": pos.avg_price,
+                    "unrealized_pnl": pos.unrealized_pnl,
+                }
+                for sym, pos in trading_state.positions.items()
+            },
+        }
+
+        # Build order_depths snapshot for the frontend order book display
+        order_depths_snapshot = {}
+        for sym, od in trading_state.order_depths.items():
+            order_depths_snapshot[sym] = od.to_dict()
+
         return {
             "step": step,
             "timestamp": timestamp,
-            "state_snapshot": trading_state.to_dict(),
+            "candle": candle,
+            "order_depths": order_depths_snapshot,
             "orders_submitted": orders_submitted,
             "orders_filled": orders_filled,
-            "strategy_logs": strategy_logs,  # JSON-encoded log array
-            "portfolio_value": trading_state.portfolio_value,
-            "cash": trading_state.cash,
+            "portfolio": portfolio_snapshot,
+            "log_messages": log_messages,
         }

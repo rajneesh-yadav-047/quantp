@@ -109,15 +109,9 @@ class ProsperityRuntime:
                 if not trader_class:
                     raise RuntimeError("Trader class not found in strategy code")
 
-                # Instantiate or get singleton
-                # (Depends on strategy implementation; typically a class with run method)
-                if hasattr(trader_class, 'run'):
-                    # Static method or already instantiated
-                    result = trader_class.run(state)
-                else:
-                    # Instantiate and call
-                    instance = trader_class()
-                    result = instance.run(state)
+                # Instantiate and call run(state)
+                instance = trader_class()
+                result = instance.run(state)
 
         except Exception as e:
             self.logger.record("error", message=str(e))

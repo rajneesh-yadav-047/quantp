@@ -1,15 +1,16 @@
-import { fileURLToPath } from 'url';
-import path from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   turbopack: {
-    root: path.resolve(__dirname),
+    root: process.cwd(),
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://127.0.0.1:8000/api/:path*',
+      },
+    ];
   },
 };
 export default nextConfig;
-
-

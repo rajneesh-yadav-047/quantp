@@ -82,6 +82,7 @@ def calculate_metrics(
     gross_losses = 0.0
     avg_win = 0.0
     avg_loss = 0.0
+    avg_holding_time = 0.0  # Initialize to prevent UnboundLocalError when 0 trades
 
     # Trade charge aggregates
     total_brokerage = 0.0
@@ -154,7 +155,7 @@ def calculate_metrics(
     max_margin_used = max([eq.get('margin_used', 0.0) for eq in equity_curve])
     capital_efficiency = total_pnl / max_margin_used if max_margin_used > 0 else 0.0
 
-    return {
+    metrics = {
         "cagr": float(cagr),
         "sharpe_ratio": float(sharpe),
         "sortino_ratio": float(sortino),
@@ -189,6 +190,16 @@ def calculate_metrics(
             "total_fees": float(total_fees)
         }
     }
+    
+    # Sanitize for JSON serialization
+    def sanitize(d):
+        for k, v in d.items():
+            if isinstance(v, dict): sanitize(v)
+            elif isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+                d[k] = 0.0
+                
+    sanitize(metrics)
+    return metrics
 
 def match_trades_fifo(trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """

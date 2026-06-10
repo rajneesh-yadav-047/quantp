@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import time
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -79,7 +80,7 @@ app = FastAPI(title="QuantLab Backend", version="1.0.0", lifespan=lifespan)
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -117,7 +118,7 @@ class StrategyCreateRequest(BaseModel):
 
 class BacktestRequest(BaseModel):
     strategy_id: str
-    symbol: str
+    symbols: List[str]  # Multiple symbols: ["SBIN", "RELIANCE"]
     interval: str
     start_date: str
     end_date: str
@@ -125,6 +126,8 @@ class BacktestRequest(BaseModel):
     slippage_pct: float = 0.0005
     trade_type: str = "INTRADAY"
     max_position_size: Optional[int] = None
+    runtime_type: Optional[str] = "legacy_on_bar"
+    auto_download: bool = True  # Auto-download missing datasets
 
 class OptimizationRequest(BaseModel):
     strategy_id: str
@@ -301,9 +304,18 @@ def get_dataset(symbol: str, interval: str):
     except Exception as e:
         print(f"DEBUG: Date formatting error for {symbol}: {e}")
 
-    # Calculate a suggested max position size based on current price and default 1L capital
-    avg_price = df['close'].iloc[-100:].mean() if not df.empty else 0
-    suggested_max_pos = int(100000 / avg_price) if avg_price > 0 else 0
+    # Calculate a suggested max position size using risk-based sizing
+    avg_price = float(df['close'].iloc[-100:].mean()) if not df.empty else 0
+    price_std = float(df['close'].iloc[-100:].std()) if len(df) > 1 else avg_price * 0.02
+    
+    risk_pct = 0.02  # 2% risk per trade
+    risk_amount = 100000 * risk_pct  # Default 1L capital
+    stop_distance = max(price_std * 2, avg_price * 0.005)
+    risk_based_size = int(risk_amount / stop_distance) if stop_distance > 0 else 1
+    
+    margin_based_size = int(100000 * 5 / avg_price) if avg_price > 0 else 1  # INTRADAY 5x
+    suggested_max_pos = min(risk_based_size, int(margin_based_size * 0.20))
+    suggested_max_pos = max(suggested_max_pos, 1)
 
     # Return first 2000 rows as list of dicts for safety of JSON size
     data = df.to_dict(orient="records")
@@ -395,97 +407,174 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
-    # 2. Fetch Parquet Data
+    # 2. Fetch / Auto-download Parquet Data for ALL symbols
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(req.symbol, req.interval)
-    if df is None or df.empty:
-        raise HTTPException(status_code=404, detail=f"Parquet dataset not found for {req.symbol} ({req.interval}). Download it first.")
-
-    # Slice date range
-    time_series = pd.to_datetime(df['time'])
-    if time_series.dt.tz is not None:
-        df['time_dt'] = time_series.dt.tz_localize(None)
-    else:
-        df['time_dt'] = time_series
-        
-    start_dt = pd.to_datetime(req.start_date)
-    if start_dt.tz is not None:
-        start_dt = start_dt.tz_localize(None)
-        
-    end_dt = pd.to_datetime(req.end_date)
-    if end_dt.tz is not None:
-        end_dt = end_dt.tz_localize(None)
-        
-    if len(req.end_date.strip()) <= 10:
-        end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
-    df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
+    df_dict: Dict[str, pd.DataFrame] = {}
+    downloaded_symbols = []
     
-    if df.empty:
-        raise HTTPException(status_code=400, detail="Target date range contains 0 candles.")
+    # Prepare a single shared download client to avoid re-authenticating per symbol
+    dl_client: Optional[SmartAPIClient] = None
+    if req.auto_download:
+        api_key = os.getenv("SMARTAPI_API_KEY")
+        client_code = os.getenv("SMARTAPI_CLIENT_CODE")
+        password = os.getenv("SMARTAPI_PASSWORD")
+        if api_key and client_code and password:
+            dl_client = SmartAPIClient(api_key=api_key, client_code=client_code, password=password)
+            if not dl_client.connect():
+                print(f"WARN: Shared SmartAPI connect failed: {dl_client.last_error}")
+                dl_client = None
+    
+    for symbol in req.symbols:
+        sym = symbol.upper().strip()
+        if not sym:
+            continue
+            
+        df = client.load_dataset_parquet(sym, req.interval)
+        
+        # Auto-download if missing and enabled
+        if (df is None or df.empty) and req.auto_download and dl_client is not None:
+            try:
+                df = dl_client.fetch_historical_candles(
+                    symbol=sym,
+                    from_date=req.start_date + " 09:15",
+                    to_date=req.end_date + " 15:30",
+                    interval=req.interval
+                )
+                if not df.empty:
+                    dl_client.save_dataset_parquet(sym, req.interval, df)
+                    downloaded_symbols.append(sym)
+                    # Small delay between serial downloads to avoid rate-limiting
+                    time.sleep(0.5)
+            except Exception as e:
+                print(f"WARN: Auto-download failed for {sym}: {e}")
+        
+        # If still empty, generate mock data
+        if df is None or df.empty:
+            df = client.generate_mock_candles(sym, req.start_date, req.end_date, req.interval)
+            if not df.empty:
+                client.save_dataset_parquet(sym, req.interval, df)
+                downloaded_symbols.append(f"{sym}(mock)")
+        
+        if df is None or df.empty:
+            raise HTTPException(status_code=404, detail=f"No data available for {sym} ({req.interval}). Download failed or not configured.")
+        
+        # Slice date range
+        try:
+            time_series = pd.to_datetime(df['time'])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Date parsing error in {sym} data: {str(e)}")
+            
+        if time_series.dt.tz is not None:
+            df['time_dt'] = time_series.dt.tz_localize(None)
+        else:
+            df['time_dt'] = time_series
+            
+        try:
+            start_dt = pd.to_datetime(req.start_date, format='%Y-%m-%d', errors='raise')
+        except Exception:
+            # Fallback: try flexible parsing
+            start_dt = pd.to_datetime(req.start_date, dayfirst=True, errors='coerce')
+            if pd.isna(start_dt):
+                raise HTTPException(status_code=400, detail=f"Invalid start_date format: '{req.start_date}'. Expected YYYY-MM-DD.")
+                
+        try:
+            end_dt = pd.to_datetime(req.end_date, format='%Y-%m-%d', errors='raise')
+        except Exception:
+            end_dt = pd.to_datetime(req.end_date, dayfirst=True, errors='coerce')
+            if pd.isna(end_dt):
+                raise HTTPException(status_code=400, detail=f"Invalid end_date format: '{req.end_date}'. Expected YYYY-MM-DD.")
+            
+        if len(req.end_date.strip()) <= 10:
+            end_dt = end_dt + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        df = df[(df['time_dt'] >= start_dt) & (df['time_dt'] <= end_dt)]
+        
+        # Clean data
+        df = df.ffill().bfill()
+        
+        if not df.empty:
+            df_dict[sym] = df.drop(columns=['time_dt'])
+    
+    if not df_dict:
+        raise HTTPException(status_code=400, detail="No valid data found for any symbol in the requested date range.")
 
-    # Calculate or use provided max_position_size
-    avg_price = df['close'].mean()
-    auto_max_pos = int(req.initial_capital / avg_price) if avg_price > 0 else 1
+    # Calculate max position size using the first symbol's volatility
+    first_df = list(df_dict.values())[0]
+    avg_price = float(first_df['close'].mean())
+    price_std = float(first_df['close'].std()) if len(first_df) > 1 else avg_price * 0.02
+    
+    risk_pct = 0.02
+    risk_amount = req.initial_capital * risk_pct
+    stop_distance = max(price_std * 2, avg_price * 0.005)
+    risk_based_size = int(risk_amount / stop_distance) if stop_distance > 0 else 1
+    
+    margin_mult = 0.20 if req.trade_type == "INTRADAY" else (0.15 if req.trade_type == "FUTURES" else 1.0)
+    leverage = 1.0 / margin_mult if margin_mult > 0 else 1.0
+    margin_based_size = int(req.initial_capital * leverage / avg_price) if avg_price > 0 else 1
+    
+    auto_max_pos = min(risk_based_size, int(margin_based_size * 0.20))
+    auto_max_pos = max(auto_max_pos, 1)
+    
     final_max_pos = req.max_position_size if (req.max_position_size and req.max_position_size > 0) else auto_max_pos
 
-    # 3. Instantiate engine and run backtest
-    run_id = f"B-{uuid.uuid4().hex[:8].upper()}"
-    df_dict = {req.symbol.upper(): df.drop(columns=['time_dt'])}
-    
-    engine = BacktestEngine(
-        df_dict=df_dict,
-        strategy_code=cast(str, s.code),
-        initial_capital=req.initial_capital,
-        slippage_pct=req.slippage_pct,
-        default_trade_type=req.trade_type,
-        max_position_size=final_max_pos,
-        runtime_type=getattr(s, 'runtime_type', 'legacy_on_bar'),  # NEW: pass runtime_type
-    )
-
     try:
+        # 3. Instantiate engine and run backtest
+        run_id = f"B-{uuid.uuid4().hex[:8].upper()}"
+        
+        engine = BacktestEngine(
+            df_dict=df_dict,
+            strategy_code=cast(str, s.code),
+            initial_capital=req.initial_capital,
+            slippage_pct=req.slippage_pct,
+            default_trade_type=req.trade_type,
+            max_position_size=final_max_pos,
+            runtime_type=getattr(s, 'runtime_type', 'legacy_on_bar'),
+        )
         res = engine.run(run_id=run_id)
+
+        # 4. Process analytics metrics
+        metrics = calculate_metrics(res['equity_curve'], res['trades'], req.initial_capital)
+        metrics['equity_curve'] = res['equity_curve']
+        
+        # 5. Catalog the results in database
+        primary_symbol = req.symbols[0].upper() if req.symbols else "MULTI"
+        result = BacktestResultDB(
+            id=run_id,
+            strategy_id=s.id,
+            strategy_name=s.name,
+            symbol=primary_symbol,
+            interval=req.interval.upper(),
+            start_time=req.start_date,
+            end_time=req.end_date,
+            initial_capital=req.initial_capital,
+            final_equity=res['final_portfolio']['equity'],
+            total_pnl=metrics.get("total_pnl", 0.0),
+            cagr=metrics.get("cagr", 0.0),
+            sharpe_ratio=metrics.get("sharpe_ratio", 0.0),
+            sortino_ratio=metrics.get("sortino_ratio", 0.0),
+            max_drawdown=metrics.get("max_drawdown", 0.0),
+            win_rate=metrics.get("win_rate", 0.0),
+            profit_factor=metrics.get("profit_factor", 0.0),
+            total_fees=metrics.get("cost_breakdown", {}).get("total_fees", 0.0),
+            max_position_size=final_max_pos,
+            log_file_path=res['log_file_path'],
+            metrics_json=cast(str, json.dumps(metrics))
+        )
+        
+        db.add(result)
+        db.commit()
+
+        return {
+            "run_id": run_id,
+            "metrics": metrics,
+            "equity_curve": res['equity_curve'],
+            "final_equity": res['final_portfolio']['equity'],
+            "downloaded_symbols": downloaded_symbols,
+            "symbols_used": list(df_dict.keys())
+        }
+
     except Exception as e:
+        print(f"CRITICAL BACKTEST ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Backtest Engine Failure: {str(e)}")
-
-    # 4. Process analytics metrics
-    metrics = calculate_metrics(res['equity_curve'], res['trades'], req.initial_capital)
-    
-    # Persist the equity curve (including position data) in the metrics JSON
-    metrics['equity_curve'] = res['equity_curve']
-    
-    # 5. Catalog the results in database
-    result = BacktestResultDB(
-        id=run_id,
-        strategy_id=s.id,
-        strategy_name=s.name,
-        symbol=req.symbol.upper(),
-        interval=req.interval.upper(),
-        start_time=req.start_date,
-        end_time=req.end_date,
-        initial_capital=req.initial_capital,
-        final_equity=res['final_portfolio']['equity'],
-        total_pnl=metrics.get("total_pnl", 0.0),
-        cagr=metrics.get("cagr", 0.0),
-        sharpe_ratio=metrics.get("sharpe_ratio", 0.0),
-        sortino_ratio=metrics.get("sortino_ratio", 0.0),
-        max_drawdown=metrics.get("max_drawdown", 0.0),
-        win_rate=metrics.get("win_rate", 0.0),
-        profit_factor=metrics.get("profit_factor", 0.0),
-        total_fees=metrics.get("cost_breakdown", {}).get("total_fees", 0.0),
-        max_position_size=final_max_pos,
-        log_file_path=res['log_file_path'],
-        metrics_json=cast(str, json.dumps(metrics))
-    )
-    
-    db.add(result)
-    db.commit()
-
-    return {
-        "run_id": run_id,
-        "metrics": metrics,
-        "equity_curve": res['equity_curve'],
-        "final_equity": res['final_portfolio']['equity']
-    }
 
 @app.get("/api/backtest/results")
 def list_backtest_results(db: Session = Depends(get_db)):

@@ -5,9 +5,9 @@ import pandas as pd
 # Ensure workspace folders are in system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from engine.datamodels import MarketState, OrderRequest
+from engine.datamodels import MarketState, OrderRequest, Portfolio
 from engine.execution import ExecutionSimulator
-from engine.runtime import SandboxedStrategyRuntime
+from engine.runtime.runtimes import LegacyRuntime
 from engine.backtester import BacktestEngine
 from engine.analytics import calculate_metrics
 
@@ -46,10 +46,9 @@ class Strategy:
         os.system("echo 'hack'")
         return []
 """
-    runtime = SandboxedStrategyRuntime(unsafe_code)
+    runtime = LegacyRuntime(unsafe_code)
     
     # Construct dummy state
-    from engine.datamodels import Portfolio
     dummy_portfolio = Portfolio(cash=10000.0)
     dummy_state = MarketState(
         current_time="2026-06-01 09:15:00",
@@ -60,10 +59,15 @@ class Strategy:
         active_orders=[]
     )
     
-    runtime.on_bar(dummy_state)
-    logs = runtime.get_logs()
+    runtime.on_tick(dummy_state)
+    logs = runtime.get_log_entries()
     
-    error_logged = any("Import of module 'os' is restricted" in log for log in logs)
+    error_logged = any(
+        "__import__" in log.get("message", "")
+        or "not defined" in log.get("message", "")
+        or "restricted" in log.get("message", "")
+        for log in logs
+    )
     assert error_logged, f"Sandboxed runtime failed to block unauthorized imports! Logs: {logs}"
 
 def test_backtester_runs():

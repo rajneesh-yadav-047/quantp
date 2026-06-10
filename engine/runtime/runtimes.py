@@ -51,6 +51,12 @@ class ProsperityRuntime:
 
     def _compile_strategy(self):
         """Compile strategy code in a sandboxed namespace."""
+        allowed_modules = {"math", "statistics", "json", "pandas", "numpy"}
+        def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in allowed_modules:
+                return __import__(name, globals, locals, fromlist, level)
+            raise ImportError(f"Import of module '{name}' is restricted in the sandboxed runtime.")
+
         safe_builtins = {
             'print': print,
             'len': len,
@@ -67,10 +73,28 @@ class ProsperityRuntime:
             'sum': sum,
             'round': round,
             'sorted': sorted,
+            '__build_class__': __import__('builtins').__build_class__,
+            '__import__': safe_import,
+            'hasattr': hasattr,
+            'getattr': getattr,
+            'setattr': setattr,
+            'isinstance': isinstance,
+            'issubclass': issubclass,
+            'enumerate': enumerate,
+            'zip': zip,
+            'filter': filter,
+            'map': map,
+            'type': type,
+            'Exception': Exception,
+            'ValueError': ValueError,
+            'KeyError': KeyError,
+            'IndexError': IndexError,
+            'AttributeError': AttributeError,
         }
 
         self.sandbox = {
             '__builtins__': safe_builtins,
+            '__name__': '<strategy>',
             'json': json,
             'math': __import__('math'),
             'statistics': __import__('statistics'),
@@ -109,15 +133,9 @@ class ProsperityRuntime:
                 if not trader_class:
                     raise RuntimeError("Trader class not found in strategy code")
 
-                # Instantiate or get singleton
-                # (Depends on strategy implementation; typically a class with run method)
-                if hasattr(trader_class, 'run'):
-                    # Static method or already instantiated
-                    result = trader_class.run(state)
-                else:
-                    # Instantiate and call
-                    instance = trader_class()
-                    result = instance.run(state)
+                # Instantiate and call run(state)
+                instance = trader_class()
+                result = instance.run(state)
 
         except Exception as e:
             self.logger.record("error", message=str(e))
@@ -139,6 +157,15 @@ class ProsperityRuntime:
 
         # Normalize orders to Order objects
         normalized_orders = []
+
+        # Handle dict-based order structure (Standard Prosperity: {symbol: [Order]})
+        if isinstance(orders, dict):
+            flat_orders = []
+            for symbol_orders in orders.values():
+                if isinstance(symbol_orders, list):
+                    flat_orders.extend(symbol_orders)
+            orders = flat_orders
+
         for order in orders:
             if isinstance(order, Order):
                 normalized_orders.append(order)
@@ -185,6 +212,12 @@ class LegacyRuntime:
 
     def _compile_strategy(self):
         """Compile legacy strategy code."""
+        allowed_modules = {"math", "statistics", "json", "pandas", "numpy"}
+        def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name in allowed_modules:
+                return __import__(name, globals, locals, fromlist, level)
+            raise ImportError(f"Import of module '{name}' is restricted in the sandboxed runtime.")
+
         safe_builtins = {
             'print': print,
             'len': len,
@@ -201,10 +234,28 @@ class LegacyRuntime:
             'sum': sum,
             'round': round,
             'sorted': sorted,
+            '__build_class__': __import__('builtins').__build_class__,
+            '__import__': safe_import,
+            'hasattr': hasattr,
+            'getattr': getattr,
+            'setattr': setattr,
+            'isinstance': isinstance,
+            'issubclass': issubclass,
+            'enumerate': enumerate,
+            'zip': zip,
+            'filter': filter,
+            'map': map,
+            'type': type,
+            'Exception': Exception,
+            'ValueError': ValueError,
+            'KeyError': KeyError,
+            'IndexError': IndexError,
+            'AttributeError': AttributeError,
         }
 
         self.sandbox = {
             '__builtins__': safe_builtins,
+            '__name__': '<strategy>',
             'json': json,
             'math': __import__('math'),
             'statistics': __import__('statistics'),
@@ -231,11 +282,20 @@ class LegacyRuntime:
         self.logger.clear()
 
         try:
+            # Legacy strategies define either:
+            #   class Strategy: def on_bar(self, state): ...
+            # or a top-level: def on_bar(state): ...
+            strategy_class = self.sandbox.get('Strategy')
             on_bar_func = self.sandbox.get('on_bar')
-            if not on_bar_func:
+
+            if strategy_class and hasattr(strategy_class, 'on_bar'):
+                instance = strategy_class()
+                result = instance.on_bar(state)
+            elif on_bar_func:
+                result = on_bar_func(state)
+            else:
                 raise RuntimeError("on_bar function not found in strategy code")
 
-            result = on_bar_func(state)
             if not isinstance(result, list):
                 result = []
 
@@ -244,6 +304,58 @@ class LegacyRuntime:
             result = []
 
         return result
+
+    def on_tick(self, state: Any) -> Tuple[List[Order], str]:
+        """
+        Adapter that wraps on_bar for compatibility with BacktestEngine.
+
+        Accepts TradingState or MarketState, calls on_bar, normalizes
+        legacy dict orders (with 'qty' key) to Order objects.
+
+        Returns:
+            (orders_list, trader_data_json)
+        """
+        self.logger.clear()
+
+        try:
+            # Legacy strategies define either:
+            #   class Strategy: def on_bar(self, state): ...
+            # or a top-level: def on_bar(state): ...
+            strategy_class = self.sandbox.get('Strategy')
+            on_bar_func = self.sandbox.get('on_bar')
+
+            if strategy_class and hasattr(strategy_class, 'on_bar'):
+                instance = strategy_class()
+                result = instance.on_bar(state)
+            elif on_bar_func:
+                result = on_bar_func(state)
+            else:
+                raise RuntimeError("on_bar function not found in strategy code")
+
+            if not isinstance(result, list):
+                result = []
+
+        except Exception as e:
+            self.logger.record("error", message=str(e))
+            result = []
+
+        # Normalize legacy dict orders to Order objects
+        normalized_orders = []
+        for order in result:
+            if isinstance(order, Order):
+                normalized_orders.append(order)
+            elif isinstance(order, dict):
+                order_dict = dict(order)
+                # Legacy uses 'qty', Prosperity/Order uses 'quantity'
+                if 'qty' in order_dict and 'quantity' not in order_dict:
+                    order_dict['quantity'] = order_dict.pop('qty')
+                # Filter to only keys Order dataclass accepts
+                allowed_keys = {'symbol', 'direction', 'price', 'quantity', 'type', 'order_id'}
+                filtered = {k: v for k, v in order_dict.items() if k in allowed_keys}
+                normalized_orders.append(Order(**filtered))
+            # else skip invalid orders
+
+        return normalized_orders, state.trader_data if hasattr(state, 'trader_data') else "{}"
 
     def get_logs(self) -> str:
         """Get accumulated logs as JSON string."""

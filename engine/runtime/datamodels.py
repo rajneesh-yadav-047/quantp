@@ -22,15 +22,42 @@ class OrderType(str, Enum):
 
 @dataclass
 class Order:
-    """A single order submitted by the strategy."""
+    """A single order submitted by the strategy.
+
+    Supports both constructor styles:
+      - Standard: Order(symbol, direction, price, quantity)
+      - Prosperity: Order(symbol, price, quantity)  # direction inferred from qty sign
+    """
     symbol: str
-    direction: str  # "BUY" or "SELL"
-    price: float
-    quantity: int
+    direction: str = ""  # "BUY" or "SELL"
+    price: float = 0.0
+    quantity: int = 0
+    type: str = "LIMIT"
     order_id: Optional[str] = None
 
+    def __post_init__(self):
+        # If direction is missing, this was called Prosperity-style:
+        # Order(symbol, price, quantity) where positive qty = BUY
+        if not self.direction or self.direction not in ("BUY", "SELL"):
+            # direction got the price value, price got the quantity
+            try:
+                qty = int(self.price)
+                self.price = float(self.direction) if self.direction else 0.0
+                self.direction = "BUY" if qty >= 0 else "SELL"
+                self.quantity = abs(qty)
+            except (ValueError, TypeError):
+                self.direction = "BUY"
+                self.quantity = abs(self.quantity)
+
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {
+            "symbol": self.symbol,
+            "direction": self.direction,
+            "price": self.price,
+            "quantity": self.quantity,
+            "type": self.type,
+            "order_id": self.order_id,
+        }
 
 
 @dataclass
@@ -41,6 +68,16 @@ class OrderDepth:
     bid_volumes: List[int]       # Corresponding bid quantities
     ask_prices: List[int]        # Price levels, best (lowest) first
     ask_volumes: List[int]       # Corresponding ask quantities
+
+    @property
+    def buy_orders(self) -> Dict[int, int]:
+        """Prosperity-compatible: {price: volume} for bids."""
+        return {p: v for p, v in zip(self.bid_prices, self.bid_volumes)}
+
+    @property
+    def sell_orders(self) -> Dict[int, int]:
+        """Prosperity-compatible: {price: volume} for asks."""
+        return {p: v for p, v in zip(self.ask_prices, self.ask_volumes)}
 
     def best_bid(self) -> Optional[Tuple[int, int]]:
         """Return (price, volume) of best bid, or None if no bids."""
@@ -128,9 +165,14 @@ class TradingState:
     positions: Dict[str, Position]           # Symbol -> current position
     portfolio_value: float                   # Total equity
     cash: float                              # Available cash
-    strategy_state: str                      # JSON-serialized strategy memory (persisted across ticks)
+    trader_data: str                         # JSON-serialized strategy memory (persisted across ticks)
     listings: Dict[str, Listing] = field(default_factory=dict)
     observations: Dict[str, Observation] = field(default_factory=dict)
+
+    @property
+    def position(self) -> Dict[str, int]:
+        """Prosperity-compatible: {symbol: quantity} mapping."""
+        return {sym: pos.quantity for sym, pos in self.positions.items()}
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict for logging."""
@@ -142,7 +184,7 @@ class TradingState:
             "positions": {k: v.to_dict() for k, v in self.positions.items()},
             "portfolio_value": self.portfolio_value,
             "cash": self.cash,
-            "strategy_state": self.strategy_state,
+            "trader_data": self.trader_data,
             "listings": {k: v.to_dict() for k, v in self.listings.items()},
             "observations": {k: v.to_dict() for k, v in self.observations.items()},
         }
