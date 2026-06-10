@@ -6,16 +6,16 @@
     "start_date": "2026-06-01T09:15:00+05:30",
     "end_date": "2026-06-05T15:29:00+05:30",
     "records_count": 1875,
-    "updated_at": "2026-06-06 02:01:32"
+    "updated_at": "2026-06-09 20:18:44"
   },
   "SBIN_FIVE_MINUTE": {
     "symbol": "SBIN",
     "interval": "FIVE_MINUTE",
     "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\FIVE_MINUTE\\data.parquet",
     "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-05T15:25:00+05:30",
-    "records_count": 375,
-    "updated_at": "2026-06-05 18:34:46"
+    "end_date": "2026-06-09T15:25:00+05:30",
+    "records_count": 525,
+    "updated_at": "2026-06-10 05:26:41"
   },
   "99926000_FIVE_MINUTE": {
     "symbol": "99926000",
@@ -106,5 +106,14 @@
     "end_date": "2026-06-09T15:15:00+05:30",
     "records_count": 49,
     "updated_at": "2026-06-09 16:40:59"
+  },
+  "NSE:GODFRYPHLP-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:GODFRYPHLP-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_GODFRYPHLP-EQ\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-05-04T09:15:00+05:30",
+    "end_date": "2026-06-05T15:25:00+05:30",
+    "records_count": 1800,
+    "updated_at": "2026-06-10 23:39:59"
   }
 }

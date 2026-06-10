@@ -24,6 +24,8 @@ interface LightweightChartProps {
   trades?: TradeMarker[];
   showEmaFast?: boolean;
   showEmaSlow?: boolean;
+  showBuyTrades?: boolean;
+  showSellTrades?: boolean;
   emaFastPeriod?: number;
   emaSlowPeriod?: number;
   height?: number;
@@ -34,6 +36,8 @@ export default function LightweightChart({
   trades = [],
   showEmaFast = true,
   showEmaSlow = true,
+  showBuyTrades = true,
+  showSellTrades = true,
   emaFastPeriod = 9,
   emaSlowPeriod = 21,
   height = 400
@@ -150,33 +154,41 @@ export default function LightweightChart({
 
     // Set markers for trades
     if (trades.length > 0) {
-      const markers = trades.map(t => {
-        let timeVal: any = t.time;
-        if (typeof timeVal === "string") {
-          let cleanStr = timeVal;
-          if (timeVal.includes(" ") && !timeVal.includes("T")) {
-            cleanStr = timeVal.replace(" ", "T");
+      const markers = trades
+        .filter(t => {
+          if (t.direction === "BUY" && !showBuyTrades) return false;
+          if (t.direction === "SELL" && !showSellTrades) return false;
+          return true;
+        })
+        .map(t => {
+          let timeVal: any = t.time;
+          if (typeof timeVal === "string") {
+            let cleanStr = timeVal;
+            if (timeVal.includes(" ") && !timeVal.includes("T")) {
+              cleanStr = timeVal.replace(" ", "T");
+            }
+            const dt = new Date(cleanStr);
+            if (!isNaN(dt.getTime())) {
+              timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
+            }
           }
-          const dt = new Date(cleanStr);
-          if (!isNaN(dt.getTime())) {
-            timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
-          }
-        }
 
-        const isBuy = t.direction === "BUY";
-        return {
-          time: timeVal,
-          position: isBuy ? "belowBar" as const : "aboveBar" as const,
-          color: isBuy ? "#10B981" : "#EF4444",
-          shape: isBuy ? "arrowUp" as const : "arrowDown" as const,
-          text: `${t.direction} ${t.qty} @ ${t.price.toFixed(1)}`,
-          size: 1.5
-        };
-      });
+          const isBuy = t.direction === "BUY";
+          return {
+            time: timeVal,
+            position: isBuy ? "belowBar" as const : "aboveBar" as const,
+            color: isBuy ? "#10B981" : "#EF4444",
+            shape: isBuy ? "arrowUp" as const : "arrowDown" as const,
+            text: `${t.direction} ${t.qty} @ ${t.price.toFixed(1)}`,
+            size: 1.5
+          };
+        });
 
-      // Sort markers by time
-      markers.sort((a: any, b: any) => a.time - b.time);
-      createSeriesMarkers(candlestickSeries, markers);
+      if (markers.length > 0) {
+        // Sort markers by time
+        markers.sort((a: any, b: any) => a.time - b.time);
+        createSeriesMarkers(candlestickSeries, markers);
+      }
     }
 
     chart.timeScale().fitContent();
@@ -193,7 +205,7 @@ export default function LightweightChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [candles, trades, showEmaFast, showEmaSlow, emaFastPeriod, emaSlowPeriod, height]);
+  }, [candles, trades, showEmaFast, showEmaSlow, showBuyTrades, showSellTrades, emaFastPeriod, emaSlowPeriod, height]);
 
   return (
     <div className="w-full relative bg-[#0B0F19] rounded-xl border border-slate-800 p-2 overflow-hidden">

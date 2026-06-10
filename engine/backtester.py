@@ -16,10 +16,10 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 
 from engine.datamodels import (
-    Trade, Position, Portfolio
+    Trade, Position, Portfolio, Candle, MarketState
 )
 from engine.execution import ExecutionSimulator
-from engine.runtime.runtimes import RuntimeFactory
+from engine.runtime.runtimes import RuntimeFactory, LegacyRuntime
 from engine.runtime.adapters import (
     CandleToOrderBookAdapter,
     PortfolioStateBuilder,
@@ -101,8 +101,31 @@ class BacktestEngine:
         elif default_trade_type == "FUTURES":
             self.margin_multiplier = 0.15  # ~6.6x leverage
 
+        # Historical candles for legacy on_bar strategies
+        self.historical_candles: Dict[str, List[Candle]] = {sym: [] for sym in df_dict.keys()}
+
+        # Normalize time columns to a common string format so cross-symbol alignment works
+        self._normalize_time_columns()
+
         # Align timestamps
         self.all_timestamps = self._align_timestamps()
+
+    def _normalize_time_columns(self):
+        """Parse and reformat every dataframe's 'time' column to '%Y-%m-%d %H:%M:%S' strings."""
+        for symbol, df in self.df_dict.items():
+            if 'time' not in df.columns:
+                continue
+            try:
+                parsed = pd.to_datetime(df['time'], errors='coerce')
+                # Drop rows where time could not be parsed
+                if parsed.isna().any():
+                    bad_count = parsed.isna().sum()
+                    print(f"WARN: Dropping {bad_count} rows with unparseable time in {symbol}")
+                    df.drop(index=df.index[parsed.isna()], inplace=True)
+                    parsed = pd.to_datetime(df['time'], errors='coerce')
+                df['time'] = parsed.dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                print(f"WARN: Could not normalize time column for {symbol}: {e}")
 
     def _align_timestamps(self) -> List[str]:
         """Collect and sort all unique timestamps across symbols."""
@@ -176,6 +199,22 @@ class BacktestEngine:
                 if not current_candles:
                     continue  # No data at this timestamp
 
+                # Accumulate historical candles for legacy strategies
+                for symbol, row in current_candles.items():
+                    candle = Candle(
+                        time=str(ts),
+                        open=float(row['open']),
+                        high=float(row['high']),
+                        low=float(row['low']),
+                        close=float(row['close']),
+                        volume=int(row.get('volume', 0)),
+                        open_interest=int(row.get('open_interest', 0)),
+                    )
+                    self.historical_candles[symbol].append(candle)
+                    # Prevent unbounded memory growth
+                    if len(self.historical_candles[symbol]) > 2000:
+                        self.historical_candles[symbol] = self.historical_candles[symbol][-2000:]
+
                 # ===== PHASE 2: Match pending orders =====
                 filled_trades_this_step: List[Trade] = []
                 remaining_orders: List = []
@@ -218,7 +257,7 @@ class BacktestEngine:
                         portfolio, current_candles, current_prices, ts, all_trades, filled_trades_this_step
                     )
 
-                # ===== PHASE 5: Build TradingState and execute strategy =====
+                # ===== PHASE 5: Build state and execute strategy =====
                 positions_for_state = PortfolioStateBuilder.convert_backtest_positions(
                     portfolio.positions,
                     current_prices
@@ -229,21 +268,48 @@ class BacktestEngine:
                     sym: trades[-100:] for sym, trades in own_trades_by_symbol.items()
                 }
 
+                # Execute strategy
+                submitted_orders = []
+                # Always build TradingState for replay logging
                 trading_state = PortfolioStateBuilder.build_trading_state(
                     timestamp=ts,
                     order_depths=order_depths,
                     own_trades=own_trades_state,
-                    market_trades={sym: [] for sym in self.df_dict.keys()},  # TODO: populate from real market data
+                    market_trades={sym: [] for sym in self.df_dict.keys()},
                     positions=positions_for_state,
                     portfolio_equity=portfolio.equity,
                     portfolio_cash=portfolio.cash,
                     trader_data=trader_data_json,
                 )
-
-                # Execute strategy
-                submitted_orders = []
                 if portfolio.equity > 0:
-                    submitted_orders, trader_data_json = self.runtime.on_tick(trading_state)
+                    if isinstance(self.runtime, LegacyRuntime):
+                        # Legacy on_bar strategies need MarketState with candles
+                        current_candle_dict = {
+                            sym: Candle(
+                                time=str(ts),
+                                open=float(row['open']),
+                                high=float(row['high']),
+                                low=float(row['low']),
+                                close=float(row['close']),
+                                volume=int(row.get('volume', 0)),
+                                open_interest=int(row.get('open_interest', 0)),
+                            )
+                            for sym, row in current_candles.items()
+                        }
+                        market_state = MarketState(
+                            current_time=ts,
+                            current_candle=current_candle_dict,
+                            historical_candles={
+                                sym: list(candles) for sym, candles in self.historical_candles.items()
+                            },
+                            positions=portfolio.positions,
+                            portfolio=portfolio,
+                            active_orders=active_orders,
+                        )
+                        submitted_orders, trader_data_json = self.runtime.on_tick(market_state)
+                    else:
+                        # Prosperity-style strategies use TradingState
+                        submitted_orders, trader_data_json = self.runtime.on_tick(trading_state)
 
                 # Get strategy logs
                 strategy_logs_json = self.runtime.get_logs()
@@ -253,15 +319,35 @@ class BacktestEngine:
                 for order_req in submitted_orders:
                     order_id = f"O-{uuid.uuid4().hex[:8].upper()}"
 
-                    # Cap by max_position_size
-                    final_qty = order_req.quantity
+                    # Calculate current position for this symbol
+                    current_pos_qty = portfolio.positions.get(order_req.symbol, Position(symbol=order_req.symbol)).qty
+                    
+                    # Determine signed order quantity
+                    direction_multiplier = 1 if order_req.direction == "BUY" else -1
+                    requested_signed_qty = order_req.quantity * direction_multiplier
+                    
+                    # Apply max_position_size cap on TOTAL position (not just order size)
+                    final_signed_qty = requested_signed_qty
                     if self.max_position_size and self.max_position_size > 0:
-                        final_qty = min(order_req.quantity, self.max_position_size)
+                        # What would the new position be after this order?
+                        projected_pos = current_pos_qty + requested_signed_qty
+                        
+                        # Cap the projected position
+                        if abs(projected_pos) > self.max_position_size:
+                            # Trim the order so projected position equals the cap
+                            allowed_new_pos = self.max_position_size if projected_pos >= 0 else -self.max_position_size
+                            final_signed_qty = allowed_new_pos - current_pos_qty
+                            if final_signed_qty == 0:
+                                continue  # Skip this order entirely
+                    
+                    final_qty = abs(final_signed_qty)
+                    final_direction = "BUY" if final_signed_qty > 0 else "SELL"
 
                     new_order = self._create_order(
                         order_id=order_id,
                         symbol=order_req.symbol,
-                        direction=order_req.direction,
+                        direction=final_direction,
+                        type=order_req.type,
                         price=order_req.price,
                         qty=final_qty,
                         ts=ts
@@ -336,6 +422,8 @@ class BacktestEngine:
                     orders_submitted=orders_submitted_dicts,
                     orders_filled=orders_filled_dicts,
                     strategy_logs=strategy_logs_json,
+                    portfolio=portfolio,
+                    current_candles=current_candles,
                 )
 
                 # Write JSONL
@@ -350,8 +438,14 @@ class BacktestEngine:
                     "direction": t.direction,
                     "price": t.price,
                     "qty": t.qty,
-                    "timestamp": t.timestamp,
-                    "charges": t.total_charges,
+                    "timestamp": str(t.timestamp),
+                    "brokerage": t.brokerage,
+                    "stt": t.stt,
+                    "exc_charges": t.exc_charges,
+                    "gst": t.gst,
+                    "sebi_charges": t.sebi_charges,
+                    "stamp_duty": t.stamp_duty,
+                    "total_charges": t.total_charges,
                 }
                 for t in all_trades
             ],
@@ -465,6 +559,7 @@ class BacktestEngine:
         order_id: str,
         symbol: str,
         direction: str,
+        type: str,
         price: float,
         qty: int,
         ts: str,
@@ -475,10 +570,10 @@ class BacktestEngine:
             id=order_id,
             symbol=symbol,
             direction=direction,
-            type="LIMIT",
+            type=type,
             price=price,
             qty=qty,
             status="PENDING",
-            trigger_price=None,
+            trigger_price=0.0,
             created_at=ts,
         )
