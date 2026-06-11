@@ -6,16 +6,15 @@ import {
   LineChart, Play, Pause, SkipForward, SkipBack, Cpu, FileText, BarChart2,
   PieChart, Database, Code, Shield,
   Plus, PlayCircle, RefreshCw, Layers, CheckCircle2, AlertTriangle, AlertCircle,
-  TrendingUp, Trash2
+  TrendingUp, Trash2, WifiOff, ServerCrash, RotateCcw,
 } from "lucide-react";
+import { api, apiFetch, formatApiError, type ApiResult } from "../lib/api-client";
 
 // Dynamically import client-only libraries to prevent NextJS hydration / SSR errors
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const LightweightChart = dynamic(() => import("../components/LightweightChart"), { ssr: false });
 const PositionChart = dynamic(() => import("../components/PositionChart"), { ssr: false });
 const PnLChart = dynamic(() => import("../components/PnLChart"), { ssr: false });
-
-const API_BASE = "/api";
+const ResearchLab = dynamic(() => import("../components/ResearchLab"), { ssr: false });
 
 export default function Home() {
   // Navigation State
@@ -25,6 +24,13 @@ export default function Home() {
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [smartapiConfigured, setSmartapiConfigured] = useState<boolean>(false);
   const [smartapiConnected, setSmartapiConnected] = useState<boolean>(false);
+
+  // Ollama Status — redesigned with grace period & cached checks
+  const [ollamaState, setOllamaState] = useState<"unknown" | "online" | "offline" | "error">("unknown");
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaLastError, setOllamaLastError] = useState<string | null>(null);
+  const ollamaFailCountRef = useRef(0);   // grace period counter
+  const ollamaOnlineRef = useRef(false);  // mirror for grace logic
 
   // TOTP Popup State
   const [isTotpModalOpen, setIsTotpModalOpen] = useState<boolean>(false);
@@ -42,58 +48,29 @@ export default function Home() {
   const [selectedRunId, setSelectedRunId] = useState<string>("");
 
   // Editor Code State
-  const [code, setCode] = useState<string>(`class Strategy:
-    def __init__(self):
-        # NEW: runtime_type can be "legacy_on_bar" or "prosperity_trader"
-        # NEW: entrypoint is required for "prosperity_trader" e.g. "trader.py:Trader"
-        self.name = "EMA Crossover Template"
-        self.ema_fast = 9
-        self.ema_slow = 21
-        self.trade_qty = 10 # Quantity to buy/sell per signal
-
-    def on_bar(self, state):
-        orders = []
-        for symbol, candles in state.historical_candles.items():
-            if len(candles) < self.ema_slow:
-                continue
-
-            closes = [c.close for c in candles]
-            import pandas as pd
-            series = pd.Series(closes)
-            ema_f = series.ewm(span=self.ema_fast, adjust=False).mean().iloc[-1]
-            ema_s = series.ewm(span=self.ema_slow, adjust=False).mean().iloc[-1]
-            
-            pos = state.positions.get(symbol)
-            qty = pos.qty if pos else 0
-            
-            # Entry/Exit logic with quantity tracking
-            # Note: The engine enforces the 'Max Position Limit' automatically
-            
-            if ema_f > ema_s and qty <= 0:
-                # Buy signal: enter or flip long
-                orders.append({
-                    "symbol": symbol,
-                    "direction": "BUY",
-                    "type": "MARKET",
-                    "price": 0.0,
-                    "qty": self.trade_qty if qty == 0 else (self.trade_qty * 2)
-                })
-                print(f"BUY Signal generated at {state.current_time}")
-            elif ema_f < ema_s and qty >= 0:
-                # Sell signal: enter or flip short
-                orders.append({
-                    "symbol": symbol,
-                    "direction": "SELL",
-                    "type": "MARKET",
-                    "price": 0.0,
-                    "qty": self.trade_qty if qty == 0 else (self.trade_qty * 2)
-                })
-                print(f"SELL Signal generated at {state.current_time}")
-                
-        return orders
-`);
+  const [code, setCode] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
   const [strategyRuntimeType, setStrategyRuntimeType] = useState<string>("legacy_on_bar");
   const [strategyEntrypoint, setStrategyEntrypoint] = useState<string | null>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith(".py")) {
+      triggerNotif("error", "Only .py files are allowed.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = String(ev.target?.result || "");
+      setCode(content);
+      setUploadedFileName(file.name);
+      setSelectedStrategyId(""); // treat as unsaved/new
+      triggerNotif("success", `Loaded ${file.name} (${content.length} chars)`);
+    };
+    reader.readAsText(file);
+  };
 
   // Selected Backtest Details (Replay State)
   const [backtestDetail, setBacktestDetail] = useState<any>(null);
@@ -157,9 +134,8 @@ export default function Home() {
   const [cleanupSymbol, setCleanupSymbol] = useState<string>("");
   const [cleanupInterval, setCleanupInterval] = useState<string>("");
   const [cleanupOlderThan, setCleanupOlderThan] = useState<number | "">("");
+  const [cleanupStrategyId, setCleanupStrategyId] = useState<string>("");
   const [cleanupResult, setCleanupResult] = useState<any>(null);
-
-  // Dataset Download Form Inputs
   const [dlSymbol, setDlSymbol] = useState<string>("SBIN");
   const [dlInterval, setDlInterval] = useState<string>("ONE_MINUTE");
   const [dlFromDate, setDlFromDate] = useState<string>("2026-06-01");
@@ -174,12 +150,51 @@ export default function Home() {
   // Status Alerts
   const [notif, setNotif] = useState<{ type: "success" | "error" | "info"; msg: string } | null>(null);
 
+  // Per-endpoint error tracking for retry UI
+  const [apiErrors, setApiErrors] = useState<Record<string, { error: string; retry: () => void }>>({});
+
+  const setEndpointError = (endpoint: string, error: string | null, retry?: () => void) => {
+    setApiErrors(prev => {
+      const next = { ...prev };
+      if (error === null) {
+        delete next[endpoint];
+      } else {
+        next[endpoint] = { error, retry: retry || (() => {}) };
+      }
+      return next;
+    });
+  };
+
+  const clearEndpointError = (endpoint: string) => {
+    setEndpointError(endpoint, null);
+  };
+
+  const handleApiResult = <T,>(
+    endpoint: string,
+    result: ApiResult<T>,
+    onSuccess: (data: T) => void,
+    retryFn: () => void,
+    context?: string
+  ) => {
+    if (result.ok && result.data) {
+      clearEndpointError(endpoint);
+      onSuccess(result.data);
+    } else if (!result.ok) {
+      const msg = formatApiError(result, context);
+      setEndpointError(endpoint, msg, retryFn);
+      triggerNotif("error", msg);
+    }
+  };
+
   // --- CONNECTIVITY & FETCHERS ---
 
   useEffect(() => {
     checkBackendHealth();
     // Periodically check health
-    const interval = setInterval(checkBackendHealth, 5000);
+    const interval = setInterval(() => {
+      checkBackendHealth();
+      checkOllamaHealth();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -192,10 +207,15 @@ export default function Home() {
     if (!backendOnline) return;
 
     const delayDebounceFn = setTimeout(() => {
-      fetch(`${API_BASE}/data/symbols/search?q=${dlSymbol}`)
-        .then(res => res.json())
-        .then(data => setSuggestions(data))
-        .catch(() => {});
+      api.get(`/data/symbols/search?q=${encodeURIComponent(dlSymbol)}`)
+        .then(result => {
+          if (result.ok && result.data) {
+            setSuggestions(result.data);
+          } else {
+            setSuggestions([]);
+          }
+        })
+        .catch(() => setSuggestions([]));
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
@@ -207,46 +227,86 @@ export default function Home() {
   };
 
   const checkBackendHealth = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/strategies`);
-      if (res.ok) {
-        setBackendOnline(true);
-        fetchCoreData();
-      } else {
-        setBackendOnline(false);
-      }
-    } catch {
+    const result = await api.get("/strategies", { timeout: 5000 });
+    if (result.ok) {
+      setBackendOnline(true);
+      clearEndpointError("health");
+      fetchCoreData();
+    } else {
       setBackendOnline(false);
+      if (result.isNetworkError) {
+        setEndpointError("health", "Backend is offline. Start the FastAPI server.", checkBackendHealth);
+      }
+    }
+  };
+
+  const checkOllamaHealth = async () => {
+    if (!backendOnline) {
+      setOllamaState("offline");
+      ollamaOnlineRef.current = false;
+      return;
+    }
+    // Use /forge/status — fast cached endpoint, never blocks on network I/O
+    const result = await api.get("/forge/status", { timeout: 5000 });
+    if (result.ok && result.data) {
+      const { state, models, last_error, stale } = result.data;
+      setOllamaModels(models || []);
+      setOllamaLastError(last_error || null);
+
+      if (state === "online") {
+        ollamaFailCountRef.current = 0;
+        ollamaOnlineRef.current = true;
+        setOllamaState("online");
+        clearEndpointError("ollama/status");
+      } else {
+        // Grace period: require 2 consecutive failures before marking offline
+        ollamaFailCountRef.current += 1;
+        if (ollamaFailCountRef.current >= 2) {
+          ollamaOnlineRef.current = false;
+          setOllamaState(state === "error" ? "error" : "offline");
+          setEndpointError(
+            "ollama/status",
+            last_error || "Ollama is unreachable. Start it with: ollama serve",
+            checkOllamaHealth
+          );
+        }
+        // If only 1 failure, keep previous state (don't flicker)
+      }
+    } else {
+      ollamaFailCountRef.current += 1;
+      if (ollamaFailCountRef.current >= 2) {
+        ollamaOnlineRef.current = false;
+        setOllamaState("offline");
+        setEndpointError("ollama/status", result.error || "Ollama status check failed.", checkOllamaHealth);
+      }
+    }
+  };
+
+  const setIfChanged = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, current: T, next: T) => {
+    if (JSON.stringify(current) !== JSON.stringify(next)) {
+      setter(next);
     }
   };
 
   const fetchCoreData = async () => {
-    try {
-      // Use independent catchers for each fetch to prevent "Failed to fetch" from crashing the loop
-      // 1. Fetch Strategies
-      const stratReq = fetch(`${API_BASE}/strategies`).then(r => r.ok ? r.json() : null).catch(() => null);
+    // Fetch all core data in parallel with safe error handling
+    const [stratRes, catRes, runsRes, sapiRes] = await Promise.all([
+      api.get("/strategies"),
+      api.get("/data/datasets"),
+      api.get("/backtest/results"),
+      api.get("/auth/smartapi/status"),
+    ]);
 
-      // 2. Fetch Parquet Catalog
-      const catReq = fetch(`${API_BASE}/data/datasets`).then(r => r.ok ? r.json() : null).catch(() => null);
-
-      // 3. Fetch Runs Catalog
-      const runsReq = fetch(`${API_BASE}/backtest/results`).then(r => r.ok ? r.json() : null).catch(() => null);
-
-      // 4. Fetch SmartAPI Status
-      const sapiReq = fetch(`${API_BASE}/auth/smartapi/status`).then(r => r.ok ? r.json() : null).catch(() => null);
-
-      const [stratData, catData, runsData, sapiData] = await Promise.all([stratReq, catReq, runsReq, sapiReq]);
-
-      if (stratData) setStrategies(stratData);
-      if (catData) setDatasets(Object.values(catData));
-      if (runsData) setBacktestRuns(runsData);
-      if (sapiData) {
-        setSmartapiConfigured(sapiData.configured);
-        setSmartapiConnected(sapiData.connected);
-      }
-
-    } catch {
-      // Silently fail - health check will retry
+    handleApiResult("strategies", stratRes, (data) => setIfChanged(setStrategies, strategies, data), fetchCoreData, "Strategies");
+    handleApiResult("datasets", catRes, (data) => setIfChanged(setDatasets, datasets, Object.values(data || {})), fetchCoreData, "Datasets");
+    handleApiResult("backtest/results", runsRes, (data) => setIfChanged(setBacktestRuns, backtestRuns, data || []), fetchCoreData, "Backtest runs");
+    
+    if (sapiRes.ok && sapiRes.data) {
+      clearEndpointError("smartapi/status");
+      setSmartapiConfigured(sapiRes.data.configured);
+      setSmartapiConnected(sapiRes.data.connected);
+    } else if (!sapiRes.ok) {
+      setEndpointError("smartapi/status", formatApiError(sapiRes, "SmartAPI status"), fetchCoreData);
     }
   };
 
@@ -558,25 +618,14 @@ export default function Home() {
   };
 
   const finalizeAuth = async (code: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/smartapi/connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          totp: code
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.connection_success) {
-        setSmartapiConfigured(true);
-        setSmartapiConnected(true);
-        triggerNotif("success", "SmartAPI Authenticated & Connected!");
-        fetchCoreData();
-      } else {
-        triggerNotif("error", `SmartAPI connection failed: ${data.message || "Bad keys"}`);
-      }
-    } catch {
-      triggerNotif("error", "Error connecting to backend API.");
+    const result = await api.post("/auth/smartapi/connect", { totp: code });
+    if (result.ok && result.data?.connection_success) {
+      setSmartapiConfigured(true);
+      setSmartapiConnected(true);
+      triggerNotif("success", "SmartAPI Authenticated & Connected!");
+      fetchCoreData();
+    } else {
+      triggerNotif("error", `SmartAPI connection failed: ${result.error || result.data?.message || "Bad keys"}`);
     }
   };
 
@@ -609,29 +658,20 @@ export default function Home() {
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/data/download`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: dlSymbol,
-          interval: dlInterval,
-          from_date: dlFromDate + " 09:15",
-          to_date: dlToDate + " 15:30",
-          totp: code
-        })
-      });
-      const data = await res.json();
-      setDownloading(false);
-      if (res.ok) {
-        triggerNotif("success", "Dataset downloaded and cataloged in Parquet!");
-        fetchCoreData();
-      } else {
-        triggerNotif("error", `Download failed: ${data.detail || "Server error"}`);
-      }
-    } catch {
-      setDownloading(false);
-      triggerNotif("error", "Error requesting download from API.");
+    const result = await api.post("/data/download", {
+      symbol: dlSymbol,
+      interval: dlInterval,
+      from_date: dlFromDate + " 09:15",
+      to_date: dlToDate + " 15:30",
+      totp: code
+    });
+
+    setDownloading(false);
+    if (result.ok) {
+      triggerNotif("success", "Dataset downloaded and cataloged in Parquet!");
+      fetchCoreData();
+    } else {
+      triggerNotif("error", `Download failed: ${result.error || "Server error"}`);
     }
   };
 
@@ -650,6 +690,8 @@ export default function Home() {
   };
 
   const handleSaveStrategy = async () => {
+    const liveCode = code;
+    
     if (!selectedStrategyId) {
       // Create new
       const name = prompt("Enter Strategy Name:", "My Trading Strategy");
@@ -663,26 +705,19 @@ export default function Home() {
         return;
       }
       
-      try {
-        const res = await fetch(`${API_BASE}/strategies`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            name, 
-            description: "Editor strategy", 
-            code,
-            runtime_type: strategyRuntimeType,
-            entrypoint: strategyEntrypoint
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          triggerNotif("success", "Strategy created in DB!");
-          fetchCoreData();
-          setSelectedStrategyId(data.id);
-        }
-      } catch {
-        triggerNotif("error", "Failed to save strategy.");
+      const result = await api.post("/strategies", { 
+        name, 
+        description: "Editor strategy", 
+        code: liveCode,
+        runtime_type: strategyRuntimeType,
+        entrypoint: strategyEntrypoint
+      });
+      if (result.ok && result.data) {
+        triggerNotif("success", "Strategy created in DB!");
+        fetchCoreData();
+        setSelectedStrategyId(result.data.id);
+      } else {
+        triggerNotif("error", `Failed to save strategy: ${result.error || "Unknown error"}`);
       }
     } else {
       // Update existing
@@ -691,26 +726,20 @@ export default function Home() {
         return;
       }
 
-      try {
-        // Find existing metadata
-        const stratMeta = strategies.find(s => s.id === selectedStrategyId);
-        const res = await fetch(`${API_BASE}/strategies/${selectedStrategyId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: stratMeta?.name || "Strategy", // Keep existing name
-            runtime_type: strategyRuntimeType,
-            entrypoint: strategyEntrypoint,
-            description: stratMeta?.description || "",
-            code
-          })
-        });
-        if (res.ok) {
-          triggerNotif("success", "Strategy code updated successfully!");
-          fetchCoreData();
-        }
-      } catch {
-        triggerNotif("error", "Failed to update strategy code.");
+      // Find existing metadata
+      const stratMeta = strategies.find(s => s.id === selectedStrategyId);
+      const result = await api.put(`/strategies/${selectedStrategyId}`, {
+        name: stratMeta?.name || "Strategy",
+        runtime_type: strategyRuntimeType,
+        entrypoint: strategyEntrypoint,
+        description: stratMeta?.description || "",
+        code: liveCode
+      });
+      if (result.ok) {
+        triggerNotif("success", "Strategy code updated successfully!");
+        fetchCoreData();
+      } else {
+        triggerNotif("error", `Failed to update strategy: ${result.error || "Unknown error"}`);
       }
     }
   };
@@ -742,104 +771,112 @@ export default function Home() {
     const interval = parts.slice(1).join("_");
     triggerNotif("info", `Initiating backtest on ${symbol}...`);
 
-    try {
-      // Find start and end date of dataset to use full range
-      const catalogItem = datasets.find(d => `${d.symbol}_${d.interval}` === selectedDataset);
-      const start_date = catalogItem ? catalogItem.start_date.split(" ")[0] : "2026-06-01";
-      const end_date = catalogItem ? catalogItem.end_date.split(" ")[0] : "2026-06-07";
+    // Find start and end date of dataset to use full range
+    const catalogItem = datasets.find(d => `${d.symbol}_${d.interval}` === selectedDataset);
+    const extractDate = (dt: string) => {
+      if (!dt) return "2026-06-01";
+      // Handle both "2026-06-01 09:15:00" and "2026-06-01T09:15:00+05:30"
+      return dt.split("T")[0].split(" ")[0];
+    };
+    const start_date = catalogItem ? extractDate(catalogItem.start_date) : "2026-06-01";
+    const end_date = catalogItem ? extractDate(catalogItem.end_date) : "2026-06-07";
 
-      const res = await fetch(`${API_BASE}/backtest/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategy_id: selectedStrategyId,
-          symbols: [symbol],
-          interval,
-          start_date,
-          end_date,
-          initial_capital: initialCapital,
-          slippage_pct: slippagePct / 100.0,
-          trade_type: tradeType,
-          max_position_size: isAutoMaxPos ? autoMaxPosValue : maxPositionSize,
-          runtime_type: selectedStrategy.runtime_type || "legacy_on_bar",
-          auto_download: true
-        })
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
-        triggerNotif("success", "Backtest run completed successfully!");
-        setSelectedRunId(data.run_id);
-        fetchCoreData();
-        loadBacktestReplay(data.run_id);
-        setActiveTab("studio");
-      } else {
-        const detail = typeof data.detail === "string" ? data.detail : (data.detail ? JSON.stringify(data.detail) : "Engine error");
-        triggerNotif("error", `Backtest failed: ${detail}`);
-      }
-    } catch (e: any) {
-      console.error("Backtest fetch error:", e);
-      triggerNotif("error", `Server communication failure: ${e?.message || "Unknown error"}`);
+    const result = await api.post("/backtest/run", {
+      strategy_id: selectedStrategyId,
+      symbols: [symbol],
+      interval,
+      start_date,
+      end_date,
+      initial_capital: initialCapital,
+      slippage_pct: slippagePct / 100.0,
+      trade_type: tradeType,
+      max_position_size: isAutoMaxPos ? autoMaxPosValue : maxPositionSize,
+      runtime_type: selectedStrategy.runtime_type || "legacy_on_bar",
+      auto_download: true
+    });
+
+    if (result.ok && result.data) {
+      triggerNotif("success", "Backtest run completed successfully!");
+      setSelectedRunId(result.data.run_id);
+      fetchCoreData();
+      loadBacktestReplay(result.data.run_id);
+      setActiveTab("studio");
+    } else {
+      triggerNotif("error", `Backtest failed: ${result.error || "Engine error"}`);
     }
   };
 
   const loadMultiAssetReplay = async (runId: string) => {
     if (!backendOnline) return;
-    try {
-      const resDet = await fetch(`${API_BASE}/backtest/results/${runId}`);
-      if (resDet.ok) {
-        const data = await resDet.json();
-        setMultiBacktestDetail(data);
-      }
-      const resLogs = await fetch(`${API_BASE}/backtest/logs/${runId}`);
-      if (resLogs.ok) {
-        const logs = await resLogs.json();
-        setMultiReplayEvents(logs);
-        setMultiCurrentStep(0);
-        setMultiIsPlaying(false);
-        setMultiSelectedSymbol("");
-      }
-    } catch {
-      triggerNotif("error", "Error loading multi-asset replay data.");
+
+    const detRes = await api.get(`/backtest/results/${runId}`);
+    if (detRes.ok && detRes.data) {
+      setMultiBacktestDetail(detRes.data);
+      clearEndpointError(`backtest/results/${runId}`);
+    } else {
+      setEndpointError(`backtest/results/${runId}`, detRes.error || "Failed to load backtest details", () => loadMultiAssetReplay(runId));
+      triggerNotif("error", `Replay details unavailable: ${detRes.error}`);
+    }
+
+    const logsRes = await api.get(`/backtest/logs/${runId}`);
+    if (logsRes.ok && logsRes.data) {
+      setMultiReplayEvents(logsRes.data);
+      setMultiCurrentStep(0);
+      setMultiIsPlaying(false);
+      setMultiSelectedSymbol("");
+      clearEndpointError(`backtest/logs/${runId}`);
+    } else {
+      setEndpointError(`backtest/logs/${runId}`, logsRes.error || "Failed to load replay logs", () => loadMultiAssetReplay(runId));
+      triggerNotif("error", `Replay logs unavailable: ${logsRes.error}`);
     }
   };
 
   const loadBacktestReplay = async (runId: string) => {
     if (!backendOnline) return;
 
-    try {
-      // 1. Fetch Result Details
-      const resDet = await fetch(`${API_BASE}/backtest/results/${runId}`);
-      if (resDet.ok) {
-        const data = await resDet.json();
-        setBacktestDetail(data);
-        // No need to set strategyRuntimeType/Entrypoint here, as it's for the IDE
-        // The backtestDetail already contains the runtime_type if needed for display
-      }
+    // 1. Fetch Result Details
+    const detRes = await api.get(`/backtest/results/${runId}`);
+    if (detRes.ok && detRes.data) {
+      setBacktestDetail(detRes.data);
+      clearEndpointError(`backtest/results/${runId}`);
+    } else {
+      setEndpointError(`backtest/results/${runId}`, detRes.error || "Failed to load backtest details", () => loadBacktestReplay(runId));
+      triggerNotif("error", `Replay details unavailable: ${detRes.error}`);
+    }
 
-      // 2. Fetch Replay Logs
-      const resLogs = await fetch(`${API_BASE}/backtest/logs/${runId}`);
-      if (resLogs.ok) {
-        const logs = await resLogs.json();
-        setReplayEvents(logs);
-        setCurrentStep(0);
-      }
+    // 2. Fetch Replay Logs
+    const logsRes = await api.get(`/backtest/logs/${runId}`);
+    if (logsRes.ok && logsRes.data) {
+      setReplayEvents(logsRes.data);
+      setCurrentStep(0);
+      clearEndpointError(`backtest/logs/${runId}`);
+    } else {
+      setEndpointError(`backtest/logs/${runId}`, logsRes.error || "Failed to load replay logs", () => loadBacktestReplay(runId));
+      triggerNotif("error", `Replay logs unavailable: ${logsRes.error}`);
+    }
 
-      // 3. Fetch Research Lab regimes
-      const resReg = await fetch(`${API_BASE}/research/regimes/${runId}`);
-      if (resReg.ok) {
-        const reg = await resReg.json();
-        setResearchData(reg);
-      }
+    // 3. Fetch Research Lab regimes
+    const regRes = await api.get(`/research/regimes/${runId}`);
+    if (regRes.ok && regRes.data) {
+      setResearchData(regRes.data);
+      clearEndpointError(`research/regimes/${runId}`);
+    } else if (regRes.status === 404) {
+      // Missing parquet is expected if data was deleted — don't spam errors
+      setResearchData(null);
+    } else {
+      setEndpointError(`research/regimes/${runId}`, regRes.error || "Research data unavailable", () => loadBacktestReplay(runId));
+    }
 
-      // 4. Fetch Capital requirements scaling
-      const resCap = await fetch(`${API_BASE}/capital/analysis/${runId}`);
-      if (resCap.ok) {
-        const cap = await resCap.json();
-        setCapitalData(cap);
-      }
-    } catch {
-      triggerNotif("error", "Error loading backtest replay assets.");
+    // 4. Fetch Capital requirements scaling
+    const capRes = await api.get(`/capital/analysis/${runId}`);
+    if (capRes.ok && capRes.data) {
+      setCapitalData(capRes.data);
+      clearEndpointError(`capital/analysis/${runId}`);
+    } else if (capRes.status === 404) {
+      // Missing parquet is expected if data was deleted
+      setCapitalData(null);
+    } else {
+      setEndpointError(`capital/analysis/${runId}`, capRes.error || "Capital analysis unavailable", () => loadBacktestReplay(runId));
     }
   };
 
@@ -869,31 +906,22 @@ export default function Home() {
       [optParamName2]: parseVals(optParamVals2)
     };
 
-    try {
-      const res = await fetch(`${API_BASE}/backtest/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          strategy_id: selectedStrategyId,
-          symbol,
-          interval,
-          start_date,
-          end_date,
-          param_grid_json: JSON.stringify(gridObj),
-          initial_capital: initialCapital,
-          trade_type: tradeType
-        })
-      });
+    const result = await api.post("/backtest/optimize", {
+      strategy_id: selectedStrategyId,
+      symbol,
+      interval,
+      start_date,
+      end_date,
+      param_grid_json: JSON.stringify(gridObj),
+      initial_capital: initialCapital,
+      trade_type: tradeType
+    });
 
-      const data = await res.json();
-      if (res.ok) {
-        setOptimizationGrid(data);
-        triggerNotif("success", "Optimization grid calculation finished!");
-      } else {
-        triggerNotif("error", `Optimization error: ${data.detail}`);
-      }
-    } catch {
-      triggerNotif("error", "Server communication failure during optimization.");
+    if (result.ok && result.data) {
+      setOptimizationGrid(result.data);
+      triggerNotif("success", "Optimization grid calculation finished!");
+    } else {
+      triggerNotif("error", `Optimization error: ${result.error || "Unknown error"}`);
     }
   };
 
@@ -904,16 +932,13 @@ export default function Home() {
       triggerNotif("error", "Backend is offline. Cannot fetch cleanup status.");
       return;
     }
-    try {
-      const res = await fetch(`${API_BASE}/cleanup/status`);
-      if (res.ok) {
-        const data = await res.json();
-        setCleanupStatus(data);
-      } else {
-        triggerNotif("error", "Failed to fetch cleanup status.");
-      }
-    } catch {
-      triggerNotif("error", "Error fetching cleanup status.");
+    const result = await api.get("/cleanup/status");
+    if (result.ok && result.data) {
+      setCleanupStatus(result.data);
+      clearEndpointError("cleanup/status");
+    } else {
+      setEndpointError("cleanup/status", result.error || "Failed to fetch cleanup status", fetchCleanupStatus);
+      triggerNotif("error", `Cleanup status failed: ${result.error}`);
     }
   };
 
@@ -924,36 +949,30 @@ export default function Home() {
     }
     setCleanupLoading(true);
     setCleanupResult(null);
-    try {
-      const res = await fetch(`${API_BASE}/cleanup/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: cleanupTarget,
-          symbol: cleanupSymbol || null,
-          interval: cleanupInterval || null,
-          older_than_days: cleanupOlderThan ? Number(cleanupOlderThan) : null,
-          dry_run: cleanupDryRun,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCleanupResult(data);
-        if (cleanupDryRun) {
-          triggerNotif("info", `Dry-run complete. Would free ${data.bytes_freed_human}.`);
-        } else {
-          triggerNotif("success", `Cleanup complete! Freed ${data.bytes_freed_human}.`);
-          fetchCleanupStatus();
-          fetchCoreData();
-        }
+    const result = await api.post("/cleanup/run", {
+      target: cleanupTarget,
+      symbol: cleanupSymbol || null,
+      interval: cleanupInterval || null,
+      run_id: null,
+      strategy_id: cleanupStrategyId || null,
+      older_than_days: cleanupOlderThan ? Number(cleanupOlderThan) : null,
+      dry_run: cleanupDryRun,
+    });
+    if (result.ok && result.data) {
+      setCleanupResult(result.data);
+      if (cleanupDryRun) {
+        triggerNotif("info", `Dry-run complete. Would free ${result.data.bytes_freed_human}.`);
       } else {
-        triggerNotif("error", `Cleanup failed: ${data.detail || "Unknown error"}`);
+        triggerNotif("success", `Cleanup complete! Freed ${result.data.bytes_freed_human}.`);
+        fetchCleanupStatus();
+        fetchCoreData();
       }
-    } catch {
-      triggerNotif("error", "Server communication failure during cleanup.");
-    } finally {
-      setCleanupLoading(false);
+      clearEndpointError("cleanup/run");
+    } else {
+      setEndpointError("cleanup/run", result.error || "Cleanup failed", handleRunCleanup);
+      triggerNotif("error", `Cleanup failed: ${result.error || "Unknown error"}`);
     }
+    setCleanupLoading(false);
   };
 
   const handleVacuumDB = async () => {
@@ -962,26 +981,20 @@ export default function Home() {
       return;
     }
     setCleanupLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/cleanup/vacuum?dry_run=${cleanupDryRun}`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (cleanupDryRun) {
-          triggerNotif("info", `Dry-run: Would vacuum DB (${data.size_before_human}).`);
-        } else {
-          triggerNotif("success", `Vacuumed DB! Freed ${data.freed_human || "0 B"}.`);
-          fetchCleanupStatus();
-        }
+    const result = await api.post(`/cleanup/vacuum?dry_run=${cleanupDryRun}`, {});
+    if (result.ok && result.data) {
+      if (cleanupDryRun) {
+        triggerNotif("info", `Dry-run: Would vacuum DB (${result.data.size_before_human}).`);
       } else {
-        triggerNotif("error", `Vacuum failed: ${data.detail || "Unknown error"}`);
+        triggerNotif("success", `Vacuumed DB! Freed ${result.data.freed_human || "0 B"}.`);
+        fetchCleanupStatus();
       }
-    } catch {
-      triggerNotif("error", "Server communication failure during vacuum.");
-    } finally {
-      setCleanupLoading(false);
+      clearEndpointError("cleanup/vacuum");
+    } else {
+      setEndpointError("cleanup/vacuum", result.error || "Vacuum failed", handleVacuumDB);
+      triggerNotif("error", `Vacuum failed: ${result.error || "Unknown error"}`);
     }
+    setCleanupLoading(false);
   };
 
   // Select a past backtest run from the lists
@@ -999,17 +1012,18 @@ export default function Home() {
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/strategies/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCode(data.code);
-        setStrategyRuntimeType(data.runtime_type || "legacy_on_bar");
-        setStrategyEntrypoint(data.entrypoint || null);
-        triggerNotif("success", `Loaded strategy: ${data.name}`);
-      }
-    } catch {
-      triggerNotif("error", "Failed to fetch strategy code.");
+    const result = await api.get(`/strategies/${id}`);
+    if (result.ok && result.data) {
+      const newCode = result.data.code || "";
+      setCode(newCode);
+      setUploadedFileName(`${result.data.name}.py`);
+      setStrategyRuntimeType(result.data.runtime_type || "legacy_on_bar");
+      setStrategyEntrypoint(result.data.entrypoint || null);
+      triggerNotif("success", `Loaded strategy: ${result.data.name}`);
+      clearEndpointError(`strategies/${id}`);
+    } else {
+      setEndpointError(`strategies/${id}`, result.error || "Failed to load strategy", () => handleSelectStrategy(id));
+      triggerNotif("error", `Failed to fetch strategy: ${result.error}`);
     }
   };
 
@@ -1250,21 +1264,20 @@ export default function Home() {
     }
 
     if (backendOnline) {
-      try {
-        const parts = val.split("_");
-        const symbol = parts[0];
-        const interval = parts.slice(1).join("_");
-        const res = await fetch(`${API_BASE}/data/datasets/${symbol}/${interval}`);
-        if (res.ok) {
-          const data = await res.json();
-          const suggested = data.suggested_max_position || 0;
-          setAutoMaxPosValue(suggested);
-          if (isAutoMaxPos) {
-            setMaxPositionSize(suggested);
-          }
+      const parts = val.split("_");
+      const symbol = parts[0];
+      const interval = parts.slice(1).join("_");
+      const result = await api.get(`/data/datasets/${symbol}/${interval}`);
+      if (result.ok && result.data) {
+        const suggested = result.data.suggested_max_position || 0;
+        setAutoMaxPosValue(suggested);
+        if (isAutoMaxPos) {
+          setMaxPositionSize(suggested);
         }
-      } catch {
+        clearEndpointError(`data/datasets/${symbol}/${interval}`);
+      } else {
         // Silently fail - dataset metadata is optional
+        setAutoMaxPosValue(0);
       }
     } else {
       const fallback = Math.floor(initialCapital / 500);
@@ -1357,6 +1370,30 @@ export default function Home() {
                 <span className="text-slate-300">{smartapiConnected ? "Connected" : "Disconnected"}</span>
               </div>
             </div>
+
+            <div className="flex items-center justify-between px-1">
+              <span className="text-slate-500">Ollama AI</span>
+              <div className="flex items-center gap-1.5">
+                <div className={`h-2 w-2 rounded-full ${
+                  ollamaState === "online"
+                    ? "bg-emerald-500 shadow-[0_0_8px_#10B981]"
+                    : ollamaState === "error"
+                    ? "bg-rose-500 shadow-[0_0_8px_#F43F5E]"
+                    : "bg-slate-600"
+                }`} />
+                <span className="text-slate-300">
+                  {ollamaState === "online" ? "Online" : ollamaState === "error" ? "Error" : ollamaState === "offline" ? "Offline" : "Checking..."}
+                </span>
+              </div>
+            </div>
+
+            {/* Load Ollama Button — REMOVED: now handled inside Strategy Forge page */}
+
+            {apiErrors["ollama/status"] && (
+              <div className="text-[10px] text-rose-400 px-1 break-words">
+                {apiErrors["ollama/status"].error}
+              </div>
+            )}
           </div>
         </div>
       </aside>
@@ -1374,7 +1411,7 @@ export default function Home() {
               {activeTab === "datasets" && "Manage historical candle data directories saved in Parquet formats."}
               {activeTab === "ide" && "Write, edit, and compile sandboxed python trader.py execution programs."}
               {activeTab === "studio" && "Prosperity-inspired visualizer. Scrub step-by-step and inspect signals."}
-              {activeTab === "research" && "Classify and attribute strategy performance over trending and ranging markets."}
+              {activeTab === "research" && "Deep statistical analysis of any dataset — returns, volatility, regimes, seasonality, and strategy suitability scoring."}
               {activeTab === "capital" && "Explore margin requirements, drawdown risks, and scaling limits."}
               {activeTab === "optimizer" && "Execute grid-search sweeps to find mathematically optimal strategy weights."}
               {activeTab === "cleanup" && "Manage disk space by deleting old backtest logs and downloaded parquet datasets."}
@@ -1395,6 +1432,39 @@ export default function Home() {
             )}
           </div>
         </header>
+
+        {/* Global Error Banners */}
+        {Object.entries(apiErrors).filter(([ep]) => !ep.startsWith("ollama/")).length > 0 && (
+          <div className="space-y-2 mb-4">
+            {Object.entries(apiErrors)
+              .filter(([ep]) => !ep.startsWith("ollama/"))
+              .map(([endpoint, info]) => (
+              <div
+                key={endpoint}
+                className="flex items-center gap-3 p-3 rounded-lg border border-rose-800/50 bg-rose-950/20 text-rose-400 text-xs"
+              >
+                <ServerCrash size={16} className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold">{endpoint}</span>
+                  <p className="text-rose-300/80 truncate">{info.error}</p>
+                </div>
+                <button
+                  onClick={() => { clearEndpointError(endpoint); info.retry(); }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-rose-900/40 hover:bg-rose-900/60 border border-rose-800/50 text-[10px] font-bold transition-all shrink-0"
+                >
+                  <RotateCcw size={12} />
+                  Retry
+                </button>
+                <button
+                  onClick={() => clearEndpointError(endpoint)}
+                  className="p-1.5 rounded hover:bg-rose-900/40 text-rose-400/60 hover:text-rose-400 transition-all shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Tab content area */}
         <div className="flex-1 min-h-0">
@@ -1824,7 +1894,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* TAB 3: STRATEGY IDE & MONACO EDITOR */}
+          {/* TAB 3: STRATEGY UPLOAD */}
           {activeTab === "ide" && (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-full min-h-[500px]">
               {/* Strategy catalog sidebar */}
@@ -1835,11 +1905,13 @@ export default function Home() {
                     <button
                       onClick={() => {
                         setSelectedStrategyId("");
-                        setCode(`# Write your Strategy program here\nclass Strategy:\n    def __init__(self):\n        self.name = "My custom Strategy"\n\n    def on_bar(self, state):\n        return []`);
-                        triggerNotif("info", "Created new code buffer. Click Save to name.");
+                        setCode("");
+                        setUploadedFileName("");
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                        triggerNotif("info", "Cleared. Upload a .py file to begin.");
                       }}
                       className="p-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded transition-all"
-                      title="New Strategy"
+                      title="Clear"
                     >
                       <Plus size={14} />
                     </button>
@@ -1866,7 +1938,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* New fields for runtime_type and entrypoint */}
+                {/* Runtime config */}
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <div>
                     <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Runtime Type</label>
@@ -1880,30 +1952,31 @@ export default function Home() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Entrypoint (e.g., trader.py:Trader)</label>
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Entrypoint</label>
                     <input
                       type="text"
                       value={strategyEntrypoint || ""}
                       onChange={e => setStrategyEntrypoint(e.target.value || null)}
-                      placeholder="Optional: e.g., trader.py:Trader"
+                      placeholder="e.g., trader.py:Trader"
                       className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-
                 {/* Action buttons */}
                 <div className="space-y-3 pt-4 border-t border-slate-800">
                   <button
                     onClick={handleSaveStrategy}
-                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
+                    disabled={!code}
+                    className="w-full bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 text-slate-200 border border-slate-700 rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
                   >
                     <FileText size={14} />
-                    Save Program Code
+                    Save to Database
                   </button>
                   <button
                     onClick={handleRunBacktest}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
+                    disabled={!selectedStrategyId}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
                   >
                     <PlayCircle size={14} />
                     Execute Backtest
@@ -1911,31 +1984,60 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Monaco IDE view */}
+              {/* Upload + Preview panel */}
               <div className="glass-panel rounded-xl col-span-3 flex flex-col overflow-hidden relative border border-slate-800">
-                <div className="px-4 py-2 bg-slate-950/90 border-b border-slate-800 flex justify-between items-center shrink-0">
-                  <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
-                    trader.py
+                {/* Upload area */}
+                <div className="p-6 border-b border-slate-800 bg-slate-950/60">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                      <Code size={16} className="text-blue-400" />
+                      Strategy Upload
+                    </h4>
+                    {uploadedFileName && (
+                      <span className="text-xs font-mono text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded border border-emerald-800">
+                        {uploadedFileName}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] text-slate-600 font-mono">Restricted Sandboxed Sandbox Runtime</span>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-700 hover:border-blue-500 rounded-xl p-8 text-center cursor-pointer transition-colors bg-slate-950/30"
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".py"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="p-3 bg-slate-800 rounded-full">
+                        <FileText size={24} className="text-slate-400" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-300">
+                        Click to upload a <span className="text-blue-400 font-bold">.py</span> strategy file
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        Or drag and drop. Max file size ~1 MB.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 min-h-0 bg-[#1e1e1e]">
-                  <Editor
-                    height="100%"
-                    defaultLanguage="python"
-                    theme="vs-dark"
-                    value={code}
-                    onChange={(val) => setCode(val || "")}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 13,
-                      fontFamily: "Geist Mono, monospace",
-                      lineHeight: 20,
-                      cursorStyle: "line",
-                      tabSize: 4,
-                    }}
-                  />
+
+                {/* Code preview */}
+                <div className="flex-1 min-h-0 bg-[#1e1e1e] overflow-auto">
+                  {code ? (
+                    <pre className="p-4 text-xs font-mono text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {code}
+                    </pre>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-600">
+                      <div className="text-center">
+                        <Code size={32} className="mx-auto mb-2 text-slate-700" />
+                        <p className="text-sm">Upload a .py file to preview code</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2192,75 +2294,13 @@ export default function Home() {
 
           {/* TAB 5: RESEARCH LAB */}
           {activeTab === "research" && (
-            <div className="space-y-6">
-              {researchData ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Regime Attribution Table */}
-                  <div className="glass-panel p-5 rounded-xl col-span-2 space-y-4">
-                    <h4 className="font-bold text-slate-200 text-sm">Strategy Performance Attribution by Regime</h4>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs text-slate-400 border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-800 text-slate-300 font-medium">
-                            <th className="py-2.5">Market Regime</th>
-                            <th>Trade Count</th>
-                            <th>Total Return PnL</th>
-                            <th>Average Trade Profit</th>
-                            <th className="text-right">Win Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800/50">
-                          {Object.entries(researchData.regime_attribution).map(([regime, data]: [string, any]) => (
-                            <tr key={regime} className="hover:bg-slate-900/30">
-                              <td className="py-3 font-bold text-slate-200">
-                                {regime.replace("_", " ")}
-                              </td>
-                              <td className="font-mono">{data.trade_count}</td>
-                              <td className={`font-semibold ${data.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                ₹{data.total_pnl.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                              </td>
-                              <td className="font-mono">₹{data.avg_pnl.toFixed(1)}</td>
-                              <td className="text-right font-bold text-slate-300">{(data.win_rate * 100).toFixed(0)}%</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Market Distribution Chart preview */}
-                  <div className="glass-panel p-5 rounded-xl space-y-4">
-                    <h4 className="font-bold text-slate-200 text-sm">Historical Market Regime Representation</h4>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Distribution of trading sessions/bars cataloged in the downloaded dataset.
-                    </p>
-
-                    <div className="space-y-3 pt-2">
-                      {Object.entries(researchData.market_regime_distribution).map(([regime, weight]: [string, any]) => (
-                        <div key={regime} className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span className="text-slate-400 font-semibold">{regime.replace("_", " ")}</span>
-                            <span className="font-mono text-slate-300">{(weight * 100).toFixed(1)}%</span>
-                          </div>
-                          <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-900">
-                            <div
-                              className="bg-blue-500 h-full rounded-full"
-                              style={{ width: `${weight * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="glass-panel p-8 text-center text-slate-500 rounded-xl">
-                  <BarChart2 size={32} className="mx-auto mb-2 text-slate-700 animate-pulse" />
-                  <span className="text-xs">Select a past backtest run in dashboard to load research regime reports.</span>
-                </div>
-              )}
-            </div>
+            <ResearchLab
+              datasets={datasets}
+              apiErrors={apiErrors}
+              setEndpointError={setEndpointError}
+              clearEndpointError={clearEndpointError}
+              setNotif={setNotif}
+            />
           )}
 
           {/* TAB 6: CAPITAL STUDIO */}
@@ -2952,7 +2992,8 @@ export default function Home() {
                     >
                       <option value="logs">Backtest Logs Only</option>
                       <option value="parquet">Parquet Datasets Only</option>
-                      <option value="all">Logs + Parquet (ALL)</option>
+                      <option value="strategies">Strategy Files Only</option>
+                      <option value="all">Logs + Parquet + Strategies (ALL)</option>
                       <option value="db_orphans">DB Orphan Records Only</option>
                     </select>
                   </div>
@@ -2987,6 +3028,20 @@ export default function Home() {
                         <option value="ONE_HOUR">1 Hour</option>
                         <option value="ONE_DAY">Daily</option>
                       </select>
+                    </div>
+                  )}
+
+                  {/* Strategy ID Filter (for strategies) */}
+                  {(cleanupTarget === "strategies" || cleanupTarget === "all") && (
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Strategy Name Filter (optional)</label>
+                      <input
+                        type="text"
+                        value={cleanupStrategyId}
+                        onChange={e => setCleanupStrategyId(e.target.value)}
+                        placeholder="e.g. trader"
+                        className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
+                      />
                     </div>
                   )}
 
@@ -3081,7 +3136,23 @@ export default function Home() {
                           {cleanupStatus.total_human}
                         </h3>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Parquet Data</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.datasets_parquet?.size_human || "--"}</span>
+                        </div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Logs</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.logs?.size_human || "--"}</span>
+                        </div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Strategies</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.strategies?.size_human || "--"}</span>
+                        </div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Database</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.database?.size_human || "--"}</span>
+                        </div>
                         <div className="p-2 bg-slate-950 rounded border border-slate-800">
                           <span className="text-slate-500 block text-[9px] uppercase font-bold">Backend Log</span>
                           <span className="font-mono text-slate-300">{cleanupStatus.backend_log?.size_human || "--"}</span>
@@ -3257,43 +3328,33 @@ export default function Home() {
                   
                   triggerNotif("info", `Running backtest on ${symbols.join(", ")}...`);
                   
-                  try {
-                    const res = await fetch(`${API_BASE}/backtest/run`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        strategy_id: multiStrategyId,
-                        symbols,
-                        interval: multiInterval,
-                        start_date: startDate,
-                        end_date: endDate,
-                        initial_capital: modalCapital,
-                        slippage_pct: modalSlippage / 100.0,
-                        trade_type: modalTradeType,
-                        max_position_size: modalAutoMaxPos ? 0 : modalMaxPos,
-                        runtime_type: strategies.find(s => s.id === multiStrategyId)?.runtime_type || "legacy_on_bar",
-                        auto_download: true
-                      })
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                      triggerNotif("success", `Backtest complete! Run: ${data.run_id}`);
-                      if (data.downloaded_symbols?.length > 0) {
-                        triggerNotif("info", `Auto-downloaded: ${data.downloaded_symbols.join(", ")}`);
-                      }
-                      setSelectedRunId(data.run_id);
-                      setMultiRunId(data.run_id);
-                      fetchCoreData();
-                      // Load replay data into multi-asset state
-                      loadMultiAssetReplay(data.run_id);
-                      setActiveTab("multiasset");
-                    } else {
-                      const detail = typeof data.detail === "string" ? data.detail : (data.detail ? JSON.stringify(data.detail) : "Engine error");
-                      triggerNotif("error", `Backtest failed: ${detail}`);
+                  const result = await api.post("/backtest/run", {
+                    strategy_id: multiStrategyId,
+                    symbols,
+                    interval: multiInterval,
+                    start_date: startDate,
+                    end_date: endDate,
+                    initial_capital: modalCapital,
+                    slippage_pct: modalSlippage / 100.0,
+                    trade_type: modalTradeType,
+                    max_position_size: modalAutoMaxPos ? 0 : modalMaxPos,
+                    runtime_type: strategies.find(s => s.id === multiStrategyId)?.runtime_type || "legacy_on_bar",
+                    auto_download: true
+                  });
+
+                  if (result.ok && result.data) {
+                    triggerNotif("success", `Backtest complete! Run: ${result.data.run_id}`);
+                    if (result.data.downloaded_symbols?.length > 0) {
+                      triggerNotif("info", `Auto-downloaded: ${result.data.downloaded_symbols.join(", ")}`);
                     }
-                  } catch (err: any) {
-                    console.error("Backtest fetch error:", err);
-                    triggerNotif("error", `Server communication failure: ${err?.message || "Unknown error"}`);
+                    setSelectedRunId(result.data.run_id);
+                    setMultiRunId(result.data.run_id);
+                    fetchCoreData();
+                    // Load replay data into multi-asset state
+                    loadMultiAssetReplay(result.data.run_id);
+                    setActiveTab("multiasset");
+                  } else {
+                    triggerNotif("error", `Backtest failed: ${result.error || "Engine error"}`);
                   }
                 }}
                 className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"

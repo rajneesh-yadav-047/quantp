@@ -43,6 +43,7 @@ def _format_size(size_bytes: int) -> str:
 class CleanupStatusResponse(BaseModel):
     datasets_parquet: Dict[str, Any]
     logs: Dict[str, Any]
+    strategies: Dict[str, Any]
     database: Dict[str, Any]
     backend_log: Dict[str, Any]
     backend_restart_log: Dict[str, Any]
@@ -52,10 +53,11 @@ class CleanupStatusResponse(BaseModel):
 
 
 class CleanupRequest(BaseModel):
-    target: str  # "parquet", "logs", "db_orphans", "all"
+    target: str  # "parquet", "logs", "strategies", "db_orphans", "all"
     symbol: Optional[str] = None
     interval: Optional[str] = None
     run_id: Optional[str] = None
+    strategy_id: Optional[str] = None
     older_than_days: Optional[int] = None
     dry_run: bool = True
 
@@ -75,6 +77,7 @@ def cleanup_status():
     paths = {
         "datasets_parquet": "./datasets/parquet",
         "logs": "./logs",
+        "strategies": "./strategies",
         "database": "./quantlab.db",
         "backend_log": "./backend.log",
         "backend_restart_log": "./backend-restart.log",
@@ -210,6 +213,56 @@ def run_cleanup(req: CleanupRequest):
                         details.append(f"[DELETED] log: {fname} ({_format_size(size)})")
                     except Exception as e:
                         details.append(f"[ERROR] Failed to delete {fpath}: {e}")
+
+    if req.target in ("strategies", "all"):
+        # Find and delete strategy .py files
+        strategies_dir = "./strategies"
+        if os.path.exists(strategies_dir):
+            for fname in os.listdir(strategies_dir):
+                if not fname.endswith(".py"):
+                    continue
+                if req.strategy_id:
+                    base = fname.replace(".py", "")
+                    if base.upper() != req.strategy_id.upper():
+                        continue
+
+                fpath = os.path.join(strategies_dir, fname)
+                size = _get_size(fpath)
+                if req.dry_run:
+                    details.append(f"[WOULD DELETE] strategy: {fname} ({_format_size(size)})")
+                else:
+                    try:
+                        os.remove(fpath)
+                        files_deleted += 1
+                        bytes_freed += size
+                        details.append(f"[DELETED] strategy: {fname} ({_format_size(size)})")
+                    except Exception as e:
+                        details.append(f"[ERROR] Failed to delete {fpath}: {e}")
+
+            # Clean orphaned strategy DB records if not dry-run
+            if not req.dry_run:
+                db_path = "./quantlab.db"
+                if os.path.exists(db_path):
+                    try:
+                        from sqlalchemy import create_engine, text
+                        engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+                        with engine.connect() as conn:
+                            result = conn.execute(text("SELECT id, name FROM strategies"))
+                            rows = result.fetchall()
+                            orphaned = []
+                            for row in rows:
+                                sid, name = row
+                                py_path = f"./strategies/{name}.py"
+                                if not os.path.exists(py_path):
+                                    orphaned.append(sid)
+                            if orphaned:
+                                for sid in orphaned:
+                                    conn.execute(text("DELETE FROM strategies WHERE id = :id"), {"id": sid})
+                                    details.append(f"[DELETED] Strategy DB orphan: {sid}")
+                                conn.commit()
+                                details.append(f"Cleaned {len(orphaned)} orphaned strategy DB record(s)")
+                    except Exception as e:
+                        details.append(f"[WARN] Could not clean strategy DB orphans: {e}")
 
     if req.target in ("db_orphans", "all"):
         # Clean database records with missing log files
