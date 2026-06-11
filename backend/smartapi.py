@@ -496,5 +496,9 @@ class SmartAPIClient:
         if key in catalog:
             file_path = catalog[key]["file_path"]
             if os.path.exists(file_path):
-                return pd.read_parquet(file_path)
+                try:
+                    return pd.read_parquet(file_path)
+                except Exception as e:
+                    print(f"[SmartAPI] Failed to read parquet {file_path}: {e}")
+                    return None
         return None

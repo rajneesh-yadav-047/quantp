@@ -1,7 +1,7 @@
 """
 QuantLab Cleanup Utility
 ========================
-Delete downloaded parquet data and backtest logs to free up disk space.
+Delete downloaded parquet data, backtest logs, and strategy files to free up disk space.
 
 Usage:
     python cleanup.py --help
@@ -11,6 +11,8 @@ Usage:
     python cleanup.py --logs --older-than 7       # Delete logs older than 7 days
     python cleanup.py --parquet --symbol SBIN     # Delete SBIN parquet data
     python cleanup.py --parquet --interval FIVE_MINUTE
+    python cleanup.py --strategies                # Delete all strategy .py files
+    python cleanup.py --strategies --strategy-id trader  # Delete specific strategy
     python cleanup.py --db-orphans                # Clean DB records with missing log files
     python cleanup.py --vacuum                    # Vacuum SQLite DB to reclaim space
 """
@@ -58,6 +60,7 @@ def get_disk_usage() -> Dict[str, Any]:
     paths = {
         "datasets_parquet": "./datasets/parquet",
         "logs": "./logs",
+        "strategies": "./strategies",
         "database": "./quantlab.db",
         "backend_log": "./backend.log",
         "backend_restart_log": "./backend-restart.log",
@@ -232,6 +235,109 @@ def delete_parquet_datasets(symbol: Optional[str] = None, interval: Optional[str
     return deleted, freed
 
 
+def find_strategy_files(strategy_id: Optional[str] = None) -> List[str]:
+    """Find strategy .py files in the strategies directory."""
+    strategies_dir = "./strategies"
+    if not os.path.exists(strategies_dir):
+        return []
+    
+    matches = []
+    for fname in os.listdir(strategies_dir):
+        if not fname.endswith(".py"):
+            continue
+        
+        if strategy_id:
+            base = fname.replace(".py", "")
+            if base.upper() != strategy_id.upper():
+                continue
+        
+        fpath = os.path.join(strategies_dir, fname)
+        if os.path.isfile(fpath):
+            matches.append(fpath)
+    
+    return matches
+
+
+def delete_strategy_files(strategy_id: Optional[str] = None, dry_run: bool = False) -> Tuple[int, int]:
+    """Delete strategy .py files. Returns (files_deleted, bytes_freed)."""
+    targets = find_strategy_files(strategy_id=strategy_id)
+    
+    if not targets:
+        print("  No strategy files found matching criteria.")
+        return 0, 0
+    
+    total_bytes = sum(get_size(f) for f in targets)
+    
+    print(f"  {'[DRY-RUN]' if dry_run else ''} Found {len(targets)} strategy file(s) to delete ({format_size(total_bytes)})")
+    
+    deleted = 0
+    freed = 0
+    for fpath in targets:
+        size = get_size(fpath)
+        print(f"    {'[WOULD DELETE]' if dry_run else '[DELETING]'} {os.path.basename(fpath)}")
+        if not dry_run:
+            try:
+                os.remove(fpath)
+                freed += size
+                deleted += 1
+            except Exception as e:
+                print(f"    [ERROR] Failed to delete {fpath}: {e}")
+        else:
+            freed += size
+            deleted += 1
+    
+    return deleted, freed
+
+
+def clean_strategy_db_orphans(dry_run: bool = False) -> Tuple[int, int]:
+    """Clean strategy DB records whose .py files no longer exist. Returns (records_deleted, bytes_freed_estimate)."""
+    db_path = "./quantlab.db"
+    if not os.path.exists(db_path):
+        print("  Database not found.")
+        return 0, 0
+    
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+        
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT id, name FROM strategies"))
+            rows = result.fetchall()
+            
+            orphaned = []
+            for row in rows:
+                sid, name = row
+                # Check if corresponding .py file exists
+                py_path = f"./strategies/{name}.py"
+                if not os.path.exists(py_path):
+                    orphaned.append(sid)
+            
+            if not orphaned:
+                print("  No orphaned strategy records found.")
+                return 0, 0
+            
+            print(f"  {'[DRY-RUN]' if dry_run else ''} Found {len(orphaned)} orphaned strategy record(s) in database")
+            
+            if not dry_run:
+                for sid in orphaned:
+                    conn.execute(text("DELETE FROM strategies WHERE id = :id"), {"id": sid})
+                    print(f"    [DELETED] Strategy DB record {sid}")
+                conn.commit()
+            else:
+                for sid in orphaned:
+                    print(f"    [WOULD DELETE] Strategy DB record {sid}")
+            
+            freed_estimate = len(orphaned) * 1024
+            return len(orphaned), freed_estimate
+            
+    except ImportError:
+        print("  [ERROR] SQLAlchemy not available. Cannot clean strategy DB orphans.")
+        return 0, 0
+    except Exception as e:
+        print(f"  [ERROR] Strategy DB cleanup failed: {e}")
+        return 0, 0
+
+
 def delete_backtest_logs(run_id: Optional[str] = None, older_than_days: Optional[int] = None,
                          dry_run: bool = False) -> Tuple[int, int]:
     """Delete backtest log files. Returns (files_deleted, bytes_freed)."""
@@ -347,25 +453,28 @@ def vacuum_database(dry_run: bool = False) -> Tuple[bool, int]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="QuantLab Cleanup Utility - Free up disk space by deleting downloaded data and backtest logs.",
+        description="QuantLab Cleanup Utility - Free up disk space by deleting downloaded data, backtest logs, and strategy files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s --status                          Show disk usage
   %(prog)s --dry-run --all                   Preview full cleanup
-  %(prog)s --all                             Delete all data and logs
+  %(prog)s --all                             Delete all data, logs, and strategies
   %(prog)s --logs --older-than 7             Delete logs older than 7 days
   %(prog)s --parquet --symbol SBIN           Delete SBIN parquet data
   %(prog)s --parquet --interval ONE_MINUTE   Delete all 1-min datasets
+  %(prog)s --strategies                      Delete all strategy .py files
+  %(prog)s --strategies --strategy-id trader Delete specific strategy
   %(prog)s --db-orphans --vacuum             Clean DB + reclaim space
         """
     )
     
     # Action flags
     parser.add_argument("--status", action="store_true", help="Show disk usage status and exit")
-    parser.add_argument("--all", action="store_true", help="Delete ALL parquet data AND backtest logs")
+    parser.add_argument("--all", action="store_true", help="Delete ALL parquet data, backtest logs, AND strategy files")
     parser.add_argument("--parquet", action="store_true", help="Delete parquet datasets")
     parser.add_argument("--logs", action="store_true", help="Delete backtest logs")
+    parser.add_argument("--strategies", action="store_true", help="Delete strategy .py files")
     parser.add_argument("--db-orphans", action="store_true", help="Remove DB records with missing log files")
     parser.add_argument("--vacuum", action="store_true", help="Vacuum SQLite database to reclaim space")
     
@@ -373,6 +482,7 @@ Examples:
     parser.add_argument("--symbol", type=str, help="Filter by symbol (e.g., SBIN, RELIANCE)")
     parser.add_argument("--interval", type=str, help="Filter by interval (e.g., ONE_MINUTE, FIVE_MINUTE)")
     parser.add_argument("--run-id", type=str, help="Filter logs by run ID (e.g., B-12345678)")
+    parser.add_argument("--strategy-id", type=str, help="Filter strategies by name (e.g., trader, ema_crossover)")
     parser.add_argument("--older-than", type=int, metavar="DAYS", help="Only delete items older than N days")
     
     # Safety
@@ -382,7 +492,7 @@ Examples:
     args = parser.parse_args()
     
     # Default to --status if no action specified
-    if not any([args.status, args.all, args.parquet, args.logs, args.db_orphans, args.vacuum]):
+    if not any([args.status, args.all, args.parquet, args.logs, args.strategies, args.db_orphans, args.vacuum]):
         args.status = True
     
     if args.status:
@@ -392,6 +502,7 @@ Examples:
     # Determine what to delete
     delete_parquet = args.all or args.parquet
     delete_logs = args.all or args.logs
+    delete_strategies = args.all or args.strategies
     
     # Validate filters
     if args.symbol and not delete_parquet:
@@ -402,6 +513,9 @@ Examples:
         return 1
     if args.run_id and not delete_logs:
         print("[ERROR] --run-id requires --logs or --all")
+        return 1
+    if args.strategy_id and not delete_strategies:
+        print("[ERROR] --strategy-id requires --strategies or --all")
         return 1
     if args.older_than and not (delete_logs or delete_parquet):
         print("[ERROR] --older-than requires --logs, --parquet, or --all")
@@ -430,6 +544,14 @@ Examples:
         if args.older_than:
             filters.append(f"older_than={args.older_than}d")
         op = "Delete backtest logs" + (f" ({', '.join(filters)})" if filters else " (ALL)")
+        operations.append(op)
+    
+    if delete_strategies:
+        op = "Delete strategy files"
+        if args.strategy_id:
+            op += f" (name={args.strategy_id})"
+        else:
+            op += " (ALL)"
         operations.append(op)
     
     if args.db_orphans:
@@ -473,6 +595,15 @@ Examples:
         n, freed = delete_backtest_logs(
             run_id=args.run_id,
             older_than_days=args.older_than,
+            dry_run=args.dry_run
+        )
+        total_files += n
+        total_freed += freed
+    
+    if delete_strategies:
+        print("\n[STRATEGY FILES]")
+        n, freed = delete_strategy_files(
+            strategy_id=args.strategy_id,
             dry_run=args.dry_run
         )
         total_files += n

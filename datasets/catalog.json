@@ -1,4 +1,22 @@
 {
+  "IDE_FIFTEEN_MINUTE": {
+    "symbol": "IDE",
+    "interval": "FIFTEEN_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\IDE\\FIFTEEN_MINUTE\\data.parquet",
+    "start_date": "2026-05-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 676,
+    "updated_at": "2026-06-11 20:49:51"
+  },
+  "AFC_FIFTEEN_MINUTE": {
+    "symbol": "AFC",
+    "interval": "FIFTEEN_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\AFC\\FIFTEEN_MINUTE\\data.parquet",
+    "start_date": "2026-05-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 676,
+    "updated_at": "2026-06-11 20:52:54"
+  },
   "SBIN_FIVE_MINUTE": {
     "symbol": "SBIN",
     "interval": "FIVE_MINUTE",
@@ -6,7 +24,7 @@
     "start_date": "2026-06-01T09:15:00+05:30",
     "end_date": "2026-06-05T15:25:00+05:30",
     "records_count": 375,
-    "updated_at": "2026-06-11 14:37:26"
+    "updated_at": "2026-06-11 22:32:42"
   },
   "SBIN_ONE_MINUTE": {
     "symbol": "SBIN",
@@ -15,6 +33,24 @@
     "start_date": "2026-06-01T09:15:00+05:30",
     "end_date": "2026-06-05T15:29:00+05:30",
     "records_count": 1875,
-    "updated_at": "2026-06-11 15:22:20"
+    "updated_at": "2026-06-11 23:58:21"
+  },
+  "AFC_FIVE_MINUTE": {
+    "symbol": "AFC",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\AFC\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 380,
+    "updated_at": "2026-06-12 04:43:41"
+  },
+  "IDE_FIVE_MINUTE": {
+    "symbol": "IDE",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\IDE\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01 09:15:00",
+    "end_date": "2026-06-05 15:30:00",
+    "records_count": 380,
+    "updated_at": "2026-06-12 04:43:41"
   }
 }
