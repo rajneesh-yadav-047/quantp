@@ -579,6 +579,11 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
 @app.get("/api/backtest/results")
 def list_backtest_results(db: Session = Depends(get_db)):
     results = db.query(BacktestResultDB).order_by(BacktestResultDB.created_at.desc()).all()
+    valid_results = []
+    for r in results:
+        # Skip orphaned DB records whose log files were manually deleted
+        if r.log_file_path and os.path.exists(r.log_file_path):
+            valid_results.append(r)
     return [{
         "id": r.id,
         "strategy_name": r.strategy_name,
@@ -592,7 +597,7 @@ def list_backtest_results(db: Session = Depends(get_db)):
         "max_drawdown": r.max_drawdown,
         "max_position_size": r.max_position_size,
         "created_at": r.created_at
-    } for r in results]
+    } for r in valid_results]
 
 @app.get("/api/backtest/results/{run_id}")
 def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
@@ -766,6 +771,10 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
     )
     
     return sweep_results
+
+# --- CLEANUP API ---
+from backend.cleanup_api import router as cleanup_router
+app.include_router(cleanup_router, prefix="/api/cleanup")
 
 # Standard runner
 if __name__ == "__main__":

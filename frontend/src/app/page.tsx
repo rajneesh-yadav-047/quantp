@@ -6,7 +6,7 @@ import {
   LineChart, Play, Pause, SkipForward, SkipBack, Cpu, FileText, BarChart2,
   PieChart, Database, Code, Shield,
   Plus, PlayCircle, RefreshCw, Layers, CheckCircle2, AlertTriangle, AlertCircle,
-  TrendingUp
+  TrendingUp, Trash2
 } from "lucide-react";
 
 // Dynamically import client-only libraries to prevent NextJS hydration / SSR errors
@@ -148,6 +148,16 @@ export default function Home() {
   const [optParamVals1, setOptParamVals1] = useState<string>("5, 9, 15");
   const [optParamName2, setOptParamName2] = useState<string>("ema_slow");
   const [optParamVals2, setOptParamVals2] = useState<string>("20, 30, 50");
+
+  // Cleanup State
+  const [cleanupStatus, setCleanupStatus] = useState<any>(null);
+  const [cleanupLoading, setCleanupLoading] = useState<boolean>(false);
+  const [cleanupDryRun, setCleanupDryRun] = useState<boolean>(true);
+  const [cleanupTarget, setCleanupTarget] = useState<string>("logs");
+  const [cleanupSymbol, setCleanupSymbol] = useState<string>("");
+  const [cleanupInterval, setCleanupInterval] = useState<string>("");
+  const [cleanupOlderThan, setCleanupOlderThan] = useState<number | "">("");
+  const [cleanupResult, setCleanupResult] = useState<any>(null);
 
   // Dataset Download Form Inputs
   const [dlSymbol, setDlSymbol] = useState<string>("SBIN");
@@ -887,6 +897,93 @@ export default function Home() {
     }
   };
 
+  // --- CLEANUP API HANDLERS ---
+
+  const fetchCleanupStatus = async () => {
+    if (!backendOnline) {
+      triggerNotif("error", "Backend is offline. Cannot fetch cleanup status.");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/cleanup/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setCleanupStatus(data);
+      } else {
+        triggerNotif("error", "Failed to fetch cleanup status.");
+      }
+    } catch {
+      triggerNotif("error", "Error fetching cleanup status.");
+    }
+  };
+
+  const handleRunCleanup = async () => {
+    if (!backendOnline) {
+      triggerNotif("error", "Backend is offline. Cannot run cleanup.");
+      return;
+    }
+    setCleanupLoading(true);
+    setCleanupResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/cleanup/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: cleanupTarget,
+          symbol: cleanupSymbol || null,
+          interval: cleanupInterval || null,
+          older_than_days: cleanupOlderThan ? Number(cleanupOlderThan) : null,
+          dry_run: cleanupDryRun,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCleanupResult(data);
+        if (cleanupDryRun) {
+          triggerNotif("info", `Dry-run complete. Would free ${data.bytes_freed_human}.`);
+        } else {
+          triggerNotif("success", `Cleanup complete! Freed ${data.bytes_freed_human}.`);
+          fetchCleanupStatus();
+          fetchCoreData();
+        }
+      } else {
+        triggerNotif("error", `Cleanup failed: ${data.detail || "Unknown error"}`);
+      }
+    } catch {
+      triggerNotif("error", "Server communication failure during cleanup.");
+    } finally {
+      setCleanupLoading(false);
+    }
+  };
+
+  const handleVacuumDB = async () => {
+    if (!backendOnline) {
+      triggerNotif("error", "Backend is offline. Cannot vacuum database.");
+      return;
+    }
+    setCleanupLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/cleanup/vacuum?dry_run=${cleanupDryRun}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (cleanupDryRun) {
+          triggerNotif("info", `Dry-run: Would vacuum DB (${data.size_before_human}).`);
+        } else {
+          triggerNotif("success", `Vacuumed DB! Freed ${data.freed_human || "0 B"}.`);
+          fetchCleanupStatus();
+        }
+      } else {
+        triggerNotif("error", `Vacuum failed: ${data.detail || "Unknown error"}`);
+      }
+    } catch {
+      triggerNotif("error", "Server communication failure during vacuum.");
+    } finally {
+      setCleanupLoading(false);
+    }
+  };
+
   // Select a past backtest run from the lists
   const handleSelectRun = (runId: string) => {
     setSelectedRunId(runId);
@@ -1207,6 +1304,7 @@ export default function Home() {
               { id: "research", label: "Research Lab", icon: BarChart2 },
               { id: "capital", label: "Capital Studio", icon: Layers },
               { id: "optimizer", label: "Optimizer", icon: PieChart },
+              { id: "cleanup", label: "Cleanup", icon: Trash2 },
             ].map(item => {
               const Icon = item.icon;
               const active = activeTab === item.id;
@@ -1279,6 +1377,7 @@ export default function Home() {
               {activeTab === "research" && "Classify and attribute strategy performance over trending and ranging markets."}
               {activeTab === "capital" && "Explore margin requirements, drawdown risks, and scaling limits."}
               {activeTab === "optimizer" && "Execute grid-search sweeps to find mathematically optimal strategy weights."}
+              {activeTab === "cleanup" && "Manage disk space by deleting old backtest logs and downloaded parquet datasets."}
             </p>
           </div>
 
@@ -2786,6 +2885,246 @@ export default function Home() {
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {/* TAB 9: CLEANUP / DISK MANAGEMENT */}
+          {activeTab === "cleanup" && (
+            <div className="space-y-6">
+              {/* Disk Usage Status Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="glass-panel p-4 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-400 font-medium">Parquet Datasets</span>
+                    <Database size={16} className="text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-100">
+                    {cleanupStatus?.datasets_parquet?.size_human || "--"}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {cleanupStatus?.datasets_parquet?.exists ? "Active storage" : "No data found"}
+                  </p>
+                </div>
+                <div className="glass-panel p-4 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-400 font-medium">Backtest Logs</span>
+                    <FileText size={16} className="text-amber-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-100">
+                    {cleanupStatus?.logs?.size_human || "--"}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {cleanupStatus?.logs?.exists ? "JSONL replay files" : "No logs found"}
+                  </p>
+                </div>
+                <div className="glass-panel p-4 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-400 font-medium">SQLite Database</span>
+                    <Database size={16} className="text-emerald-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-100">
+                    {cleanupStatus?.database?.size_human || "--"}
+                  </h3>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {cleanupStatus?.database?.exists ? "quantlab.db" : "DB not found"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Cleanup Controls */}
+                <div className="glass-panel p-5 rounded-xl space-y-4">
+                  <h4 className="font-bold text-slate-200 flex items-center gap-2">
+                    <Trash2 size={18} className="text-rose-400" />
+                    Cleanup Controls
+                  </h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Select what to delete and whether to preview (dry-run) first. Use with caution — deletion is permanent.
+                  </p>
+
+                  {/* Target Selection */}
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Target</label>
+                    <select
+                      value={cleanupTarget}
+                      onChange={e => setCleanupTarget(e.target.value)}
+                      className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="logs">Backtest Logs Only</option>
+                      <option value="parquet">Parquet Datasets Only</option>
+                      <option value="all">Logs + Parquet (ALL)</option>
+                      <option value="db_orphans">DB Orphan Records Only</option>
+                    </select>
+                  </div>
+
+                  {/* Symbol Filter (for parquet) */}
+                  {(cleanupTarget === "parquet" || cleanupTarget === "all") && (
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Symbol Filter (optional)</label>
+                      <input
+                        type="text"
+                        value={cleanupSymbol}
+                        onChange={e => setCleanupSymbol(e.target.value.toUpperCase())}
+                        placeholder="e.g. SBIN"
+                        className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
+                      />
+                    </div>
+                  )}
+
+                  {/* Interval Filter (for parquet) */}
+                  {(cleanupTarget === "parquet" || cleanupTarget === "all") && (
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Interval Filter (optional)</label>
+                      <select
+                        value={cleanupInterval}
+                        onChange={e => setCleanupInterval(e.target.value)}
+                        className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="">-- Any Interval --</option>
+                        <option value="ONE_MINUTE">1 Minute</option>
+                        <option value="FIVE_MINUTE">5 Minute</option>
+                        <option value="FIFTEEN_MINUTE">15 Minute</option>
+                        <option value="ONE_HOUR">1 Hour</option>
+                        <option value="ONE_DAY">Daily</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Older Than */}
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Older Than (days, optional)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={cleanupOlderThan}
+                      onChange={e => setCleanupOlderThan(e.target.value ? Number(e.target.value) : "")}
+                      placeholder="e.g. 7"
+                      className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Dry Run Toggle */}
+                  <div className="flex items-center gap-3 p-3 bg-slate-950/50 rounded border border-slate-800">
+                    <input
+                      id="dryRun"
+                      type="checkbox"
+                      checked={cleanupDryRun}
+                      onChange={e => setCleanupDryRun(e.target.checked)}
+                      className="h-4 w-4 accent-blue-500"
+                    />
+                    <label htmlFor="dryRun" className="text-xs text-slate-300 cursor-pointer select-none">
+                      <span className="font-bold">Dry-Run Mode</span> — Preview deletions without actually deleting
+                    </label>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-2">
+                    <button
+                      onClick={handleRunCleanup}
+                      disabled={cleanupLoading}
+                      className={`w-full rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2 ${
+                        cleanupDryRun
+                          ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+                          : "bg-rose-600 hover:bg-rose-700 text-white"
+                      }`}
+                    >
+                      {cleanupLoading ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                      ) : cleanupDryRun ? (
+                        <>
+                          <RefreshCw size={14} />
+                          Preview Cleanup
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={14} />
+                          Execute Cleanup
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleVacuumDB}
+                      disabled={cleanupLoading}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
+                    >
+                      {cleanupLoading ? <RefreshCw size={14} className="animate-spin" /> : <Database size={14} />}
+                      {cleanupDryRun ? "Preview Vacuum DB" : "Vacuum Database"}
+                    </button>
+                    <button
+                      onClick={fetchCleanupStatus}
+                      disabled={cleanupLoading}
+                      className="w-full bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-800 rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={14} />
+                      Refresh Status
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cleanup Results Panel */}
+                <div className="glass-panel p-5 rounded-xl col-span-2 space-y-4">
+                  <h4 className="font-bold text-slate-200 text-sm">Cleanup Results</h4>
+
+                  {!cleanupResult && !cleanupStatus && (
+                    <div className="p-8 text-center text-slate-500">
+                      <Trash2 size={32} className="mx-auto mb-2 text-slate-700" />
+                      <span className="text-xs">Click "Refresh Status" to load disk usage, or run a cleanup preview.</span>
+                    </div>
+                  )}
+
+                  {/* Status Summary */}
+                  {cleanupStatus && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-slate-950/60 rounded border border-slate-800">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">Total Disk Usage</span>
+                        <h3 className="text-xl font-bold text-slate-200 font-mono mt-0.5">
+                          {cleanupStatus.total_human}
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Backend Log</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.backend_log?.size_human || "--"}</span>
+                        </div>
+                        <div className="p-2 bg-slate-950 rounded border border-slate-800">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Restart Log</span>
+                          <span className="font-mono text-slate-300">{cleanupStatus.backend_restart_log?.size_human || "--"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cleanup Operation Result */}
+                  {cleanupResult && (
+                    <div className="space-y-3">
+                      <div className={`p-3 rounded border ${cleanupResult.dry_run ? "bg-blue-950/30 border-blue-800" : "bg-emerald-950/30 border-emerald-800"}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">
+                            {cleanupResult.dry_run ? "Dry-Run Preview" : "Cleanup Executed"}
+                          </span>
+                          <span className="text-xs font-bold font-mono text-slate-200">
+                            {cleanupResult.bytes_freed_human} freed
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-300 mt-1">
+                          Files deleted: <span className="font-mono font-bold">{cleanupResult.files_deleted}</span>
+                        </div>
+                      </div>
+
+                      {/* Details List */}
+                      {cleanupResult.details && cleanupResult.details.length > 0 && (
+                        <div className="max-h-64 overflow-y-auto space-y-1 p-2 bg-slate-950 rounded border border-slate-800">
+                          {cleanupResult.details.map((detail: string, i: number) => (
+                            <div key={i} className="text-[11px] font-mono text-slate-400 py-0.5 border-b border-slate-800/30 last:border-0">
+                              {detail}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

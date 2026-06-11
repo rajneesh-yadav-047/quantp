@@ -1,4 +1,13 @@
 {
+  "SBIN_FIVE_MINUTE": {
+    "symbol": "SBIN",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\FIVE_MINUTE\\data.parquet",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-05T15:25:00+05:30",
+    "records_count": 375,
+    "updated_at": "2026-06-11 14:37:26"
+  },
   "SBIN_ONE_MINUTE": {
     "symbol": "SBIN",
     "interval": "ONE_MINUTE",
@@ -6,114 +15,6 @@
     "start_date": "2026-06-01T09:15:00+05:30",
     "end_date": "2026-06-05T15:29:00+05:30",
     "records_count": 1875,
-    "updated_at": "2026-06-09 20:18:44"
-  },
-  "SBIN_FIVE_MINUTE": {
-    "symbol": "SBIN",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-09T15:25:00+05:30",
-    "records_count": 525,
-    "updated_at": "2026-06-10 05:26:41"
-  },
-  "99926000_FIVE_MINUTE": {
-    "symbol": "99926000",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\99926000\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 380,
-    "updated_at": "2026-06-05 17:47:20"
-  },
-  "26000_FIVE_MINUTE": {
-    "symbol": "26000",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\26000\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 380,
-    "updated_at": "2026-06-05 17:50:35"
-  },
-  "RELIANCE_FIVE_MINUTE": {
-    "symbol": "RELIANCE",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\RELIANCE\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 380,
-    "updated_at": "2026-06-05 17:54:28"
-  },
-  "SBIN-EQ_ONE_MINUTE": {
-    "symbol": "SBIN-EQ",
-    "interval": "ONE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN-EQ\\ONE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 1880,
-    "updated_at": "2026-06-05 18:05:30"
-  },
-  "NIFTY 50_FIFTEEN_MINUTE": {
-    "symbol": "NIFTY 50",
-    "interval": "FIFTEEN_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NIFTY 50\\FIFTEEN_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 130,
-    "updated_at": "2026-06-05 18:07:23"
-  },
-  "RELIANCE-EQ_FIFTEEN_MINUTE": {
-    "symbol": "RELIANCE-EQ",
-    "interval": "FIFTEEN_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\RELIANCE-EQ\\FIFTEEN_MINUTE\\data.parquet",
-    "start_date": "2026-06-01 09:15:00",
-    "end_date": "2026-06-05 15:30:00",
-    "records_count": 130,
-    "updated_at": "2026-06-05 18:09:44"
-  },
-  "NSE:OLAELEC-EQ_ONE_MINUTE": {
-    "symbol": "NSE:OLAELEC-EQ",
-    "interval": "ONE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_OLAELEC-EQ\\ONE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-05T15:29:00+05:30",
-    "records_count": 1875,
-    "updated_at": "2026-06-06 02:52:30"
-  },
-  "NSE:NIFTY 50_FIVE_MINUTE": {
-    "symbol": "NSE:NIFTY 50",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_NIFTY 50\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-05T15:25:00+05:30",
-    "records_count": 375,
-    "updated_at": "2026-06-06 02:55:15"
-  },
-  "NSE:IDEA-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:IDEA-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_IDEA-EQ\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-05T15:25:00+05:30",
-    "records_count": 375,
-    "updated_at": "2026-06-06 02:58:09"
-  },
-  "SBIN_ONE_HOUR": {
-    "symbol": "SBIN",
-    "interval": "ONE_HOUR",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\SBIN\\ONE_HOUR\\data.parquet",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-09T15:15:00+05:30",
-    "records_count": 49,
-    "updated_at": "2026-06-09 16:40:59"
-  },
-  "NSE:GODFRYPHLP-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:GODFRYPHLP-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\parquet\\NSE_GODFRYPHLP-EQ\\FIVE_MINUTE\\data.parquet",
-    "start_date": "2026-05-04T09:15:00+05:30",
-    "end_date": "2026-06-05T15:25:00+05:30",
-    "records_count": 1800,
-    "updated_at": "2026-06-10 23:39:59"
+    "updated_at": "2026-06-11 15:22:20"
   }
 }
