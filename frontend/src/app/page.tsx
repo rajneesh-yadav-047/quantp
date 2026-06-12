@@ -18,14 +18,14 @@ export default function Home() {
 
   const tabDescriptions: Record<string, string> = {
     dashboard: "System overview, connection status, and quick actions.",
-    datasets: "Manage historical candle data directories saved in Parquet formats.",
+    datasets: "Manage historical candle data directories saved in CSV and Excel formats.",
     strategies: "Primary workspace. Configure symbols, interval, capital, risk settings, and strategy code.",
     backtests: "Run strategies and view results: equity curve, PnL, drawdown, trade history, per-symbol performance.",
     deployments: "Manage paper and live deployments per strategy.",
     live: "Real-time mock trading with live market data. No real money used.",
     research: "Deep statistical analysis of any dataset — returns, volatility, regimes, seasonality, and strategy suitability scoring.",
     optimizer: "Execute grid-search sweeps to find mathematically optimal strategy weights.",
-    cleanup: "Manage disk space by deleting old backtest logs and downloaded parquet datasets.",
+    cleanup: "Manage disk space by deleting old backtest logs and downloaded CSV datasets.",
   };
 
   return (
@@ -36,7 +36,6 @@ export default function Home() {
         notif={q.notif}
         backendOnline={q.backendOnline}
         smartapiConnected={q.smartapiConnected}
-        ollamaState={q.ollamaState}
         apiErrors={q.apiErrors}
       />
 
@@ -189,6 +188,10 @@ export default function Home() {
               activeCandles={q.activeCandles}
               activeTrades={q.activeTrades}
               positionCurveData={q.positionCurveData}
+              datasets={q.datasets}
+              checkDataCoverage={q.checkDataCoverage}
+              pendingBacktest={q.pendingBacktest}
+              setPendingBacktest={q.setPendingBacktest}
             />
           )}
 

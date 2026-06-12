@@ -6,6 +6,7 @@ import os
 import json
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException
+from starlette.responses import FileResponse
 from pydantic import BaseModel
 import pandas as pd
 from backend.smartapi import SmartAPIClient
@@ -69,6 +70,14 @@ class DownloadDataRequest(BaseModel):
     totp: Optional[str] = None
 
 
+def _normalize_download_date(date_str: str, default_time: str) -> str:
+    """Append default time if date string has no time component."""
+    s = date_str.strip()
+    if len(s) <= 10:
+        return f"{s} {default_time}"
+    return s
+
+
 @router.post("/download")
 def download_data(req: DownloadDataRequest):
     client = SmartAPIManager.get_client()
@@ -85,16 +94,26 @@ def download_data(req: DownloadDataRequest):
             raise HTTPException(status_code=400, detail=f"SmartAPI login failed: {client.last_error}")
         SmartAPIManager.set_client(client)
 
-    df = client.fetch_historical_candles(
+    # Normalize dates to SmartAPI-compatible format (YYYY-MM-DD HH:MM)
+    from_date = _normalize_download_date(req.from_date, "09:15")
+    to_date = _normalize_download_date(req.to_date, "15:30")
+
+    df, is_mock = client.fetch_historical_candles(
         symbol=req.symbol,
-        from_date=req.from_date,
-        to_date=req.to_date,
+        from_date=from_date,
+        to_date=to_date,
         interval=req.interval,
     )
     if df.empty:
-        raise HTTPException(status_code=400, detail="No historical data returned from SmartAPI/Mock Generator.")
+        raise HTTPException(status_code=400, detail="No historical data returned from SmartAPI.")
 
-    file_path = client.save_dataset_parquet(req.symbol, req.interval, df)
+    if is_mock:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Symbol '{req.symbol}' not found on SmartAPI. Check spelling and use exact exchange symbol (e.g. GODFRYPHLP, not GODFREYPHILLIPS). No mock data was saved.",
+        )
+
+    file_path = client.save_dataset_csv(req.symbol, req.interval, df)
     catalog = client.load_catalog()
     key = f"{req.symbol.upper()}_{req.interval.upper()}"
 
@@ -106,6 +125,7 @@ def download_data(req: DownloadDataRequest):
         "details": catalog.get(key, {}),
         "active_feed": key,
         "catalog": catalog,
+        "is_mock": is_mock,
     }
 
 
@@ -155,7 +175,7 @@ def search_symbols(q: str):
 @router.get("/datasets/{symbol}/{interval}")
 def get_dataset(symbol: str, interval: str):
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(symbol, interval)
+    df = client.load_dataset_csv(symbol, interval)
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail="Dataset not found or empty.")
 
@@ -184,3 +204,21 @@ def get_dataset(symbol: str, interval: str):
         "suggested_max_position": suggested,
         "candles": data[:2000],
     }
+
+
+@router.get("/download-file/{symbol}/{interval}")
+def download_file(symbol: str, interval: str):
+    """Serve a stored CSV or Excel dataset as a file download."""
+    client = SmartAPIClient()
+    catalog = client.load_catalog()
+    key = f"{symbol.upper()}_{interval.upper()}"
+    if key not in catalog:
+        raise HTTPException(status_code=404, detail="Dataset not found in catalog.")
+    
+    file_path = catalog[key].get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk.")
+    
+    filename = os.path.basename(file_path)
+    return FileResponse(file_path, filename=filename, media_type="text/csv")
+

@@ -1,7 +1,8 @@
 "use client";
 
-import { Shield, RefreshCw, Trash2, Database, CheckCircle2, XCircle, ServerCrash, RotateCcw, Play, Pause, SkipForward, SkipBack, AlertTriangle, PlayCircle, PieChart, Rocket, Plus, Code, FileText, TrendingUp, TrendingDown, BarChart3, ArrowLeft, Radio, Activity, DollarSign, Wallet, Clock, Bell, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, RefreshCw, Trash2, Database, CheckCircle2, XCircle, ServerCrash, RotateCcw, Play, Pause, SkipForward, SkipBack, AlertTriangle, PlayCircle, PieChart, Rocket, Plus, Code, FileText, TrendingUp, TrendingDown, BarChart3, ArrowLeft, Radio, Activity, DollarSign, Wallet, Clock, Bell, ChevronDown, ChevronUp, BarChart, Calendar } from "lucide-react";
 import type { Notif, ApiErrorInfo, BacktestDetail, ReplayEvent } from "../../hooks/useQuantLab";
+import LightweightChart from "../../../components/LightweightChart";
 
 
 /* ---------- TotpModal ---------- */
@@ -140,7 +141,9 @@ export function DashboardTab({
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Date Range</label>
+                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+                  <Calendar size={10} className="text-blue-400" /> Date Range
+                </label>
                 <div className="flex gap-2">
                   <input type="date" value={btStartDate} onChange={e => setBtStartDate(e.target.value)} className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
                   <input type="date" value={btEndDate} onChange={e => setBtEndDate(e.target.value)} className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
@@ -214,6 +217,16 @@ export function DatasetsTab({
   downloading, triggerDownload, datasets, selectedDataset, setSelectedDataset, suggestions, showSuggestions, setShowSuggestions,
   triggerNotif,
 }: any) {
+  const handleDownloadFile = (symbol: string, interval: string, filePath: string) => {
+    const url = `/api/data/download-file/${encodeURIComponent(symbol)}/${encodeURIComponent(interval)}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${symbol}_${interval}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    triggerNotif("success", `Downloaded ${symbol} ${interval} dataset.`);
+  };
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="glass-panel p-5 rounded-xl self-start">
@@ -222,7 +235,7 @@ export function DatasetsTab({
           SmartAPI Downloader
         </h4>
         <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-          Submit symbol requests. Files are indexed in standard Parquet formats under <code className="text-slate-300">/datasets/parquet/</code>.
+          Submit symbol requests. Files are indexed in standard CSV and Excel formats under <code className="text-slate-300">/datasets/csv/</code>.
         </p>
         <form onSubmit={triggerDownload} className="space-y-4">
           <div className="relative">
@@ -262,27 +275,31 @@ export function DatasetsTab({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">From Date</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+                <Calendar size={10} className="text-white" /> From Date
+              </label>
               <input type="date" value={dlFromDate} onChange={e => setDlFromDate(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">To Date</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+                <Calendar size={10} className="text-white" /> To Date
+              </label>
               <input type="date" value={dlToDate} onChange={e => setDlToDate(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
             </div>
           </div>
           <button type="submit" disabled={downloading} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2">
-            {downloading ? <><RefreshCw size={14} className="animate-spin" /> Fetching...</> : <><Database size={14} /> Fetch & Write Parquet</>}
+            {downloading ? <><RefreshCw size={14} className="animate-spin" /> Fetching...</> : <><Database size={14} /> Fetch & Write CSV</>}
           </button>
         </form>
       </div>
 
-      <div className="glass-panel p-5 rounded-xl col-span-2">
-        <h4 className="font-bold text-slate-200 mb-4">Metadata Catalog (Parquet Storage)</h4>
+      <div className="glass-panel p-5 rounded-xl col-span-2 flex flex-col gap-4">
+        <h4 className="font-bold text-slate-200">Metadata Catalog (CSV / Excel Storage)</h4>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-400 border-collapse">
             <thead>
               <tr className="border-b border-slate-800 text-slate-300 font-medium">
-                <th className="py-2.5">Symbol</th><th>Interval</th><th>Record Range</th><th>Bars Count</th><th>Parquet Path</th><th className="text-right">Action</th>
+                <th className="py-2.5">Symbol</th><th>Interval</th><th>Record Range</th><th>Bars Count</th><th>CSV Path</th><th className="text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
@@ -296,9 +313,15 @@ export function DatasetsTab({
                   <td className="text-right">
                     <button
                       onClick={() => { setSelectedDataset(`${d.symbol}_${d.interval}`); triggerNotif("success", `Dataset ${d.symbol} selected as active simulation feed.`); }}
-                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${selectedDataset === `${d.symbol}_${d.interval}` ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all mr-2 ${selectedDataset === `${d.symbol}_${d.interval}` ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
                     >
                       {selectedDataset === `${d.symbol}_${d.interval}` ? "Active" : "Select"}
+                    </button>
+                    <button
+                      onClick={() => handleDownloadFile(d.symbol, d.interval, d.file_path)}
+                      className="px-2.5 py-1 rounded text-[10px] font-bold bg-blue-600/20 text-blue-400 border border-blue-800 hover:bg-blue-600/30 transition-all"
+                    >
+                      Download
                     </button>
                   </td>
                 </tr>
@@ -306,7 +329,7 @@ export function DatasetsTab({
               {datasets.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-slate-500 font-medium">
-                    No Parquet datasets found. Download candles using SmartAPI.
+                    No CSV datasets found. Download candles using SmartAPI.
                   </td>
                 </tr>
               )}

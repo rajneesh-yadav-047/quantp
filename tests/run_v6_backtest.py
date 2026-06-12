@@ -22,7 +22,7 @@ if not afc_meta:
     print("ERROR: AFC_FIFTEEN_MINUTE not found in catalog")
     sys.exit(1)
 
-df = pd.read_parquet(afc_meta['file_path'])
+df = pd.read_csv(afc_meta['file_path'])
 print(f"Loaded AFC data: {len(df)} rows from {df['time'].min()} to {df['time'].max()}")
 
 # ── Load v6 strategy ──

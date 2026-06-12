@@ -23,7 +23,7 @@ def run_single(symbol, interval, strategy_path):
         print(f"ERROR: {key} not found in catalog")
         return None, None
     
-    df = pd.read_parquet(meta['file_path'])
+    df = pd.read_csv(meta['file_path'])
     with open(strategy_path, 'r') as f:
         strategy_code = f.read()
     
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         key = f"{sym}_{interval}"
         meta = catalog.get(key)
         if meta:
-            multi_dict[sym] = pd.read_parquet(meta['file_path'])
+            multi_dict[sym] = pd.read_csv(meta['file_path'])
     
     r_multi, m_multi = run_multi(multi_dict, strategy_path)
     

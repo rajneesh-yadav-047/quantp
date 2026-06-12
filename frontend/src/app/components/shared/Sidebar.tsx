@@ -9,7 +9,6 @@ interface SidebarProps {
   notif: Notif | null;
   backendOnline: boolean;
   smartapiConnected: boolean;
-  ollamaState: string;
   apiErrors: Record<string, { error: string; retry: () => void }>;
 }
 
@@ -25,7 +24,7 @@ const navItems = [
   { id: "cleanup", label: "Cleanup", icon: Trash2 },
 ];
 
-export default function Sidebar({ activeTab, setActiveTab, notif, backendOnline, smartapiConnected, ollamaState, apiErrors }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, notif, backendOnline, smartapiConnected, apiErrors }: SidebarProps) {
   return (
     <aside className="w-64 border-r border-slate-800 bg-[#0B0F19]/90 p-4 flex flex-col justify-between shrink-0">
       <div>
@@ -94,21 +93,6 @@ export default function Sidebar({ activeTab, setActiveTab, notif, backendOnline,
               <span className="text-slate-300">{smartapiConnected ? "Connected" : "Disconnected"}</span>
             </div>
           </div>
-          <div className="flex items-center justify-between px-1">
-            <span className="text-slate-500">Ollama AI</span>
-            <div className="flex items-center gap-1.5">
-              <div className={`h-2 w-2 rounded-full ${
-                ollamaState === "online" ? "bg-emerald-500 shadow-[0_0_8px_#10B981]" :
-                ollamaState === "error" ? "bg-rose-500 shadow-[0_0_8px_#F43F5E]" : "bg-slate-600"
-              }`} />
-              <span className="text-slate-300">
-                {ollamaState === "online" ? "Online" : ollamaState === "error" ? "Error" : ollamaState === "offline" ? "Offline" : "Checking..."}
-              </span>
-            </div>
-          </div>
-          {apiErrors["ollama/status"] && (
-            <div className="text-[10px] text-rose-400 px-1 break-words">{apiErrors["ollama/status"].error}</div>
-          )}
         </div>
       </div>
     </aside>

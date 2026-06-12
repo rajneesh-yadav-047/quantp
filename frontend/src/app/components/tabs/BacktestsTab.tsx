@@ -1,6 +1,7 @@
 "use client";
 
-import { Play, Pause, SkipForward, SkipBack, AlertTriangle, Layers, PlayCircle } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, AlertTriangle, Layers, PlayCircle, Calendar, Database, CheckCircle2, XCircle, ArrowDownCircle } from "lucide-react";
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 
 const LightweightChart = dynamic(() => import("../../../components/LightweightChart"), { ssr: false });
@@ -17,7 +18,26 @@ export function BacktestsTab({
   isPlaying, setIsPlaying, playbackSpeed, setPlaybackSpeed,
   currentStep, setCurrentStep, replayEvents, currentEvent, currentPortfolio,
   activeCandles, activeTrades, positionCurveData,
+  datasets, checkDataCoverage, pendingBacktest, setPendingBacktest,
 }: any) {
+  const selectedStrategy = strategies.find((s: any) => s.id === selectedStrategyId);
+  const symbols = selectedStrategy?.symbols || [selectedStrategy?.symbol || "SBIN"];
+  const interval = selectedStrategy?.interval || "FIVE_MINUTE";
+
+  const coverage = useMemo(() => {
+    if (!selectedStrategyId) return { missing: [], available: [] as any[] };
+    return {
+      missing: checkDataCoverage(symbols, interval, btStartDate, btEndDate),
+      available: symbols.map((sym: string) => {
+        const key = `${sym.toUpperCase()}_${interval.toUpperCase()}`;
+        const ds = datasets.find((d: any) => `${d.symbol?.toUpperCase()}_${d.interval?.toUpperCase()}` === key);
+        return ds ? { symbol: sym, interval, start: ds.start_date?.slice(0, 10), end: ds.end_date?.slice(0, 10) } : null;
+      }).filter(Boolean),
+    };
+  }, [selectedStrategyId, symbols, interval, btStartDate, btEndDate, checkDataCoverage, datasets]);
+
+  const isDateRangeValid = coverage.missing.length === 0;
+
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* Run Controls */}
@@ -37,12 +57,30 @@ export function BacktestsTab({
             </select>
           </div>
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">From</label>
-            <input type="date" value={btStartDate} onChange={e => setBtStartDate(e.target.value)} className="text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-slate-200" />
+            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+              <Calendar size={10} className="text-blue-400" /> From
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={btStartDate}
+                onChange={e => setBtStartDate(e.target.value)}
+                className={`text-xs bg-slate-950 border rounded px-2 py-1.5 text-slate-200 w-32 ${!isDateRangeValid && coverage.missing.some((m: any) => btStartDate < m.startDate) ? 'border-rose-700 focus:border-rose-500' : 'border-slate-800 focus:border-blue-500'}`}
+              />
+            </div>
           </div>
           <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">To</label>
-            <input type="date" value={btEndDate} onChange={e => setBtEndDate(e.target.value)} className="text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-slate-200" />
+            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+              <Calendar size={10} className="text-blue-400" /> To
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                value={btEndDate}
+                onChange={e => setBtEndDate(e.target.value)}
+                className={`text-xs bg-slate-950 border rounded px-2 py-1.5 text-slate-200 w-32 ${!isDateRangeValid && coverage.missing.some((m: any) => btEndDate > m.endDate) ? 'border-rose-700 focus:border-rose-500' : 'border-slate-800 focus:border-blue-500'}`}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Slippage %</label>
@@ -70,6 +108,36 @@ export function BacktestsTab({
             <Play size={14} fill="currentColor" /> Run Backtest
           </button>
         </div>
+
+        {/* Data Coverage Validation */}
+        {selectedStrategyId && (
+          <div className="mt-3 space-y-2">
+            {coverage.missing.length > 0 && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-rose-800/50 bg-rose-950/20 text-rose-400 text-[10px]">
+                <XCircle size={14} className="shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold mb-1">Selected date range exceeds downloaded data:</p>
+                  {coverage.missing.map((m: any, i: number) => (
+                    <p key={i} className="text-rose-300/80">{m.symbol}: {m.reason}</p>
+                  ))}
+                  <p className="text-rose-300/60 mt-1 italic">Click "Run Backtest" to download missing data automatically.</p>
+                </div>
+              </div>
+            )}
+            {coverage.available.length > 0 && coverage.missing.length === 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg border border-emerald-800/50 bg-emerald-950/20 text-emerald-400 text-[10px]">
+                <CheckCircle2 size={12} className="shrink-0" />
+                <span>Data coverage OK: {coverage.available.map((a: any) => `${a.symbol} (${a.start} → ${a.end})`).join(", ")}</span>
+              </div>
+            )}
+            {coverage.available.length === 0 && coverage.missing.length === 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg border border-slate-800 bg-slate-900/40 text-slate-500 text-[10px]">
+                <Database size={12} className="shrink-0" />
+                <span>No datasets found for {symbols.join(", ")} ({interval}). Click "Run Backtest" to download.</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Results View */}

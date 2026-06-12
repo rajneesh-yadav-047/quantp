@@ -1,1 +1,29 @@
-{}
+{
+  "GODFR_FIVE_MINUTE": {
+    "symbol": "GODFR",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\GODFR\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-05 09:15:00",
+    "end_date": "2026-06-12 15:30:00",
+    "records_count": 456,
+    "updated_at": "2026-06-13 00:42:46"
+  },
+  "AFC_FIVE_MINUTE": {
+    "symbol": "AFC",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\AFC\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-05 09:15:00",
+    "end_date": "2026-06-12 15:30:00",
+    "records_count": 456,
+    "updated_at": "2026-06-13 00:49:51"
+  },
+  "GODFR_FIFTEEN_MINUTE": {
+    "symbol": "GODFR",
+    "interval": "FIFTEEN_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\GODFR\\FIFTEEN_MINUTE\\data.csv",
+    "start_date": "2026-06-05 09:15:00",
+    "end_date": "2026-06-12 15:30:00",
+    "records_count": 156,
+    "updated_at": "2026-06-13 01:01:03"
+  }
+}
