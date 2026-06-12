@@ -20,15 +20,15 @@ router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
 class BacktestRequest(BaseModel):
     strategy_id: str
-    symbols: List[str]
-    interval: str
+    symbols: Optional[List[str]] = None  # Override strategy symbols if provided
+    interval: Optional[str] = None  # Override strategy interval if provided
     start_date: str
     end_date: str
-    initial_capital: float = 100000.0
+    initial_capital: Optional[float] = None  # Override strategy capital if provided
     slippage_pct: float = 0.0005
     trade_type: str = "INTRADAY"
-    max_position_size: Optional[int] = None
-    runtime_type: Optional[str] = "legacy_on_bar"
+    max_position_size: Optional[int] = None  # Override strategy max_position if provided
+    runtime_type: Optional[str] = None
     auto_download: bool = True
 
 
@@ -50,10 +50,18 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
-    # 2. Prepare data for all symbols
+    # 2. Resolve config from strategy or request overrides
+    symbols = req.symbols if req.symbols is not None else (json.loads(s.symbols) if s.symbols else ["SBIN"])
+    interval = req.interval if req.interval is not None else (s.interval or "FIVE_MINUTE")
+    initial_capital = req.initial_capital if req.initial_capital is not None else (s.initial_capital or 100000.0)
+    max_position_size = req.max_position_size if req.max_position_size is not None else s.max_position_size
+    runtime_type = req.runtime_type if req.runtime_type is not None else getattr(s, 'runtime_type', 'legacy_on_bar')
+    parameters = json.loads(s.parameters_json) if s.parameters_json else None
+
+    # 3. Prepare data for all symbols
     df_dict, downloaded_symbols, failed_symbols = prepare_backtest_data(
-        symbols=req.symbols,
-        interval=req.interval,
+        symbols=symbols,
+        interval=interval,
         start_date=req.start_date,
         end_date=req.end_date,
         auto_download=req.auto_download,
@@ -64,44 +72,46 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     if failed_symbols:
         print(f"WARN: Failed to load data for: {failed_symbols}")
 
-    # 3. Calculate max position size
+    # 4. Calculate max position size
     first_df = list(df_dict.values())[0]
     final_max_pos = calculate_backtest_max_position(
         df=first_df,
-        initial_capital=req.initial_capital,
+        initial_capital=initial_capital,
         trade_type=req.trade_type,
-        requested_max=req.max_position_size,
+        requested_max=max_position_size,
     )
 
-    # 4. Run backtest
+    # 5. Run backtest
     try:
         run_id = f"B-{uuid.uuid4().hex[:8].upper()}"
         engine = BacktestEngine(
             df_dict=df_dict,
             strategy_code=s.code or "",
-            initial_capital=req.initial_capital,
+            initial_capital=initial_capital,
             slippage_pct=req.slippage_pct,
             default_trade_type=req.trade_type,
             max_position_size=final_max_pos,
-            runtime_type=getattr(s, 'runtime_type', 'legacy_on_bar'),
+            runtime_type=runtime_type,
+            parameters=parameters,
         )
         res = engine.run(run_id=run_id)
 
-        # 5. Analytics
-        metrics = calculate_metrics(res['equity_curve'], res['trades'], req.initial_capital)
+        # 6. Analytics
+        metrics = calculate_metrics(res['equity_curve'], res['trades'], initial_capital)
         metrics['equity_curve'] = res['equity_curve']
 
-        # 6. Catalog result
-        primary_symbol = req.symbols[0].upper() if req.symbols else "MULTI"
+        # 7. Catalog result
+        primary_symbol = symbols[0].upper() if symbols else "MULTI"
         result = BacktestResultDB(
             id=run_id,
             strategy_id=s.id,
             strategy_name=s.name,
             symbol=primary_symbol,
-            interval=req.interval.upper(),
+            symbols_json=json.dumps(symbols),
+            interval=interval.upper(),
             start_time=req.start_date,
             end_time=req.end_date,
-            initial_capital=req.initial_capital,
+            initial_capital=initial_capital,
             final_equity=res['final_portfolio']['equity'],
             total_pnl=metrics.get("total_pnl", 0.0),
             cagr=metrics.get("cagr", 0.0),
@@ -143,6 +153,7 @@ def list_backtest_results(db: Session = Depends(get_db)):
         "id": r.id,
         "strategy_name": r.strategy_name,
         "symbol": r.symbol,
+        "symbols": json.loads(r.symbols_json) if r.symbols_json else [r.symbol],
         "interval": r.interval,
         "start_time": r.start_time,
         "end_time": r.end_time,
@@ -165,6 +176,7 @@ def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
         "strategy_id": r.strategy_id,
         "strategy_name": r.strategy_name,
         "symbol": r.symbol,
+        "symbols": json.loads(r.symbols_json) if r.symbols_json else [r.symbol],
         "interval": r.interval,
         "start_time": r.start_time,
         "end_time": r.end_time,

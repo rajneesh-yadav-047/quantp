@@ -94,6 +94,68 @@ def slice_dataframe_by_date(
     return df
 
 
+def normalize_symbol(symbol: str, interval: str, client: Optional[SmartAPIClient] = None) -> str:
+    """
+    Normalize a bare symbol to its canonical exchange-prefixed form.
+    
+    Examples:
+      - 'AEGISLOG' -> 'NSE:AEGISLOG-EQ' (if found in catalog or token list)
+      - 'NSE:AEGISLOG-EQ' -> 'NSE:AEGISLOG-EQ' (already canonical, passthrough)
+      - 'SBIN' -> 'NSE:SBIN-EQ'
+      
+    Args:
+        symbol: raw symbol input (may or may not have exchange prefix)
+        interval: candle interval (used for catalog lookups)
+        client: optional SmartAPIClient for token resolution
+        
+    Returns:
+        Canonical symbol string best matching the input.
+    """
+    sym = symbol.upper().strip()
+    
+    # Already canonical — passthrough
+    if ":" in sym:
+        return sym
+    
+    catalog_client = client or SmartAPIClient()
+    catalog = catalog_client.load_catalog()
+    
+    # 1. Check catalog for canonical NSE equity form FIRST (prefer real data)
+    canonical_eq = f"NSE:{sym}-EQ"
+    eq_key = f"{canonical_eq}_{interval.upper()}"
+    if eq_key in catalog:
+        return canonical_eq
+    
+    # 2. Check catalog for exact bare key (backward compat)
+    exact_key = f"{sym}_{interval.upper()}"
+    if exact_key in catalog:
+        return sym  # catalog has this exact bare symbol, trust it
+    
+    # 3. Check catalog for any exchange-prefixed version of this symbol
+    for key, entry in catalog.items():
+        cat_symbol = entry.get("symbol", "")
+        if cat_symbol.upper() == sym:
+            return cat_symbol
+        if ":" in cat_symbol:
+            _, cat_base = cat_symbol.split(":", 1)
+            if cat_base.upper() == sym:
+                return cat_symbol
+    
+    # 4. Try SmartAPI token resolution for NSE equity default
+    try:
+        token_client = client or SmartAPIClient()
+        resolved = token_client.resolve_symbol(f"NSE:{sym}")
+        if resolved:
+            exch = resolved.get("exch_seg", "NSE")
+            resolved_symbol = resolved.get("symbol", sym)
+            return f"{exch}:{resolved_symbol}"
+    except Exception as e:
+        print(f"WARN: Symbol normalization failed for {sym}: {e}")
+    
+    # 5. Fallback: assume NSE equity
+    return f"NSE:{sym}-EQ"
+
+
 def load_or_download_symbol_data(
     symbol: str,
     interval: str,
@@ -118,30 +180,32 @@ def load_or_download_symbol_data(
         status_message: "loaded", "downloaded", "mock", or "failed"
     """
     sym = symbol.upper().strip()
+    # Normalize bare symbols (e.g. "AEGISLOG" -> "NSE:AEGISLOG-EQ")
+    normalized_sym = normalize_symbol(sym, interval, client)
     catalog_client = SmartAPIClient()
-    df = catalog_client.load_dataset_parquet(sym, interval)
+    df = catalog_client.load_dataset_parquet(normalized_sym, interval)
     
     # Auto-download if missing
     if (df is None or df.empty) and auto_download and client is not None:
         try:
             df = client.fetch_historical_candles(
-                symbol=sym,
+                symbol=normalized_sym,
                 from_date=f"{start_date} 09:15",
                 to_date=f"{end_date} 15:30",
                 interval=interval,
             )
             if not df.empty:
-                client.save_dataset_parquet(sym, interval, df)
+                client.save_dataset_parquet(normalized_sym, interval, df)
                 time.sleep(0.5)  # rate limit padding
                 return df, "downloaded"
         except Exception as e:
-            print(f"WARN: Auto-download failed for {sym}: {e}")
+            print(f"WARN: Auto-download failed for {normalized_sym}: {e}")
     
     # Generate mock data as last resort
     if df is None or df.empty:
-        df = catalog_client.generate_mock_candles(sym, start_date, end_date, interval)
+        df = catalog_client.generate_mock_candles(normalized_sym, start_date, end_date, interval)
         if not df.empty:
-            catalog_client.save_dataset_parquet(sym, interval, df)
+            catalog_client.save_dataset_parquet(normalized_sym, interval, df)
             return df, "mock"
     
     if df is None or df.empty:
@@ -187,8 +251,11 @@ def prepare_backtest_data(
         if not sym:
             continue
         
+        # Normalize to canonical form for consistent catalog lookup
+        normalized_sym = normalize_symbol(sym, interval, dl_client)
+        
         df, status = load_or_download_symbol_data(
-            symbol=sym,
+            symbol=normalized_sym,
             interval=interval,
             start_date=start_date,
             end_date=end_date,
@@ -197,21 +264,21 @@ def prepare_backtest_data(
         )
         
         if status == "downloaded":
-            downloaded_symbols.append(sym)
+            downloaded_symbols.append(normalized_sym)
         elif status == "mock":
-            downloaded_symbols.append(f"{sym}(mock)")
+            downloaded_symbols.append(f"{normalized_sym}(mock)")
         elif status == "failed":
-            failed_symbols.append(sym)
+            failed_symbols.append(normalized_sym)
             continue
         
         # Slice to requested date range
         try:
             df = slice_dataframe_by_date(df, start_date, end_date)
         except Exception as e:
-            failed_symbols.append(f"{sym} (date slice error: {e})")
+            failed_symbols.append(f"{normalized_sym} (date slice error: {e})")
             continue
         
         if not df.empty:
-            df_dict[sym] = df
+            df_dict[normalized_sym] = df
     
     return df_dict, downloaded_symbols, failed_symbols
