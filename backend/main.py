@@ -22,8 +22,10 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 from backend.database import init_db
-from backend.routers import auth, data, strategies, backtest, research
+from backend.routers import auth, data, strategies, backtest, research, deployments, live_trading
 from backend.cleanup_api import router as cleanup_router
+from backend.services.market_data_service import MarketDataService
+from backend.services.redis_client import get_redis_status
 
 
 @asynccontextmanager
@@ -33,7 +35,23 @@ async def lifespan(app: FastAPI):
     print("INFO: Database Initialization Complete.")
     print("INFO: Loading symbol suggestions...")
     data._load_symbol_suggestions()
+    
+    # Initialize Market Data Service if SmartAPI is configured
+    print("INFO: Checking SmartAPI configuration for Market Data Service...")
+    from backend.services.smartapi_manager import SmartAPIManager
+    if SmartAPIManager.is_configured():
+        mds = MarketDataService.get_instance()
+        mds.start()
+        print("INFO: Market Data Service started.")
+    else:
+        print("INFO: SmartAPI not configured. Market Data Service will start on-demand.")
+    
     yield
+    
+    # Shutdown
+    print("INFO: Shutting down Market Data Service...")
+    mds = MarketDataService.get_instance()
+    mds.stop()
 
 
 app = FastAPI(title="QuantLab Backend", version="2.0.0", lifespan=lifespan)
@@ -72,7 +90,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "timestamp": datetime.now(timezone.utc).isoformat()}
+    redis_status = get_redis_status()
+    mds = MarketDataService.get_instance()
+    mds_status = mds.get_status()
+    return {
+        "status": "online",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "redis": redis_status,
+        "market_data_service": mds_status,
+    }
 
 
 # Include routers
@@ -81,6 +107,8 @@ app.include_router(data.router)
 app.include_router(strategies.router)
 app.include_router(backtest.router)
 app.include_router(research.router)
+app.include_router(deployments.router)
+app.include_router(live_trading.router)
 app.include_router(cleanup_router, prefix="/api/cleanup")
 
 
