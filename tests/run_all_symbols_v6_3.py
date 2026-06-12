@@ -24,7 +24,7 @@ def run_symbol(symbol, interval, strategy_path):
         print(f"ERROR: {key} not found in catalog")
         return None
     
-    df = pd.read_parquet(meta['file_path'])
+    df = pd.read_csv(meta['file_path'])
     print(f"\n{'='*60}")
     print(f"SYMBOL: {symbol} | INTERVAL: {interval}")
     print(f"Rows: {len(df)} | From: {df['time'].min()} | To: {df['time'].max()}")

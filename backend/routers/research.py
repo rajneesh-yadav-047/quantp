@@ -36,7 +36,7 @@ def analyze_dataset_endpoint(req: DatasetAnalysisRequest):
     catalog = client.load_catalog()
     print(f"DEBUG research/analyze: looking for key={lookup_key}, catalog_keys={list(catalog.keys())}")
     
-    df = client.load_dataset_parquet(req.symbol.upper(), req.interval.upper())
+    df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
     if df is None:
         print(f"DEBUG research/analyze: df is None for key={lookup_key}")
         raise HTTPException(status_code=404, detail=f"Dataset not found in catalog. (looked for: {lookup_key}, available: {list(catalog.keys())})")
@@ -69,7 +69,7 @@ def get_regime_attribution(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Backtest run not found")
 
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(cast(str, r.symbol), cast(str, r.interval))
+    df = client.load_dataset_csv(cast(str, r.symbol), cast(str, r.interval))
     if df is None:
         raise HTTPException(status_code=404, detail="Original Parquet dataset missing from catalog.")
 
@@ -95,7 +95,7 @@ def get_capital_analysis(run_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Strategy script missing in DB.")
 
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(cast(str, r.symbol), cast(str, r.interval))
+    df = client.load_dataset_csv(cast(str, r.symbol), cast(str, r.interval))
     if df is None:
         raise HTTPException(status_code=404, detail="Parquet dataset not found.")
 
@@ -128,7 +128,7 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Strategy not found")
 
     client = SmartAPIClient()
-    df = client.load_dataset_parquet(req.symbol, req.interval)
+    df = client.load_dataset_csv(req.symbol, req.interval)
     if df is None:
         raise HTTPException(status_code=404, detail="Parquet dataset not found.")
 

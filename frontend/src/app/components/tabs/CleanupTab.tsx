@@ -14,10 +14,10 @@ export function CleanupTab({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="glass-panel p-4 rounded-xl">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 font-medium">Parquet Datasets</span>
+            <span className="text-xs text-slate-400 font-medium">CSV Datasets</span>
             <Database size={16} className="text-blue-400" />
           </div>
-          <h3 className="text-lg font-bold text-slate-100">{cleanupStatus?.datasets_parquet?.size_human || "--"}</h3>
+          <h3 className="text-lg font-bold text-slate-100">{cleanupStatus?.datasets_csv?.size_human || "--"}</h3>
         </div>
         <div className="glass-panel p-4 rounded-xl">
           <div className="flex items-center justify-between mb-2">
@@ -45,13 +45,13 @@ export function CleanupTab({
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Target</label>
             <select value={cleanupTarget} onChange={e => setCleanupTarget(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200">
               <option value="logs">Backtest Logs Only</option>
-              <option value="parquet">Parquet Datasets Only</option>
+              <option value="csv">CSV Datasets Only</option>
               <option value="strategies">Strategy Files Only</option>
-              <option value="all">Logs + Parquet + Strategies (ALL)</option>
+              <option value="all">Logs + CSV + Strategies (ALL)</option>
               <option value="db_orphans">DB Orphan Records Only</option>
             </select>
           </div>
-          {(cleanupTarget === "parquet" || cleanupTarget === "all") && (
+          {(cleanupTarget === "csv" || cleanupTarget === "all") && (
             <>
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Symbol Filter (optional)</label>
@@ -108,7 +108,7 @@ export function CleanupTab({
                 <h3 className="text-xl font-bold text-slate-200 font-mono mt-0.5">{cleanupStatus.total_human}</h3>
               </div>
               <div className="grid grid-cols-3 gap-2 text-xs">
-                {["datasets_parquet", "logs", "strategies", "database", "backend_log", "backend_restart_log"].map(key => (
+                {["datasets_csv", "logs", "strategies", "database", "backend_log", "backend_restart_log"].map(key => (
                   <div key={key} className="p-2 bg-slate-950 rounded border border-slate-800">
                     <span className="text-slate-500 block text-[9px] uppercase font-bold">{key.replace(/_/g, " ")}</span>
                     <span className="font-mono text-slate-300">{cleanupStatus[key]?.size_human || "--"}</span>

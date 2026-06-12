@@ -1,7 +1,7 @@
 """
 QuantLab Cleanup Utility
 ========================
-Delete downloaded parquet data, backtest logs, and strategy files to free up disk space.
+Delete downloaded CSV/Excel data, backtest logs, and strategy files to free up disk space.
 
 Usage:
     python cleanup.py --help
@@ -9,8 +9,8 @@ Usage:
     python cleanup.py --dry-run --all             # Preview what would be deleted
     python cleanup.py --all                       # Delete everything
     python cleanup.py --logs --older-than 7       # Delete logs older than 7 days
-    python cleanup.py --parquet --symbol SBIN     # Delete SBIN parquet data
-    python cleanup.py --parquet --interval FIVE_MINUTE
+    python cleanup.py --csv --symbol SBIN          # Delete SBIN CSV data
+    python cleanup.py --csv --interval FIVE_MINUTE
     python cleanup.py --strategies                # Delete all strategy .py files
     python cleanup.py --strategies --strategy-id trader  # Delete specific strategy
     python cleanup.py --db-orphans                # Clean DB records with missing log files
@@ -58,7 +58,7 @@ def format_size(size_bytes: int) -> str:
 def get_disk_usage() -> Dict[str, Any]:
     """Get disk usage stats for all relevant paths."""
     paths = {
-        "datasets_parquet": "./datasets/parquet",
+        "datasets_csv": "./datasets/csv",
         "logs": "./logs",
         "strategies": "./strategies",
         "database": "./quantlab.db",
@@ -104,15 +104,15 @@ def print_status():
     print("=" * 60 + "\n")
 
 
-def find_parquet_datasets(symbol: Optional[str] = None, interval: Optional[str] = None) -> List[str]:
-    """Find parquet dataset paths matching filters."""
-    parquet_dir = "./datasets/parquet"
-    if not os.path.exists(parquet_dir):
+def find_csv_datasets(symbol: Optional[str] = None, interval: Optional[str] = None) -> List[str]:
+    """Find csv dataset paths matching filters."""
+    csv_dir = "./datasets/csv"
+    if not os.path.exists(csv_dir):
         return []
     
     matches = []
-    for sym in os.listdir(parquet_dir):
-        sym_path = os.path.join(parquet_dir, sym)
+    for sym in os.listdir(csv_dir):
+        sym_path = os.path.join(csv_dir, sym)
         if not os.path.isdir(sym_path):
             continue
         
@@ -127,7 +127,7 @@ def find_parquet_datasets(symbol: Optional[str] = None, interval: Optional[str] 
             if interval and iv.upper() != interval.upper():
                 continue
             
-            data_file = os.path.join(iv_path, "data.parquet")
+            data_file = os.path.join(iv_path, "data.csv")
             if os.path.exists(data_file):
                 matches.append(data_file)
     
@@ -167,18 +167,18 @@ def find_backtest_logs(run_id: Optional[str] = None, older_than_days: Optional[i
     return matches
 
 
-def delete_parquet_datasets(symbol: Optional[str] = None, interval: Optional[str] = None, 
+def delete_csv_datasets(symbol: Optional[str] = None, interval: Optional[str] = None, 
                            dry_run: bool = False) -> Tuple[int, int]:
-    """Delete parquet datasets. Returns (files_deleted, bytes_freed)."""
-    targets = find_parquet_datasets(symbol=symbol, interval=interval)
+    """Delete csv datasets. Returns (files_deleted, bytes_freed)."""
+    targets = find_csv_datasets(symbol=symbol, interval=interval)
     
     if not targets:
-        print("  No parquet datasets found matching criteria.")
+        print("  No csv datasets found matching criteria.")
         return 0, 0
     
     total_bytes = sum(get_size(f) for f in targets)
     
-    print(f"  {'[DRY-RUN]' if dry_run else ''} Found {len(targets)} parquet dataset(s) to delete ({format_size(total_bytes)})")
+    print(f"  {'[DRY-RUN]' if dry_run else ''} Found {len(targets)} csv dataset(s) to delete ({format_size(total_bytes)})")
     
     deleted = 0
     freed = 0
@@ -461,8 +461,8 @@ Examples:
   %(prog)s --dry-run --all                   Preview full cleanup
   %(prog)s --all                             Delete all data, logs, and strategies
   %(prog)s --logs --older-than 7             Delete logs older than 7 days
-  %(prog)s --parquet --symbol SBIN           Delete SBIN parquet data
-  %(prog)s --parquet --interval ONE_MINUTE   Delete all 1-min datasets
+  %(prog)s --csv --symbol SBIN           Delete SBIN csv data
+  %(prog)s --csv --interval ONE_MINUTE   Delete all 1-min datasets
   %(prog)s --strategies                      Delete all strategy .py files
   %(prog)s --strategies --strategy-id trader Delete specific strategy
   %(prog)s --db-orphans --vacuum             Clean DB + reclaim space
@@ -471,8 +471,8 @@ Examples:
     
     # Action flags
     parser.add_argument("--status", action="store_true", help="Show disk usage status and exit")
-    parser.add_argument("--all", action="store_true", help="Delete ALL parquet data, backtest logs, AND strategy files")
-    parser.add_argument("--parquet", action="store_true", help="Delete parquet datasets")
+    parser.add_argument("--all", action="store_true", help="Delete ALL csv data, backtest logs, AND strategy files")
+    parser.add_argument("--csv", action="store_true", help="Delete csv datasets")
     parser.add_argument("--logs", action="store_true", help="Delete backtest logs")
     parser.add_argument("--strategies", action="store_true", help="Delete strategy .py files")
     parser.add_argument("--db-orphans", action="store_true", help="Remove DB records with missing log files")
@@ -492,7 +492,7 @@ Examples:
     args = parser.parse_args()
     
     # Default to --status if no action specified
-    if not any([args.status, args.all, args.parquet, args.logs, args.strategies, args.db_orphans, args.vacuum]):
+    if not any([args.status, args.all, args.csv, args.logs, args.strategies, args.db_orphans, args.vacuum]):
         args.status = True
     
     if args.status:
@@ -500,16 +500,16 @@ Examples:
         return 0
     
     # Determine what to delete
-    delete_parquet = args.all or args.parquet
+    delete_csv = args.all or args.csv
     delete_logs = args.all or args.logs
     delete_strategies = args.all or args.strategies
     
     # Validate filters
-    if args.symbol and not delete_parquet:
-        print("[ERROR] --symbol requires --parquet or --all")
+    if args.symbol and not delete_csv:
+        print("[ERROR] --symbol requires --csv or --all")
         return 1
-    if args.interval and not delete_parquet:
-        print("[ERROR] --interval requires --parquet or --all")
+    if args.interval and not delete_csv:
+        print("[ERROR] --interval requires --csv or --all")
         return 1
     if args.run_id and not delete_logs:
         print("[ERROR] --run-id requires --logs or --all")
@@ -517,8 +517,8 @@ Examples:
     if args.strategy_id and not delete_strategies:
         print("[ERROR] --strategy-id requires --strategies or --all")
         return 1
-    if args.older_than and not (delete_logs or delete_parquet):
-        print("[ERROR] --older-than requires --logs, --parquet, or --all")
+    if args.older_than and not (delete_logs or delete_csv):
+        print("[ERROR] --older-than requires --logs, --csv, or --all")
         return 1
     
     # Show current status
@@ -526,7 +526,7 @@ Examples:
     
     # Build summary of operations
     operations = []
-    if delete_parquet:
+    if delete_csv:
         filters = []
         if args.symbol:
             filters.append(f"symbol={args.symbol}")
@@ -534,7 +534,7 @@ Examples:
             filters.append(f"interval={args.interval}")
         if args.older_than:
             filters.append(f"older_than={args.older_than}d")
-        op = "Delete parquet datasets" + (f" ({', '.join(filters)})" if filters else " (ALL)")
+        op = "Delete csv datasets" + (f" ({', '.join(filters)})" if filters else " (ALL)")
         operations.append(op)
     
     if delete_logs:
@@ -580,9 +580,9 @@ Examples:
     total_files = 0
     total_records = 0
     
-    if delete_parquet:
+    if delete_csv:
         print("\n[PARQUET DATASETS]")
-        n, freed = delete_parquet_datasets(
+        n, freed = delete_csv_datasets(
             symbol=args.symbol,
             interval=args.interval,
             dry_run=args.dry_run

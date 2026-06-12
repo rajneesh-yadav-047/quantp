@@ -5,7 +5,7 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 class SmartAPIClient:
     def __init__(
@@ -29,7 +29,7 @@ class SmartAPIClient:
         self.catalog_path = os.path.join(data_dir, "catalog.json")
         
         os.makedirs(data_dir, exist_ok=True)
-        os.makedirs(os.path.join(data_dir, "parquet"), exist_ok=True)
+        os.makedirs(os.path.join(data_dir, "csv"), exist_ok=True)
 
     def is_configured(self) -> bool:
         return bool(self.api_key and self.client_code and self.password)
@@ -243,13 +243,17 @@ class SmartAPIClient:
         from_date: str,  # YYYY-MM-DD HH:MM
         to_date: str,
         interval: str = "ONE_MINUTE"  # ONE_MINUTE, FIVE_MINUTE, FIFTEEN_MINUTE, ONE_HOUR, ONE_DAY
-    ) -> pd.DataFrame:
-        """Fetches candles from SmartAPI if connected, otherwise falls back to Mock candles."""
+    ) -> Tuple[pd.DataFrame, bool]:
+        """Fetches candles from SmartAPI if connected, otherwise falls back to Mock candles.
+        
+        Returns:
+            (DataFrame, is_mock): The candle data and a boolean indicating if it came from the mock generator.
+        """
         if self.jwt_token and self.is_configured():
             token_info = self.resolve_symbol(symbol, from_date=from_date)
             if not token_info:
                 print(f"Symbol {symbol} not found in token list. Falling back to Mock.")
-                return self.generate_mock_candles(symbol, from_date, to_date, interval)
+                return self.generate_mock_candles(symbol, from_date, to_date, interval), True
                 
             token = token_info.get("token")
             exchange = token_info.get("exch_seg", "NSE")
@@ -296,13 +300,13 @@ class SmartAPIClient:
                             df = pd.DataFrame(data, columns=cols)
                     else:
                         df = pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume", "open_interest"])
-                    return df
+                    return df, False
                 else:
                     print(f"Historical query failed: {res_json.get('message')}. Falling back to Mock.")
             except Exception as e:
                 print(f"Historical query error: {str(e)}. Falling back to Mock.")
                 
-        return self.generate_mock_candles(symbol, from_date, to_date, interval)
+        return self.generate_mock_candles(symbol, from_date, to_date, interval), True
 
     def fetch_ltp(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
@@ -387,7 +391,7 @@ class SmartAPIClient:
         to_str = now.strftime("%Y-%m-%d %H:%M")
         
         try:
-            df = self.fetch_historical_candles(symbol, from_str, to_str, interval)
+            df, _is_mock = self.fetch_historical_candles(symbol, from_str, to_str, interval)
             if df is not None and not df.empty:
                 # Get the last completed candle (not the current forming one)
                 # For live paper trading, we use the most recent completed candle
@@ -563,16 +567,32 @@ class SmartAPIClient:
             
         return pd.DataFrame(records)
 
-    def save_dataset_parquet(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
-        """Saves a candle DataFrame as Parquet and indexes it in the catalog."""
-        # Folder structure: /datasets/parquet/{symbol}/{interval}/data.parquet
+    def save_dataset_csv(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
+        """Saves a candle DataFrame as CSV and indexes it in the catalog."""
+        # Folder structure: /datasets/csv/{symbol}/{interval}/data.csv
         clean_symbol = symbol.upper().replace(":", "_")
-        dir_path = os.path.join(self.data_dir, "parquet", clean_symbol, interval.upper())
+        dir_path = os.path.join(self.data_dir, "csv", clean_symbol, interval.upper())
         os.makedirs(dir_path, exist_ok=True)
-        file_path = os.path.join(dir_path, "data.parquet")
+        file_path = os.path.join(dir_path, "data.csv")
         
-        # Save to parquet
-        df.to_parquet(file_path, index=False, engine='pyarrow')
+        # Save to CSV
+        df.to_csv(file_path, index=False)
+        
+        # Register in catalog
+        self.register_in_catalog(symbol, interval, file_path, df)
+        
+        return file_path
+
+    def save_dataset_excel(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
+        """Saves a candle DataFrame as Excel (.xlsx) and indexes it in the catalog."""
+        # Folder structure: /datasets/excel/{symbol}/{interval}/data.xlsx
+        clean_symbol = symbol.upper().replace(":", "_")
+        dir_path = os.path.join(self.data_dir, "excel", clean_symbol, interval.upper())
+        os.makedirs(dir_path, exist_ok=True)
+        file_path = os.path.join(dir_path, "data.xlsx")
+        
+        # Save to Excel
+        df.to_excel(file_path, index=False, engine='openpyxl')
         
         # Register in catalog
         self.register_in_catalog(symbol, interval, file_path, df)
@@ -626,16 +646,48 @@ class SmartAPIClient:
         except Exception:
             return {}
 
-    def load_dataset_parquet(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
-        """Loads a saved dataset from parquet."""
+    def load_dataset_csv(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
+        """Loads a saved dataset from CSV."""
         catalog = self.load_catalog()
         key = f"{symbol.upper()}_{interval.upper()}"
         if key in catalog:
             file_path = catalog[key]["file_path"]
             if os.path.exists(file_path):
                 try:
-                    return pd.read_parquet(file_path)
+                    return pd.read_csv(file_path)
                 except Exception as e:
-                    print(f"[SmartAPI] Failed to read parquet {file_path}: {e}")
+                    print(f"[SmartAPI] Failed to read CSV {file_path}: {e}")
                     return None
+        return None
+
+    def load_dataset_excel(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
+        """Loads a saved dataset from Excel (.xlsx)."""
+        catalog = self.load_catalog()
+        key = f"{symbol.upper()}_{interval.upper()}"
+        if key in catalog:
+            file_path = catalog[key]["file_path"]
+            if os.path.exists(file_path) and file_path.endswith(".xlsx"):
+                try:
+                    return pd.read_excel(file_path, engine='openpyxl')
+                except Exception as e:
+                    print(f"[SmartAPI] Failed to read Excel {file_path}: {e}")
+                    return None
+        return None
+
+    def load_dataset(self, symbol: str, interval: str) -> Optional[pd.DataFrame]:
+        """Loads a saved dataset from CSV or Excel based on catalog path."""
+        catalog = self.load_catalog()
+        key = f"{symbol.upper()}_{interval.upper()}"
+        if key in catalog:
+            file_path = catalog[key]["file_path"]
+            if not os.path.exists(file_path):
+                return None
+            try:
+                if file_path.endswith(".xlsx"):
+                    return pd.read_excel(file_path, engine='openpyxl')
+                else:
+                    return pd.read_csv(file_path)
+            except Exception as e:
+                print(f"[SmartAPI] Failed to read dataset {file_path}: {e}")
+                return None
         return None

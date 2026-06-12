@@ -188,7 +188,7 @@ Once both servers are running, follow these steps to run your first backtest:
 1. Open the dashboard at `http://localhost:3000` and go to **Dataset Explorer** in the sidebar.
 2. Enter the symbol (e.g. `SBIN`), interval (e.g. `ONE_MINUTE` or `FIVE_MINUTE`), and a date range.
 3. Click **Download Dataset**. 
-4. The backend downloads the candles, indexes them, and saves them locally as a `.parquet` file in `/datasets`.
+4. The backend downloads the candles, indexes them, and saves them locally as a `.csv` file in `/datasets/csv`.
 
 ### ✍️ Step 2: Develop a Trading Strategy
 1. Click **Strategy IDE** in the sidebar.

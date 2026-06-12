@@ -183,30 +183,30 @@ def load_or_download_symbol_data(
     # Normalize bare symbols (e.g. "AEGISLOG" -> "NSE:AEGISLOG-EQ")
     normalized_sym = normalize_symbol(sym, interval, client)
     catalog_client = SmartAPIClient()
-    df = catalog_client.load_dataset_parquet(normalized_sym, interval)
+    df = catalog_client.load_dataset_csv(normalized_sym, interval)
     
     # Auto-download if missing
     if (df is None or df.empty) and auto_download and client is not None:
         try:
-            df = client.fetch_historical_candles(
+            df, is_mock = client.fetch_historical_candles(
                 symbol=normalized_sym,
                 from_date=f"{start_date} 09:15",
                 to_date=f"{end_date} 15:30",
                 interval=interval,
             )
+            if is_mock:
+                print(f"WARN: Symbol {normalized_sym} not found on SmartAPI. Skipping mock data save.")
+                return None, "failed"
             if not df.empty:
-                client.save_dataset_parquet(normalized_sym, interval, df)
+                client.save_dataset_csv(normalized_sym, interval, df)
                 time.sleep(0.5)  # rate limit padding
                 return df, "downloaded"
         except Exception as e:
             print(f"WARN: Auto-download failed for {normalized_sym}: {e}")
     
-    # Generate mock data as last resort
+    # Do NOT generate mock data as fallback - require real data only
     if df is None or df.empty:
-        df = catalog_client.generate_mock_candles(normalized_sym, start_date, end_date, interval)
-        if not df.empty:
-            catalog_client.save_dataset_parquet(normalized_sym, interval, df)
-            return df, "mock"
+        return None, "failed"
     
     if df is None or df.empty:
         return None, "failed"

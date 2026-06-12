@@ -41,7 +41,7 @@ def _format_size(size_bytes: int) -> str:
 
 
 class CleanupStatusResponse(BaseModel):
-    datasets_parquet: Dict[str, Any]
+    datasets_csv: Dict[str, Any]
     logs: Dict[str, Any]
     strategies: Dict[str, Any]
     database: Dict[str, Any]
@@ -53,7 +53,7 @@ class CleanupStatusResponse(BaseModel):
 
 
 class CleanupRequest(BaseModel):
-    target: str  # "parquet", "logs", "strategies", "db_orphans", "all"
+    target: str  # "csv", "logs", "strategies", "db_orphans", "all"
     symbol: Optional[str] = None
     interval: Optional[str] = None
     run_id: Optional[str] = None
@@ -75,7 +75,7 @@ class CleanupResult(BaseModel):
 def cleanup_status():
     """Get current disk usage for all data directories."""
     paths = {
-        "datasets_parquet": "./datasets/parquet",
+        "datasets_csv": "./datasets/csv",
         "logs": "./logs",
         "strategies": "./strategies",
         "database": "./quantlab.db",
@@ -105,17 +105,17 @@ def cleanup_status():
 
 @router.post("/run", response_model=CleanupResult)
 def run_cleanup(req: CleanupRequest):
-    """Run cleanup operation on parquet data, logs, or database orphans."""
+    """Run cleanup operation on CSV data, logs, or database orphans."""
     details = []
     files_deleted = 0
     bytes_freed = 0
 
-    if req.target in ("parquet", "all"):
-        # Find and delete parquet datasets
-        parquet_dir = "./datasets/parquet"
-        if os.path.exists(parquet_dir):
-            for sym in os.listdir(parquet_dir):
-                sym_path = os.path.join(parquet_dir, sym)
+    if req.target in ("csv", "all"):
+        # Find and delete CSV datasets
+        csv_dir = "./datasets/csv"
+        if os.path.exists(csv_dir):
+            for sym in os.listdir(csv_dir):
+                sym_path = os.path.join(csv_dir, sym)
                 if not os.path.isdir(sym_path):
                     continue
                 if req.symbol and sym.upper() != req.symbol.upper():
@@ -128,7 +128,7 @@ def run_cleanup(req: CleanupRequest):
                     if req.interval and iv.upper() != req.interval.upper():
                         continue
 
-                    data_file = os.path.join(iv_path, "data.parquet")
+                    data_file = os.path.join(iv_path, "data.csv")
                     if os.path.exists(data_file):
                         # Check age filter
                         if req.older_than_days is not None:
@@ -138,13 +138,13 @@ def run_cleanup(req: CleanupRequest):
 
                         size = _get_size(data_file)
                         if req.dry_run:
-                            details.append(f"[WOULD DELETE] parquet: {sym}/{iv}/data.parquet ({_format_size(size)})")
+                            details.append(f"[WOULD DELETE] csv: {sym}/{iv}/data.csv ({_format_size(size)})")
                         else:
                             try:
                                 os.remove(data_file)
                                 files_deleted += 1
                                 bytes_freed += size
-                                details.append(f"[DELETED] parquet: {sym}/{iv}/data.parquet ({_format_size(size)})")
+                                details.append(f"[DELETED] csv: {sym}/{iv}/data.csv ({_format_size(size)})")
                                 # Clean empty dirs
                                 if not os.listdir(iv_path):
                                     os.rmdir(iv_path)

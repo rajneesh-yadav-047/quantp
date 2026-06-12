@@ -1,5 +1,5 @@
 """
-Deep Dataset Analyzer — comprehensive statistical analysis of OHLCV parquet data.
+Deep Dataset Analyzer — comprehensive statistical analysis of OHLCV CSV/Excel data.
 
 Independent of backtest results. Analyzes raw market data to help traders decide
 which strategy type may be appropriate (trend-following, mean-reversion, breakout, etc.)

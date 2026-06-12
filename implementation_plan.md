@@ -151,7 +151,7 @@ Initializes the FastAPI app with CORS, logging, and error handling. Routes to su
 Manages the Angel One SmartAPI connection:
 - Fetch and cache the symbol token file (`OpenAPISymbolTokendata.json`).
 - Handles secure TOTP login, caching JWT sessions.
-- Downloads historical data (1-min, 5-min, Daily) and stores it in `/datasets/parquet/{symbol}`.
+- Downloads historical data (1-min, 5-min, Daily) and stores it in `/datasets/csv/{symbol}`.
 - Mock API Generator: if API credentials are not supplied, provides realistic generated market data for standard NSE symbols (e.g. SBIN, RELIANCE, NIFTY).
 
 #### [NEW] [database.py](file:///c:/Users/rajy7/quantp/backend/database.py)

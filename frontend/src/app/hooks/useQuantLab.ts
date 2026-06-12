@@ -40,38 +40,38 @@ export interface ReplayEvent {
 }
 
 export function useQuantLab() {
-  // Navigation
+  // ── Navigation ──
   const [activeTab, setActiveTab] = useState<string>("dashboard");
 
-  // Server & SmartAPI Status
+  // ── Server & SmartAPI Status ──
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [smartapiConfigured, setSmartapiConfigured] = useState<boolean>(false);
   const [smartapiConnected, setSmartapiConnected] = useState<boolean>(false);
 
-  // Ollama Status
+  // ── Ollama Status ──
   const [ollamaState, setOllamaState] = useState<"unknown" | "online" | "offline" | "error">("unknown");
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [ollamaLastError, setOllamaLastError] = useState<string | null>(null);
   const ollamaFailCountRef = useRef(0);
   const ollamaOnlineRef = useRef(false);
 
-  // TOTP Popup
+  // ── TOTP Popup ──
   const [isTotpModalOpen, setIsTotpModalOpen] = useState<boolean>(false);
   const [totpInput, setTotpInput] = useState<string>("");
   const [pendingAction, setPendingAction] = useState<"AUTH" | "DOWNLOAD" | null>(null);
 
-  // Data Collections
+  // ── Data Collections ──
   const [datasets, setDatasets] = useState<any[]>([]);
   const [strategies, setStrategies] = useState<any[]>([]);
   const [backtestRuns, setBacktestRuns] = useState<any[]>([]);
   const [deployments, setDeployments] = useState<any[]>([]);
 
-  // Selected Objects
+  // ── Selected Objects ──
   const [selectedStrategyId, setSelectedStrategyId] = useState<string>("");
   const [selectedDataset, setSelectedDataset] = useState<string>("");
   const [selectedRunId, setSelectedRunId] = useState<string>("");
 
-  // Strategy Editor
+  // ── Strategy Editor ──
   const [code, setCode] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -85,47 +85,49 @@ export function useQuantLab() {
   const [strategyParams, setStrategyParams] = useState<string>("");
   const [strategyRisk, setStrategyRisk] = useState<string>("");
 
-  // Backtest Inputs
-  const [btStartDate, setBtStartDate] = useState<string>("2026-06-01");
-  const [btEndDate, setBtEndDate] = useState<string>("2026-06-07");
+  // ── Backtest Inputs ──
+  const [btStartDate, setBtStartDate] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
+  });
+  const [btEndDate, setBtEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [btSlippage, setBtSlippage] = useState<number>(0.05);
   const [btTradeType, setBtTradeType] = useState<string>("INTRADAY");
   const [btIsAutoMaxPos, setBtIsAutoMaxPos] = useState<boolean>(true);
   const [btAutoMaxPosValue, setBtAutoMaxPosValue] = useState<number>(0);
   const [btMaxPositionSize, setBtMaxPositionSize] = useState<number>(0);
 
-  // Replay State
+  // ── Replay State ──
   const [backtestDetail, setBacktestDetail] = useState<BacktestDetail | null>(null);
   const [replayEvents, setReplayEvents] = useState<ReplayEvent[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(2);
 
-  // Chart Toggles
+  // ── Chart Toggles ──
   const [showEmaFast, setShowEmaFast] = useState<boolean>(true);
   const [showEmaSlow, setShowEmaSlow] = useState<boolean>(true);
   const [showBuyTrades, setShowBuyTrades] = useState<boolean>(true);
   const [showSellTrades, setShowSellTrades] = useState<boolean>(true);
 
-  // Research / Capital / Optimization
+  // ── Research / Capital / Optimization ──
   const [researchData, setResearchData] = useState<any>(null);
   const [capitalData, setCapitalData] = useState<any>(null);
   const [optimizationGrid, setOptimizationGrid] = useState<any>(null);
 
-  // Optimization Inputs
+  // ── Optimization Inputs ──
   const [optParamName1, setOptParamName1] = useState<string>("ema_fast");
   const [optParamVals1, setOptParamVals1] = useState<string>("5, 9, 15");
   const [optParamName2, setOptParamName2] = useState<string>("ema_slow");
   const [optParamVals2, setOptParamVals2] = useState<string>("20, 30, 50");
 
-  // Deployment
+  // ── Deployment ──
   const [deploymentFormOpen, setDeploymentFormOpen] = useState<boolean>(false);
   const [depStrategyId, setDepStrategyId] = useState<string>("");
   const [depName, setDepName] = useState<string>("");
   const [depSymbol, setDepSymbol] = useState<string>("");
   const [depMode, setDepMode] = useState<string>("paper");
 
-  // Cleanup
+  // ── Cleanup ──
   const [cleanupStatus, setCleanupStatus] = useState<any>(null);
   const [cleanupLoading, setCleanupLoading] = useState<boolean>(false);
   const [cleanupDryRun, setCleanupDryRun] = useState<boolean>(true);
@@ -136,20 +138,31 @@ export function useQuantLab() {
   const [cleanupStrategyId, setCleanupStrategyId] = useState<string>("");
   const [cleanupResult, setCleanupResult] = useState<any>(null);
 
-  // Dataset Download
+  // ── Dataset download ──
   const [dlSymbol, setDlSymbol] = useState<string>("SBIN");
   const [dlInterval, setDlInterval] = useState<string>("ONE_MINUTE");
-  const [dlFromDate, setDlFromDate] = useState<string>("2026-06-01");
-  const [dlToDate, setDlToDate] = useState<string>("2026-06-07");
+  const [dlFromDate, setDlFromDate] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
+  });
+  const [dlToDate, setDlToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [downloading, setDownloading] = useState<boolean>(false);
 
-  // Autocomplete
+  // ── Pending backtest auto-download ──
+  const [pendingBacktest, setPendingBacktest] = useState<{
+    strategyId: string;
+    symbols: string[];
+    interval: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+
+  // ── Autocomplete ──
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [strategySuggestions, setStrategySuggestions] = useState<any[]>([]);
   const [showStrategySuggestions, setShowStrategySuggestions] = useState<boolean>(false);
 
-  // Notifications & Errors
+  // ── Notifications & Errors ──
   const [notif, setNotif] = useState<Notif | null>(null);
   const [apiErrors, setApiErrors] = useState<Record<string, ApiErrorInfo>>({});
 
@@ -168,31 +181,32 @@ export function useQuantLab() {
   }, []);
 
   const clearEndpointError = useCallback((endpoint: string) => {
-    setEndpointError(endpoint, null);
-  }, [setEndpointError]);
-
-  const handleApiResult = useCallback(<T,>(
-    endpoint: string,
-    result: ApiResult<T>,
-    onSuccess: (data: T) => void,
-    retryFn: () => void,
-    context?: string
-  ) => {
-    if (result.ok && result.data) {
-      clearEndpointError(endpoint);
-      onSuccess(result.data);
-    } else if (!result.ok) {
-      const msg = formatApiError(result, context);
-      setEndpointError(endpoint, msg, retryFn);
-      triggerNotif("error", msg);
-    }
-  }, [clearEndpointError, setEndpointError, triggerNotif]);
-
-  const setIfChanged = useCallback(<T,>(setter: React.Dispatch<React.SetStateAction<T>>, current: T, next: T) => {
-    if (JSON.stringify(current) !== JSON.stringify(next)) { setter(next); }
+    setApiErrors(prev => {
+      const next = { ...prev };
+      delete next[endpoint];
+      return next;
+    });
   }, []);
 
-  // --- CONNECTIVITY ---
+  // ── Refs for latest state (prevents stale closures) ──
+  const stateRef = useRef({
+    strategies, datasets, backtestRuns, deployments,
+    backendOnline, selectedStrategyId, dlSymbol, dlInterval,
+    dlFromDate, dlToDate, strategyCapital, strategyName,
+    btStartDate, btEndDate, btSlippage, btTradeType,
+    btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
+    pendingBacktest, backendOnlineRef: false,
+  });
+  stateRef.current = {
+    strategies, datasets, backtestRuns, deployments,
+    backendOnline, selectedStrategyId, dlSymbol, dlInterval,
+    dlFromDate, dlToDate, strategyCapital, strategyName,
+    btStartDate, btEndDate, btSlippage, btTradeType,
+    btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
+    pendingBacktest, backendOnlineRef: backendOnline,
+  };
+
+  // ── CONNECTIVITY ──
 
   const checkBackendHealth = useCallback(async () => {
     const result = await api.get("/strategies", { timeout: 5000 });
@@ -208,7 +222,7 @@ export function useQuantLab() {
   }, [clearEndpointError, setEndpointError]);
 
   const checkOllamaHealth = useCallback(async () => {
-    if (!backendOnline) { setOllamaState("offline"); ollamaOnlineRef.current = false; return; }
+    if (!stateRef.current.backendOnline) { setOllamaState("offline"); ollamaOnlineRef.current = false; return; }
     const result = await api.get("/forge/status", { timeout: 5000 });
     if (result.ok && result.data) {
       const { state, models, last_error } = result.data;
@@ -235,9 +249,14 @@ export function useQuantLab() {
         setEndpointError("ollama/status", result.error || "Ollama status check failed.", checkOllamaHealth);
       }
     }
-  }, [backendOnline, clearEndpointError, setEndpointError]);
+  }, [clearEndpointError, setEndpointError]);
+
+  // ── CORE DATA FETCHING ──
+  // Fetches all core data from backend. Uses refs to avoid stale closures.
 
   const fetchCoreData = useCallback(async () => {
+    if (!stateRef.current.backendOnline) return;
+
     const [stratRes, catRes, runsRes, depRes, sapiRes] = await Promise.all([
       api.get("/strategies"),
       api.get("/data/datasets"),
@@ -245,10 +264,40 @@ export function useQuantLab() {
       api.get("/deployments"),
       api.get("/auth/smartapi/status"),
     ]);
-    handleApiResult("strategies", stratRes, (data) => setIfChanged(setStrategies, strategies, data), fetchCoreData, "Strategies");
-    handleApiResult("datasets", catRes, (data) => setIfChanged(setDatasets, datasets, Object.values(data || {})), fetchCoreData, "Datasets");
-    handleApiResult("backtest/results", runsRes, (data) => setIfChanged(setBacktestRuns, backtestRuns, data || []), fetchCoreData, "Backtest runs");
-    handleApiResult("deployments", depRes, (data) => setIfChanged(setDeployments, deployments, data || []), fetchCoreData, "Deployments");
+
+    if (stratRes.ok && stratRes.data) {
+      clearEndpointError("strategies");
+      setStrategies(stratRes.data);
+    } else if (!stratRes.ok) {
+      setEndpointError("strategies", formatApiError(stratRes, "Strategies"), fetchCoreData);
+      triggerNotif("error", formatApiError(stratRes, "Strategies"));
+    }
+
+    if (catRes.ok && catRes.data) {
+      clearEndpointError("datasets");
+      const catalogData = Object.values(catRes.data || {});
+      setDatasets(catalogData);
+    } else if (!catRes.ok) {
+      setEndpointError("datasets", formatApiError(catRes, "Datasets"), fetchCoreData);
+      triggerNotif("error", formatApiError(catRes, "Datasets"));
+    }
+
+    if (runsRes.ok && runsRes.data) {
+      clearEndpointError("backtest/results");
+      setBacktestRuns(runsRes.data || []);
+    } else if (!runsRes.ok) {
+      setEndpointError("backtest/results", formatApiError(runsRes, "Backtest runs"), fetchCoreData);
+      triggerNotif("error", formatApiError(runsRes, "Backtest runs"));
+    }
+
+    if (depRes.ok && depRes.data) {
+      clearEndpointError("deployments");
+      setDeployments(depRes.data || []);
+    } else if (!depRes.ok) {
+      setEndpointError("deployments", formatApiError(depRes, "Deployments"), fetchCoreData);
+      triggerNotif("error", formatApiError(depRes, "Deployments"));
+    }
+
     if (sapiRes.ok && sapiRes.data) {
       clearEndpointError("smartapi/status");
       setSmartapiConfigured(sapiRes.data.configured);
@@ -256,22 +305,21 @@ export function useQuantLab() {
     } else if (!sapiRes.ok) {
       setEndpointError("smartapi/status", formatApiError(sapiRes, "SmartAPI status"), fetchCoreData);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendOnline]);
+  }, [clearEndpointError, setEndpointError, triggerNotif]);
 
   useEffect(() => {
     checkBackendHealth();
-    const interval = setInterval(() => { checkBackendHealth(); checkOllamaHealth(); }, 5000);
+    const interval = setInterval(() => {
+      checkBackendHealth();
+    }, 5000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkBackendHealth]);
 
   useEffect(() => {
     if (backendOnline) fetchCoreData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backendOnline]);
+  }, [backendOnline, fetchCoreData]);
 
-  // --- AUTOCOMPLETE DEBOUNCE ---
+  // ── AUTOCOMPLETE DEBOUNCE ──
 
   useEffect(() => {
     if (!dlSymbol || dlSymbol.length < 2) { setSuggestions([]); return; }
@@ -296,7 +344,7 @@ export function useQuantLab() {
     return () => clearTimeout(delay);
   }, [strategySymbols, backendOnline]);
 
-  // --- FILE UPLOAD ---
+  // ── FILE UPLOAD ──
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -313,11 +361,11 @@ export function useQuantLab() {
     reader.readAsText(file);
   }, [triggerNotif]);
 
-  // --- STRATEGY HANDLERS ---
+  // ── STRATEGY HANDLERS ──
 
   const handleSelectStrategy = useCallback(async (id: string) => {
     setSelectedStrategyId(id);
-    if (!backendOnline) { triggerNotif("info", "Loaded strategy template in memory."); return; }
+    if (!stateRef.current.backendOnline) { triggerNotif("info", "Loaded strategy template in memory."); return; }
     const result = await api.get(`/strategies/${id}`);
     if (result.ok && result.data) {
       const s = result.data;
@@ -338,7 +386,7 @@ export function useQuantLab() {
       setEndpointError(`strategies/${id}`, result.error || "Failed to load strategy", () => handleSelectStrategy(id));
       triggerNotif("error", `Failed to fetch strategy: ${result.error}`);
     }
-  }, [backendOnline, triggerNotif, clearEndpointError, setEndpointError]);
+  }, [triggerNotif, clearEndpointError, setEndpointError]);
 
   const handleSaveStrategy = useCallback(async () => {
     if (!strategyName.trim()) { triggerNotif("error", "Strategy name is required."); return; }
@@ -357,7 +405,7 @@ export function useQuantLab() {
       entrypoint: strategyEntrypoint,
     };
     if (!selectedStrategyId) {
-      if (!backendOnline) {
+      if (!stateRef.current.backendOnline) {
         const mockId = `S-MOCK-${Math.floor(Math.random()*90000)+10000}`;
         setStrategies(prev => [...prev, { id: mockId, ...payload, version: 1, updated_at: new Date() }]);
         setSelectedStrategyId(mockId);
@@ -373,12 +421,12 @@ export function useQuantLab() {
         triggerNotif("error", `Failed to save strategy: ${result.error || "Unknown error"}`);
       }
     } else {
-      if (!backendOnline) { triggerNotif("success", "Local strategy updated!"); return; }
+      if (!stateRef.current.backendOnline) { triggerNotif("success", "Local strategy updated!"); return; }
       const result = await api.put(`/strategies/${selectedStrategyId}`, payload);
       if (result.ok) { triggerNotif("success", "Strategy updated successfully!"); fetchCoreData(); }
       else { triggerNotif("error", `Failed to update strategy: ${result.error || "Unknown error"}`); }
     }
-  }, [strategyName, code, strategySymbols, strategyInterval, strategyCapital, strategyMaxPos, strategyParams, strategyRisk, strategyRuntimeType, strategyEntrypoint, selectedStrategyId, backendOnline, triggerNotif, fetchCoreData]);
+  }, [strategyName, code, strategySymbols, strategyInterval, strategyCapital, strategyMaxPos, strategyParams, strategyRisk, strategyRuntimeType, strategyEntrypoint, selectedStrategyId, triggerNotif, fetchCoreData]);
 
   const handleNewStrategy = useCallback(() => {
     setSelectedStrategyId("");
@@ -394,7 +442,7 @@ export function useQuantLab() {
     triggerNotif("info", "Cleared. Configure a new strategy.");
   }, [triggerNotif]);
 
-  // --- BACKTEST HANDLERS ---
+  // ── BACKTEST HANDLERS ──
 
   const runFrontendSimulation = useCallback(() => {
     triggerNotif("info", "Backend offline. Executing client-side simulated backtest...");
@@ -537,7 +585,7 @@ export function useQuantLab() {
   }, [strategyCapital, strategyName, btSlippage, btMaxPositionSize, triggerNotif]);
 
   const loadBacktestReplay = useCallback(async (runId: string) => {
-    if (!backendOnline) return;
+    if (!stateRef.current.backendOnline) return;
     const detRes = await api.get(`/backtest/results/${runId}`);
     if (detRes.ok && detRes.data) { setBacktestDetail(detRes.data); clearEndpointError(`backtest/results/${runId}`); }
     else { setEndpointError(`backtest/results/${runId}`, detRes.error || "Failed to load backtest details", () => loadBacktestReplay(runId)); triggerNotif("error", `Replay details unavailable: ${detRes.error}`); }
@@ -555,20 +603,58 @@ export function useQuantLab() {
     if (capRes.ok && capRes.data) { setCapitalData(capRes.data); clearEndpointError(`capital/analysis/${runId}`); }
     else if (capRes.status === 404) { setCapitalData(null); }
     else { setEndpointError(`capital/analysis/${runId}`, capRes.error || "Capital analysis unavailable", () => loadBacktestReplay(runId)); }
-  }, [backendOnline, clearEndpointError, setEndpointError, triggerNotif]);
+  }, [clearEndpointError, setEndpointError, triggerNotif]);
+
+  const checkDataCoverage = useCallback((symbols: string[], interval: string, startDate: string, endDate: string) => {
+    const missing: { symbol: string; interval: string; reason: string }[] = [];
+    for (const sym of symbols) {
+      const key = `${sym.toUpperCase()}_${interval.toUpperCase()}`;
+      const ds = datasets.find((d: any) => `${d.symbol?.toUpperCase()}_${d.interval?.toUpperCase()}` === key);
+      if (!ds) {
+        missing.push({ symbol: sym, interval, reason: "No dataset found." });
+        continue;
+      }
+      const dsStart = ds.start_date ? ds.start_date.slice(0, 10) : null;
+      const dsEnd = ds.end_date ? ds.end_date.slice(0, 10) : null;
+      if (!dsStart || !dsEnd) {
+        missing.push({ symbol: sym, interval, reason: "Dataset has no date range metadata." });
+        continue;
+      }
+      if (startDate < dsStart || endDate > dsEnd) {
+        missing.push({ symbol: sym, interval, reason: `Dataset only covers ${dsStart} to ${dsEnd}.` });
+      }
+    }
+    return missing;
+  }, [datasets]);
 
   const handleRunBacktest = useCallback(async () => {
-    if (!selectedStrategyId) { triggerNotif("info", "Please select a strategy first."); return; }
-    const selectedStrategy = strategies.find(s => s.id === selectedStrategyId);
+    const ref = stateRef.current;
+    if (!ref.selectedStrategyId) { triggerNotif("info", "Please select a strategy first."); return; }
+    const selectedStrategy = ref.strategies.find((s: any) => s.id === ref.selectedStrategyId);
     if (!selectedStrategy) { triggerNotif("error", "Selected strategy not found."); return; }
-    if (!backendOnline) { runFrontendSimulation(); return; }
+    if (!ref.backendOnline) { runFrontendSimulation(); return; }
     const symbols = selectedStrategy.symbols || [selectedStrategy.symbol || "SBIN"];
     const interval = selectedStrategy.interval || "FIVE_MINUTE";
+
+    const missing = checkDataCoverage(symbols, interval, ref.btStartDate, ref.btEndDate);
+    if (missing.length > 0) {
+      const first = missing[0];
+      triggerNotif("error", `Missing data for ${first.symbol} (${first.interval}): ${first.reason}`);
+      setPendingBacktest({ strategyId: ref.selectedStrategyId, symbols, interval, startDate: ref.btStartDate, endDate: ref.btEndDate });
+      setDlSymbol(first.symbol);
+      setDlInterval(interval);
+      setDlFromDate(ref.btStartDate);
+      setDlToDate(ref.btEndDate);
+      setPendingAction("DOWNLOAD");
+      setIsTotpModalOpen(true);
+      return;
+    }
+
     triggerNotif("info", `Initiating backtest on ${symbols.join(", ")}...`);
     const result = await api.post("/backtest/run", {
-      strategy_id: selectedStrategyId, start_date: btStartDate, end_date: btEndDate,
-      slippage_pct: btSlippage / 100.0, trade_type: btTradeType,
-      max_position_size: btIsAutoMaxPos ? btAutoMaxPosValue : btMaxPositionSize, auto_download: true,
+      strategy_id: ref.selectedStrategyId, start_date: ref.btStartDate, end_date: ref.btEndDate,
+      slippage_pct: ref.btSlippage / 100.0, trade_type: ref.btTradeType,
+      max_position_size: ref.btIsAutoMaxPos ? ref.btAutoMaxPosValue : ref.btMaxPositionSize, auto_download: true,
     });
     if (result.ok && result.data) {
       triggerNotif("success", "Backtest run completed successfully!");
@@ -579,7 +665,7 @@ export function useQuantLab() {
     } else {
       triggerNotif("error", `Backtest failed: ${result.error || "Engine error"}`);
     }
-  }, [selectedStrategyId, strategies, backendOnline, btStartDate, btEndDate, btSlippage, btTradeType, btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize, triggerNotif, runFrontendSimulation, fetchCoreData]);
+  }, [triggerNotif, runFrontendSimulation, checkDataCoverage, fetchCoreData, loadBacktestReplay]);
 
   const handleSelectRun = useCallback((runId: string) => {
     setSelectedRunId(runId);
@@ -587,7 +673,7 @@ export function useQuantLab() {
     triggerNotif("success", `Loaded run ${runId} metadata.`);
   }, [loadBacktestReplay, triggerNotif]);
 
-  // --- REPLAY CONTROLS ---
+  // ── REPLAY CONTROLS ──
 
   useEffect(() => {
     if (!isPlaying || replayEvents.length === 0) return;
@@ -632,14 +718,14 @@ export function useQuantLab() {
     }));
   }, [replayEvents, currentStep]);
 
-  // --- AUTH & DOWNLOAD ---
+  // ── AUTH & DOWNLOAD ──
 
   const triggerAuth = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!backendOnline) { triggerNotif("error", "Backend is offline. Start the server to authenticate SmartAPI."); return; }
+    if (!stateRef.current.backendOnline) { triggerNotif("error", "Backend is offline. Start the server to authenticate SmartAPI."); return; }
     setPendingAction("AUTH");
     setIsTotpModalOpen(true);
-  }, [backendOnline, triggerNotif]);
+  }, [triggerNotif]);
 
   const finalizeAuth = useCallback(async (code: string) => {
     const result = await api.post("/auth/smartapi/connect", { totp: code });
@@ -659,23 +745,36 @@ export function useQuantLab() {
   }, []);
 
   const finalizeDownload = useCallback(async (code: string) => {
+    const ref = stateRef.current;
     setDownloading(true);
-    triggerNotif("info", `Downloading historical candles for ${dlSymbol}...`);
-    if (!backendOnline) {
-      setTimeout(() => {
-        setDownloading(false);
-        const mockCatalogItem = { symbol: dlSymbol.toUpperCase(), interval: dlInterval.toUpperCase(), start_date: dlFromDate + " 09:15:00", end_date: dlToDate + " 15:30:00", records_count: 2250, updated_at: new Date().toISOString() };
-        setDatasets(prev => [mockCatalogItem, ...prev]);
-        setSelectedDataset(`${dlSymbol.toUpperCase()}_${dlInterval.toUpperCase()}`);
-        triggerNotif("success", `Dataset for ${dlSymbol} generated locally!`);
-      }, 2000);
+    triggerNotif("info", `Downloading historical candles for ${ref.dlSymbol}...`);
+    if (!ref.backendOnline) {
+      setDownloading(false);
+      triggerNotif("error", "Backend is offline. Cannot download data.");
       return;
     }
-    const result = await api.post("/data/download", { symbol: dlSymbol, interval: dlInterval, from_date: dlFromDate + " 09:15", to_date: dlToDate + " 15:30", totp: code });
+    // Append market hours to dates so SmartAPI receives YYYY-MM-DD HH:MM format
+    const fromDate = `${ref.dlFromDate} 09:15`;
+    const toDate = `${ref.dlToDate} 15:30`;
+    const result = await api.post("/data/download", { symbol: ref.dlSymbol, interval: ref.dlInterval, from_date: fromDate, to_date: toDate, totp: code });
     setDownloading(false);
-    if (result.ok) { triggerNotif("success", "Dataset downloaded and cataloged in Parquet!"); fetchCoreData(); }
-    else { triggerNotif("error", `Download failed: ${result.error || "Server error"}`); }
-  }, [dlSymbol, dlInterval, dlFromDate, dlToDate, backendOnline, triggerNotif, fetchCoreData]);
+    if (result.ok && result.data) {
+      triggerNotif("success", "Dataset downloaded from SmartAPI and cataloged in CSV!");
+      fetchCoreData();
+      if (ref.pendingBacktest) {
+        const pb = ref.pendingBacktest;
+        const covers = pb.symbols.some(s => s.toUpperCase() === ref.dlSymbol.toUpperCase()) && pb.interval.toUpperCase() === ref.dlInterval.toUpperCase();
+        if (covers) {
+          setTimeout(() => {
+            setPendingBacktest(null);
+            handleRunBacktest();
+          }, 500);
+        }
+      }
+    } else {
+      triggerNotif("error", result.error || "Download failed: SmartAPI may not have data for this symbol. Check the symbol spelling and try again.");
+    }
+  }, [triggerNotif, fetchCoreData, handleRunBacktest]);
 
   const handleTotpConfirm = useCallback(() => {
     if (totpInput.length !== 6) { triggerNotif("error", "Invalid code. Please enter 6 digits."); return; }
@@ -686,30 +785,31 @@ export function useQuantLab() {
     setPendingAction(null);
   }, [totpInput, pendingAction, triggerNotif, finalizeAuth, finalizeDownload]);
 
-  // --- OPTIMIZATION ---
+  // ── OPTIMIZATION ──
 
   const handleRunOptimization = useCallback(async () => {
-    if (!selectedStrategyId) { triggerNotif("info", "Select a strategy first."); return; }
+    const ref = stateRef.current;
+    if (!ref.selectedStrategyId) { triggerNotif("info", "Select a strategy first."); return; }
     triggerNotif("info", "Starting Optimization sweep parameter sweep grid...");
-    if (!backendOnline) { triggerNotif("success", "Simulated parameter sweep complete!"); return; }
-    const selectedStrategy = strategies.find(s => s.id === selectedStrategyId);
+    if (!ref.backendOnline) { triggerNotif("success", "Simulated parameter sweep complete!"); return; }
+    const selectedStrategy = ref.strategies.find((s: any) => s.id === ref.selectedStrategyId);
     const symbol = selectedStrategy?.symbols?.[0] || "SBIN";
     const interval = selectedStrategy?.interval || "FIVE_MINUTE";
     const parseVals = (str: string) => str.split(",").map(s => Number(s.trim()));
     const gridObj = { [optParamName1]: parseVals(optParamVals1), [optParamName2]: parseVals(optParamVals2) };
     const result = await api.post("/backtest/optimize", {
-      strategy_id: selectedStrategyId, symbol, interval, start_date: btStartDate, end_date: btEndDate,
-      param_grid_json: JSON.stringify(gridObj), initial_capital: strategyCapital, trade_type: btTradeType
+      strategy_id: ref.selectedStrategyId, symbol, interval, start_date: ref.btStartDate, end_date: ref.btEndDate,
+      param_grid_json: JSON.stringify(gridObj), initial_capital: ref.strategyCapital, trade_type: ref.btTradeType
     });
     if (result.ok && result.data) { setOptimizationGrid(result.data); triggerNotif("success", "Optimization grid calculation finished!"); }
     else { triggerNotif("error", `Optimization error: ${result.error || "Unknown error"}`); }
-  }, [selectedStrategyId, strategies, backendOnline, optParamName1, optParamVals1, optParamName2, optParamVals2, btStartDate, btEndDate, strategyCapital, btTradeType, triggerNotif]);
+  }, [optParamName1, optParamVals1, optParamName2, optParamVals2, triggerNotif]);
 
-  // --- DEPLOYMENT HANDLERS ---
+  // ── DEPLOYMENT HANDLERS ──
 
   const handleCreateDeployment = useCallback(async () => {
     if (!depStrategyId || !depName.trim()) { triggerNotif("error", "Strategy and deployment name are required."); return; }
-    if (!backendOnline) {
+    if (!stateRef.current.backendOnline) {
       const mockId = `D-MOCK-${Math.floor(Math.random()*90000)+10000}`;
       setDeployments(prev => [...prev, { id: mockId, strategy_id: depStrategyId, name: depName, symbol: depSymbol || null, mode: depMode, status: "active", created_at: new Date().toISOString() }]);
       setDeploymentFormOpen(false); setDepName(""); setDepSymbol("");
@@ -719,26 +819,26 @@ export function useQuantLab() {
     const result = await api.post("/deployments", { strategy_id: depStrategyId, name: depName, symbol: depSymbol || null, mode: depMode });
     if (result.ok && result.data) { triggerNotif("success", "Deployment created!"); fetchCoreData(); setDeploymentFormOpen(false); setDepName(""); setDepSymbol(""); }
     else { triggerNotif("error", `Failed to create deployment: ${result.error || "Unknown error"}`); }
-  }, [depStrategyId, depName, depSymbol, depMode, backendOnline, triggerNotif, fetchCoreData]);
+  }, [depStrategyId, depName, depSymbol, depMode, triggerNotif, fetchCoreData]);
 
   const handleDeleteDeployment = useCallback(async (id: string) => {
-    if (!backendOnline) { setDeployments(prev => prev.filter(d => d.id !== id)); triggerNotif("success", "Deployment deleted (local)."); return; }
+    if (!stateRef.current.backendOnline) { setDeployments(prev => prev.filter(d => d.id !== id)); triggerNotif("success", "Deployment deleted (local)."); return; }
     const result = await api.delete(`/deployments/${id}`);
     if (result.ok) { triggerNotif("success", "Deployment deleted."); fetchCoreData(); }
     else { triggerNotif("error", `Failed to delete deployment: ${result.error || "Unknown error"}`); }
-  }, [backendOnline, triggerNotif, fetchCoreData]);
+  }, [triggerNotif, fetchCoreData]);
 
-  // --- CLEANUP HANDLERS ---
+  // ── CLEANUP HANDLERS ──
 
   const fetchCleanupStatus = useCallback(async () => {
-    if (!backendOnline) { triggerNotif("error", "Backend is offline. Cannot fetch cleanup status."); return; }
+    if (!stateRef.current.backendOnline) { triggerNotif("error", "Backend is offline. Cannot fetch cleanup status."); return; }
     const result = await api.get("/cleanup/status");
     if (result.ok && result.data) { setCleanupStatus(result.data); clearEndpointError("cleanup/status"); }
     else { setEndpointError("cleanup/status", result.error || "Failed to fetch cleanup status", fetchCleanupStatus); triggerNotif("error", `Cleanup status failed: ${result.error}`); }
-  }, [backendOnline, triggerNotif, clearEndpointError, setEndpointError]);
+  }, [triggerNotif, clearEndpointError, setEndpointError]);
 
   const handleRunCleanup = useCallback(async () => {
-    if (!backendOnline) { triggerNotif("error", "Backend is offline. Cannot run cleanup."); return; }
+    if (!stateRef.current.backendOnline) { triggerNotif("error", "Backend is offline. Cannot run cleanup."); return; }
     setCleanupLoading(true); setCleanupResult(null);
     const result = await api.post("/cleanup/run", {
       target: cleanupTarget, symbol: cleanupSymbol || null, interval: cleanupInterval || null, run_id: null,
@@ -754,10 +854,10 @@ export function useQuantLab() {
       triggerNotif("error", `Cleanup failed: ${result.error || "Unknown error"}`);
     }
     setCleanupLoading(false);
-  }, [backendOnline, cleanupTarget, cleanupSymbol, cleanupInterval, cleanupStrategyId, cleanupOlderThan, cleanupDryRun, triggerNotif, clearEndpointError, setEndpointError, fetchCleanupStatus, fetchCoreData]);
+  }, [cleanupTarget, cleanupSymbol, cleanupInterval, cleanupStrategyId, cleanupOlderThan, cleanupDryRun, triggerNotif, clearEndpointError, setEndpointError, fetchCleanupStatus, fetchCoreData]);
 
   const handleVacuumDB = useCallback(async () => {
-    if (!backendOnline) { triggerNotif("error", "Backend is offline. Cannot vacuum database."); return; }
+    if (!stateRef.current.backendOnline) { triggerNotif("error", "Backend is offline. Cannot vacuum database."); return; }
     setCleanupLoading(true);
     const result = await api.post(`/cleanup/vacuum?dry_run=${cleanupDryRun}`, {});
     if (result.ok && result.data) {
@@ -769,14 +869,13 @@ export function useQuantLab() {
       triggerNotif("error", `Vacuum failed: ${result.error || "Unknown error"}`);
     }
     setCleanupLoading(false);
-  }, [backendOnline, cleanupDryRun, triggerNotif, clearEndpointError, setEndpointError, fetchCleanupStatus]);
+  }, [cleanupDryRun, triggerNotif, clearEndpointError, setEndpointError, fetchCleanupStatus]);
 
   return {
     // Navigation
     activeTab, setActiveTab,
     // Status
     backendOnline, smartapiConfigured, smartapiConnected,
-    ollamaState, ollamaModels, ollamaLastError,
     // TOTP
     isTotpModalOpen, setIsTotpModalOpen, totpInput, setTotpInput, pendingAction, setPendingAction, handleTotpConfirm,
     // Data
@@ -812,6 +911,8 @@ export function useQuantLab() {
     cleanupOlderThan, setCleanupOlderThan, cleanupStrategyId, setCleanupStrategyId, cleanupResult, setCleanupResult,
     // Dataset download
     dlSymbol, setDlSymbol, dlInterval, setDlInterval, dlFromDate, setDlFromDate, dlToDate, setDlToDate, downloading, setDownloading,
+    // Data coverage
+    checkDataCoverage, pendingBacktest, setPendingBacktest,
     // Autocomplete
     suggestions, setSuggestions, showSuggestions, setShowSuggestions,
     strategySuggestions, setStrategySuggestions, showStrategySuggestions, setShowStrategySuggestions,
