@@ -307,23 +307,89 @@ class DeploymentRunner:
             return
         
         candle_data = await self._fetch_live_candle()
+        is_simulated_tick = False
+        
+        # Closed market fallback: replay local dataset or generate mock candles
         if not candle_data:
-            self._log_event("error", f"Failed to fetch candle for {self.symbol}")
-            return
+            is_simulated_tick = True
+            if not hasattr(self, '_replay_df') or self._replay_df is None:
+                self._replay_df = None
+                self._replay_index = 0
+                try:
+                    df = self.smartapi_client.load_dataset_csv(self.symbol, self.interval) if self.smartapi_client else None
+                    if df is not None and not df.empty:
+                        self._replay_df = df
+                        # Start replaying from the last 150 candles to give recent history
+                        self._replay_index = max(0, len(df) - 150)
+                except Exception as e:
+                    print(f"[DeploymentRunner] Replay init error: {e}")
+            
+            if hasattr(self, '_replay_df') and self._replay_df is not None and self._replay_index < len(self._replay_df):
+                row = self._replay_df.iloc[self._replay_index]
+                self._replay_index += 1
+                candle_data = {
+                    "time": str(row["time"]),
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row.get("volume", 0)),
+                    "open_interest": int(row.get("open_interest", 0)),
+                }
+            else:
+                # Fallback to generating mock candles on the fly
+                last_close = self.current_prices.get(self.symbol, 800.0)
+                import numpy as np
+                np.random.seed(int(time.time()) % 12345)
+                # Small random walk step
+                step = np.random.normal(0, 0.001)
+                o = last_close
+                c = last_close * (1 + step)
+                h = max(o, c) * (1 + abs(np.random.normal(0, 0.0005)))
+                l = min(o, c) * (1 - abs(np.random.normal(0, 0.0005)))
+                
+                from datetime import datetime
+                time_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+05:30")
+                candle_data = {
+                    "time": time_str,
+                    "open": float(round(o, 2)),
+                    "high": float(round(h, 2)),
+                    "low": float(round(l, 2)),
+                    "close": float(round(c, 2)),
+                    "volume": int(np.random.lognormal(8, 0.5)),
+                    "open_interest": 0,
+                }
         
         # Fetch real-time LTP for accurate live price display
-        ltp_data = await self._fetch_ltp()
-        if ltp_data and ltp_data.get("ltp", 0) > 0:
-            self.current_prices[self.symbol] = ltp_data["ltp"]
-        else:
+        if is_simulated_tick:
             self.current_prices[self.symbol] = float(candle_data["close"])
+            ltp_value = self.current_prices[self.symbol]
+        else:
+            ltp_data = await self._fetch_ltp()
+            if ltp_data and ltp_data.get("ltp", 0) > 0:
+                self.current_prices[self.symbol] = ltp_data["ltp"]
+            else:
+                self.current_prices[self.symbol] = float(candle_data["close"])
+            ltp_value = self.current_prices[self.symbol]
         
+        # Format time to UTC clock-time Unix timestamp for Lightweight Chart compatibility
         ts = str(candle_data["time"])
-        ltp_value = self.current_prices[self.symbol]
+        try:
+            t_dt = pd.to_datetime(candle_data["time"])
+            if t_dt.tz is None:
+                t_dt = t_dt.tz_localize('Asia/Kolkata')
+            else:
+                t_dt = t_dt.tz_convert('Asia/Kolkata')
+            t_naive = t_dt.tz_localize(None)
+            t_utc = t_naive.tz_localize('UTC')
+            ts_seconds = int(t_utc.timestamp())
+        except Exception as e:
+            print(f"[DeploymentRunner] Time conversion error: {e}")
+            ts_seconds = int(time.time())
         
         # Build candle object
         candle = Candle(
-            time=ts,
+            time=str(ts_seconds),
             open=float(candle_data["open"]),
             high=float(candle_data["high"]),
             low=float(candle_data["low"]),
@@ -335,7 +401,9 @@ class DeploymentRunner:
         if len(self.historical_candles) > 2000:
             self.historical_candles = self.historical_candles[-2000:]
         
-        current_candles = {self.symbol: candle_data}
+        # Update candle_data time to ts_seconds for the frontend
+        candle_data_formatted = {**candle_data, "time": ts_seconds}
+        current_candles = {self.symbol: candle_data_formatted}
         
         # Phase 1: Match pending orders
         filled_trades, match_rtrades = self.order_mgr.match_pending_orders(
@@ -450,8 +518,8 @@ class DeploymentRunner:
         
         self._notify("tick", {
             "step": self.step,
-            "timestamp": ts,
-            "candle": {self.symbol: candle_data},
+            "timestamp": ts_seconds,
+            "candle": {self.symbol: candle_data_formatted},
             "ltp": ltp_value,
             "orders_submitted": orders_submitted_dicts,
             "orders_filled": orders_filled_dicts,
@@ -546,6 +614,140 @@ class DeploymentRunner:
             "market_data_active": mds_active,
             "mds_subscribed": self._mds_subscribed,
         }
+
+    def place_manual_order(
+        self,
+        direction: str,
+        qty: int,
+        price: Optional[float] = None,
+        order_type: str = "MARKET"
+    ) -> Dict[str, Any]:
+        """Place and execute a manual trade on this deployment runner."""
+        current_price = self.current_prices.get(self.symbol)
+        if not current_price:
+            if self.historical_candles:
+                current_price = self.historical_candles[-1].close
+            else:
+                current_price = 800.0
+        
+        execution_price = price if (order_type.upper() == "LIMIT" and price is not None) else current_price
+        
+        from datetime import datetime
+        import pytz
+        kolkata = pytz.timezone('Asia/Kolkata')
+        now_ist = datetime.now(kolkata)
+        ts_str = now_ist.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Calculate UTC clock-time seconds for trade matching/logging timestamp
+        t_naive = now_ist.replace(tzinfo=None)
+        t_utc = t_naive.replace(tzinfo=pytz.utc)
+        ts_seconds = int(t_utc.timestamp())
+        
+        from engine.datamodels import Order as EOrder
+        from engine.runtime.datamodels import Trade as RTrade
+        
+        order = EOrder(
+            id=str(uuid.uuid4()),
+            symbol=self.symbol,
+            direction=direction.upper(),
+            type=order_type.upper(),
+            price=execution_price,
+            qty=qty,
+            status="FILLED"
+        )
+        
+        brokerage, stt, exc, gst, sebi, stamp, total_charges = self.execution_sim.calculate_charges(
+            symbol=self.symbol,
+            direction=direction.upper(),
+            price=execution_price,
+            qty=qty,
+            trade_type=self.trade_type
+        )
+        
+        from engine.datamodels import Trade as ETrade
+        trade = ETrade(
+            id=str(uuid.uuid4()),
+            order_id=order.id,
+            timestamp=ts_str,
+            price=execution_price,
+            qty=qty,
+            direction=direction.upper(),
+            value=execution_price * qty,
+            slippage=0.0,
+            brokerage=brokerage,
+            stt=stt,
+            exc_charges=exc,
+            gst=gst,
+            sebi_charges=sebi,
+            stamp_duty=stamp,
+            total_charges=total_charges
+        )
+        
+        self.portfolio_mgr.apply_trade(trade)
+        self._save_trade(trade)
+        
+        self.own_trades.append(RTrade(
+            symbol=trade.symbol,
+            price=trade.price,
+            quantity=trade.qty,
+            timestamp=str(ts_seconds), # Use UTC clock-time matching candles
+            direction=trade.direction,
+            trade_id=trade.id,
+        ))
+        
+        self.portfolio_mgr.portfolio.positions = self.order_mgr.prune_zero_positions(
+            self.portfolio_mgr.portfolio.positions
+        )
+        self.portfolio_mgr.mark_to_market(self.current_prices)
+        self._save_pnl_snapshot()
+        
+        self._log_event("fill", f"Manual {direction.upper()} {qty} {self.symbol} @ {execution_price}", {
+            "trade_id": trade.id,
+            "symbol": self.symbol,
+            "direction": direction,
+            "price": execution_price,
+            "qty": qty,
+            "charges": total_charges,
+        })
+        
+        snapshot = self.portfolio_mgr.get_snapshot()
+        self._notify("fill", {
+            "trade": {
+                "id": trade.id,
+                "symbol": self.symbol,
+                "direction": direction,
+                "price": execution_price,
+                "qty": qty,
+                "timestamp": str(ts_seconds), # UTC clock-time for chart
+                "total_charges": total_charges
+            },
+            "portfolio": snapshot
+        })
+        
+        return {
+            "status": "success",
+            "message": f"Manual {direction.upper()} order for {qty} shares filled at ₹{execution_price:.2f}",
+            "trade_id": trade.id,
+            "portfolio": snapshot
+        }
+
+    def reset_capital(self, amount: float):
+        """Reset the portfolio manager cash/equity to a specific starting amount."""
+        self.portfolio_mgr.portfolio.cash = amount
+        self.portfolio_mgr.portfolio.equity = amount
+        self.portfolio_mgr.portfolio.total_fees = 0.0
+        self.portfolio_mgr.portfolio.total_pnl = 0.0
+        self.portfolio_mgr.portfolio.positions.clear()
+        
+        self._save_pnl_snapshot()
+        self._log_event("reset_capital", f"Reset starting capital to ₹{amount:.2f}")
+        
+        snapshot = self.portfolio_mgr.get_snapshot()
+        self._notify("tick", {
+            "step": self.step,
+            "timestamp": int(time.time()),
+            "portfolio": snapshot,
+        })
 
 
 class MockDeploymentEngine:

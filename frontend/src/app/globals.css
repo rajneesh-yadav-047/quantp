@@ -1,105 +1,272 @@
 @import "tailwindcss";
 
-:root {
-  --background: #060913;
-  --foreground: #F8FAFC;
-  --accent-green: #10B981;
-  --accent-red: #EF4444;
-  --accent-blue: #3B82F6;
-  --bg-card: rgba(15, 23, 42, 0.55);
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-red: var(--accent-red);
+  --color-card-bg: var(--bg-card);
+  --color-border-custom: var(--border-color);
+  --color-text-muted: var(--text-muted);
 }
 
+:root {
+  /* ───── Corporate Light Theme ───── */
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --accent-green: #059669;
+  --accent-red: #dc2626;
+  --accent-blue: #2563eb;
+  --bg-card: #ffffff;
+  --border-color: #cbd5e1;
+  --text-muted: #64748b;
+  --bg-input: #f8fafc;
+  --bg-input-border: #cbd5e1;
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e8f0;
+  --bg-pre: #f1f5f9;
+  --bg-terminal: #0f172a;
+  /* row/panel shades */
+  --bg-row-hover: rgba(15, 23, 42, 0.04);
+  --bg-panel-inner: #f8fafc;
+  --bg-panel-deep: #f1f5f9;
+  --table-header-bg: #f8fafc;
+  --table-divider: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --text-code: #1e40af;
+}
+
+.dark {
+  /* ───── Corporate Dark Theme ───── */
+  --background: #090d16;
+  --foreground: #f1f5f9;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --bg-card: #0f172a;
+  --border-color: #1e293b;
+  --text-muted: #94a3b8;
+  --bg-input: #060913;
+  --bg-input-border: #1e293b;
+  --sidebar-bg: #0b0f19;
+  --sidebar-border: #1e293b;
+  --bg-pre: #060913;
+  --bg-terminal: #060913;
+  /* row/panel shades */
+  --bg-row-hover: rgba(148, 163, 184, 0.06);
+  --bg-panel-inner: #0d1526;
+  --bg-panel-deep: #060913;
+  --table-header-bg: #0b0f1f;
+  --table-divider: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-code: #93c5fd;
+}
+
+/* ──────────────────────────────────────────────
+   BASE
+────────────────────────────────────────────── */
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Glassmorphism Cards */
+/* ──────────────────────────────────────────────
+   GLASS / CARD PANEL
+   Works in both light and dark automatically
+────────────────────────────────────────────── */
 .glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .glass-panel-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.18s ease-in-out;
 }
 .glass-panel-hover:hover {
-  background: rgba(20, 30, 55, 0.7);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  border-color: var(--accent-blue);
+  box-shadow: 0 4px 12px -1px rgba(37,99,235,0.08);
 }
 
-/* Glowing Neon Shadows */
-.glow-green {
-  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+/* ──────────────────────────────────────────────
+   SEMANTIC UTILITY CLASSES (theme-aware)
+   Use these instead of raw slate-X classes in components.
+────────────────────────────────────────────── */
+
+/* Panels / surfaces */
+.t-bg-page      { background-color: var(--background); }
+.t-bg-card      { background-color: var(--bg-card); }
+.t-bg-inner     { background-color: var(--bg-panel-inner); }
+.t-bg-deep      { background-color: var(--bg-panel-deep); }
+
+/* Borders */
+.t-border       { border-color: var(--border-color); }
+
+/* Text */
+.t-text         { color: var(--text-primary); }
+.t-text-2       { color: var(--text-secondary); }
+.t-text-muted   { color: var(--text-tertiary); }
+
+/* Inputs */
+.t-input {
+  background-color: var(--bg-input);
+  color: var(--foreground);
+  border: 1px solid var(--bg-input-border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  transition: border-color 0.15s ease;
 }
-.glow-red {
-  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.3);
-}
-.glow-blue {
-  box-shadow: 0 0 20px -5px rgba(59, 130, 246, 0.3);
+.t-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
 }
 
-/* Custom Scrollbar for Terminals & Lists */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Tables */
+.t-table-header { background-color: var(--table-header-bg); color: var(--text-secondary); }
+.t-table-row:hover { background-color: var(--bg-row-hover); }
+.t-table-divider { border-color: var(--table-divider); }
+
+/* Legacy alias – keeps old .corp-input still working */
+.corp-input {
+  background-color: var(--bg-input);
+  color: var(--foreground);
+  border: 1px solid var(--bg-input-border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+  transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+}
+.corp-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.3);
-}
+/* ──────────────────────────────────────────────
+   SCROLLBAR
+────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.6);
-}
-
-/* Native date input calendar picker icon — make it white on dark backgrounds */
+/* ──────────────────────────────────────────────
+   DATE PICKER ICON
+────────────────────────────────────────────── */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.8;
+  filter: invert(var(--calendar-invert, 0));
+  opacity: 0.6;
   cursor: pointer;
 }
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
-}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity: 0.9; }
 
-/* Firefox fallback for date input icons */
-input[type="date"]::-moz-calendar-picker-indicator,
-input[type="datetime-local"]::-moz-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.8;
-}
+:root  { --calendar-invert: 0; }
+.dark  { --calendar-invert: 1; }
+
+/* ──────────────────────────────────────────────
+   PULSE DOT ANIMATION
+────────────────────────────────────────────── */
 @keyframes pulse-ring {
-  0% {
-    transform: scale(0.33);
-  }
-  80%, 100% {
-    opacity: 0;
-  }
+  0%       { transform: scale(0.33); }
+  80%, 100% { opacity: 0; }
 }
-
-.pulse-dot {
-  position: relative;
-}
+.pulse-dot { position: relative; }
 .pulse-dot::before {
   content: '';
   position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 16px;
-  height: 16px;
+  left: -4px; top: -4px;
+  width: 16px; height: 16px;
   border-radius: 50%;
-  background-color: #10B981;
+  background-color: var(--accent-green);
   animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* ──────────────────────────────────────────────
+   TAILWIND DARK: OVERRIDES
+   Force hardcoded slate components to flip in light mode
+   by targeting common slate patterns via a parent selector.
+────────────────────────────────────────────── */
+
+/* When NOT .dark, override the most common dark-only raw Tailwind utilities
+   so the UI still looks consistent.                                         */
+
+:root:not(.dark) .text-slate-100,
+:root:not(.dark) .text-slate-200 { color: var(--text-primary); }
+
+:root:not(.dark) .text-slate-300 { color: var(--text-secondary); }
+
+:root:not(.dark) .text-slate-400,
+:root:not(.dark) .text-slate-500 { color: var(--text-tertiary); }
+
+:root:not(.dark) .bg-slate-950 { background-color: var(--bg-panel-deep); }
+:root:not(.dark) .bg-slate-900 { background-color: var(--bg-panel-inner); }
+
+:root:not(.dark) .bg-slate-800,
+:root:not(.dark) .bg-slate-850 { background-color: #e2e8f0; }
+
+:root:not(.dark) .border-slate-800,
+:root:not(.dark) .border-slate-850,
+:root:not(.dark) .border-slate-900 { border-color: var(--border-color); }
+
+:root:not(.dark) .divide-slate-800\/50 > * + * { border-color: var(--table-divider); }
+:root:not(.dark) .divide-slate-800\/40 > * + * { border-color: var(--table-divider); }
+
+/* Table row hover in light mode */
+:root:not(.dark) .hover\:bg-slate-900\/30:hover { background-color: var(--bg-row-hover); }
+:root:not(.dark) .hover\:bg-slate-800\/40:hover  { background-color: var(--bg-row-hover); }
+
+/* Select / input element backgrounds */
+:root:not(.dark) select.bg-slate-950,
+:root:not(.dark) select.bg-slate-800,
+:root:not(.dark) select.bg-slate-900 {
+  background-color: var(--bg-input);
+  border-color: var(--bg-input-border);
+  color: var(--foreground);
+}
+:root:not(.dark) input.bg-slate-950,
+:root:not(.dark) input.bg-slate-800,
+:root:not(.dark) input.bg-slate-900 {
+  background-color: var(--bg-input);
+  border-color: var(--bg-input-border);
+  color: var(--foreground);
+}
+
+/* Sticky table headers */
+:root:not(.dark) .bg-slate-900.sticky,
+:root:not(.dark) thead .bg-slate-950\/40 { background-color: var(--table-header-bg); }
+
+/* Suggestion dropdown */
+:root:not(.dark) .bg-slate-950.border-slate-800 { 
+  background-color: #ffffff;
+  border-color: var(--border-color);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+
+/* Button bg overrides */
+:root:not(.dark) .bg-slate-800.text-slate-200 {
+  background-color: #e2e8f0;
+  color: var(--text-primary);
+}
+:root:not(.dark) .bg-slate-800:hover {
+  background-color: #cbd5e1;
+}
+:root:not(.dark) .bg-slate-900\/50 {
+  background-color: rgba(248,250,252,0.8);
+}
+
+/* Preview stats panel */
+:root:not(.dark) .bg-slate-950\/40 {
+  background-color: rgba(241, 245, 249, 0.8);
 }

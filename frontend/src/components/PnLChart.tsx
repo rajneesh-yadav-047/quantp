@@ -59,7 +59,7 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
   if (!svgData) {
     return (
       <div
-        className="w-full bg-slate-950/40 rounded border border-slate-800/50 flex items-center justify-center text-slate-500 text-xs"
+        className="w-full bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 flex items-center justify-center text-slate-500 dark:text-slate-450 text-xs"
         style={{ height }}
       >
         No PnL data
@@ -70,16 +70,16 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
   const { width, series, zeroY, ticks, maxVal, minVal } = svgData;
 
   return (
-    <div className="w-full relative bg-slate-950/40 rounded border border-slate-800/50 overflow-hidden">
+    <div className="w-full relative bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 overflow-hidden transition-colors duration-200">
       {/* Header with legend */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800/50">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{title}</span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-200 dark:border-slate-800/50 bg-slate-100/50 dark:bg-slate-950/40">
+        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</span>
         <div className="flex items-center gap-3 flex-wrap">
           {series.map(s => (
             <div key={s.symbol} className="flex items-center gap-1">
               <span className="w-2 h-0.5 rounded" style={{ backgroundColor: s.color }} />
-              <span className="text-[9px] font-mono text-slate-400">{s.symbol}</span>
-              <span className={`text-[9px] font-mono font-bold ${s.finalPnL >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400">{s.symbol}</span>
+              <span className={`text-[9px] font-mono font-bold ${s.finalPnL >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500 dark:text-rose-455"}`}>
                 ₹{s.finalPnL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </div>
@@ -101,8 +101,10 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
             y1={t.y}
             x2={width - 10}
             y2={t.y}
-            stroke="rgba(148, 163, 184, 0.1)"
+            stroke="currentColor"
+            className="text-slate-250 dark:text-slate-850"
             strokeWidth={0.5}
+            opacity={0.6}
           />
         ))}
 
@@ -112,9 +114,11 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
           y1={zeroY}
           x2={width - 10}
           y2={zeroY}
-          stroke="rgba(148, 163, 184, 0.3)"
+          stroke="currentColor"
+          className="text-slate-450 dark:text-slate-650"
           strokeWidth={1}
           strokeDasharray="4 4"
+          opacity={0.7}
         />
 
         {/* One line per symbol */}
@@ -124,7 +128,7 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
             d={s.pathD}
             fill="none"
             stroke={s.color}
-            strokeWidth={2}
+            strokeWidth={1.5}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -137,9 +141,8 @@ export default function PnLChart({ data, height = 160, title = "PnL Performance"
             x={45}
             y={t.y + 3}
             textAnchor="end"
-            fill="#64748B"
-            fontSize={9}
-            fontFamily="monospace"
+            fill="currentColor"
+            className="text-slate-500 dark:text-slate-450 font-mono text-[9px]"
           >
             {t.val >= 1000 ? `₹${(t.val / 1000).toFixed(1)}k` : `₹${Math.round(t.val)}`}
           </text>

@@ -31,4 +31,8 @@ urllib3==2.7.0
 uvicorn==0.48.0
 websocket-client==1.8.0
 websockets==15.0.1
-
+# Multi-asset analytics additions
+scipy>=1.13.0
+statsmodels>=0.14.0
+scikit-learn>=1.5.0
+PyYAML>=6.0.1

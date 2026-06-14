@@ -113,6 +113,18 @@ def normalize_symbol(symbol: str, interval: str, client: Optional[SmartAPIClient
     """
     sym = symbol.upper().strip()
     
+    # If it is a numeric token ID, resolve it to canonical exchange-prefixed form
+    if sym.isdigit():
+        try:
+            token_client = client or SmartAPIClient()
+            resolved = token_client.resolve_symbol(sym)
+            if resolved:
+                exch = resolved.get("exch_seg", "NSE")
+                resolved_symbol = resolved.get("symbol", sym)
+                return f"{exch}:{resolved_symbol}"
+        except Exception as e:
+            print(f"WARN: Token ID resolution failed for {sym}: {e}")
+            
     # Already canonical — passthrough
     if ":" in sym:
         return sym

@@ -29,6 +29,7 @@ interface LightweightChartProps {
   emaFastPeriod?: number;
   emaSlowPeriod?: number;
   height?: number;
+  theme?: "dark" | "light";
 }
 
 export default function LightweightChart({
@@ -40,7 +41,8 @@ export default function LightweightChart({
   showSellTrades = true,
   emaFastPeriod = 9,
   emaSlowPeriod = 21,
-  height = 400
+  height = 400,
+  theme = "dark"
 }: LightweightChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -58,25 +60,27 @@ export default function LightweightChart({
   useEffect(() => {
     if (!containerRef.current || candles.length === 0) return;
 
+    const isDark = theme === "dark";
+
     // Create chart
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#0B0F19" },
-        textColor: "#94A3B8",
+        background: { type: ColorType.Solid, color: isDark ? "#0B0F19" : "#ffffff" },
+        textColor: isDark ? "#94A3B8" : "#475569",
       },
       grid: {
-        vertLines: { color: "#1E293B" },
-        horzLines: { color: "#1E293B" },
+        vertLines: { color: isDark ? "#1E293B" : "#f1f5f9" },
+        horzLines: { color: isDark ? "#1E293B" : "#f1f5f9" },
       },
       width: containerRef.current.clientWidth,
       height: height,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
-        borderColor: "#1E293B",
+        borderColor: isDark ? "#1E293B" : "#e2e8f0",
       },
       rightPriceScale: {
-        borderColor: "#1E293B",
+        borderColor: isDark ? "#1E293B" : "#e2e8f0",
       }
     });
 
@@ -95,15 +99,22 @@ export default function LightweightChart({
     const formattedCandles = candles.map(c => {
       let timeVal: any = c.time;
       if (typeof timeVal === "string") {
-        // Robust parsing for ISO strings, timestamps, and space-separated formats
-        let cleanStr = timeVal;
-        if (timeVal.includes(" ") && !timeVal.includes("T")) {
-          cleanStr = timeVal.replace(" ", "T");
+        let cleanStr = timeVal.trim();
+        if (/^\d+$/.test(cleanStr)) {
+          const num = parseInt(cleanStr, 10);
+          timeVal = (cleanStr.length === 13 ? Math.floor(num / 1000) : num) as UTCTimestamp;
+        } else {
+          if (cleanStr.includes(" ") && !cleanStr.includes("T")) {
+            cleanStr = cleanStr.replace(" ", "T");
+          }
+          const dt = new Date(cleanStr);
+          if (!isNaN(dt.getTime())) {
+            timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
+          }
         }
-        
-        const dt = new Date(cleanStr);
-        if (!isNaN(dt.getTime())) {
-          timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
+      } else if (typeof timeVal === "number") {
+        if (String(timeVal).length === 13) {
+          timeVal = Math.floor(timeVal / 1000) as UTCTimestamp;
         }
       }
       return {
@@ -112,7 +123,12 @@ export default function LightweightChart({
       };
     });
 
-    candlestickSeries.setData(formattedCandles);
+    // Deduplicate and sort candles by time to prevent Lightweight Chart ordering errors
+    const uniqueFormattedCandles = Array.from(
+      new Map(formattedCandles.map(c => [c.time, c])).values()
+    ).sort((a: any, b: any) => a.time - b.time);
+
+    candlestickSeries.setData(uniqueFormattedCandles);
 
     // Calculate and add indicators
     let emaFastSeries: ISeriesApi<"Line"> | null = null;
@@ -205,10 +221,10 @@ export default function LightweightChart({
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [candles, trades, showEmaFast, showEmaSlow, showBuyTrades, showSellTrades, emaFastPeriod, emaSlowPeriod, height]);
+  }, [candles, trades, showEmaFast, showEmaSlow, showBuyTrades, showSellTrades, emaFastPeriod, emaSlowPeriod, height, theme]);
 
   return (
-    <div className="w-full relative bg-[#0B0F19] rounded-xl border border-slate-800 p-2 overflow-hidden">
+    <div className={`w-full relative rounded-xl border p-2 overflow-hidden ${theme === "dark" ? "bg-[#0B0F19] border-slate-800" : "bg-white border-slate-200"}`}>
       <div ref={containerRef} className="w-full" style={{ height: `${height}px` }} />
     </div>
   );

@@ -11,7 +11,9 @@ Key responsibilities:
 5. Maintain backward compatibility with legacy on_bar strategies
 """
 
+import inspect
 import json
+import pandas as pd
 from io import StringIO
 from typing import List, Dict, Any, Optional, Tuple
 from contextlib import redirect_stdout
@@ -106,8 +108,9 @@ class LegacyRuntime:
     """
     Backward-compatible runtime for existing on_bar strategies.
 
-    Wraps the legacy on_bar(state) -> List[OrderRequest] interface
-    and adapts it to the Prosperity contract.
+    Supports BOTH:
+    - New: on_bar(self, state) -> List[OrderRequest]  (MarketState)
+    - Old: on_bar(self, df, i) -> List[OrderRequest]  (DataFrame, int)
     """
 
     def __init__(self, strategy_code: str, parameters: Optional[Dict[str, Any]] = None):
@@ -119,9 +122,26 @@ class LegacyRuntime:
             parameters=parameters,
         )
 
+    def _build_df_from_state(self, state: Any, symbol: str) -> pd.DataFrame:
+        """Build a pandas DataFrame from MarketState for old on_bar(df, i) strategies."""
+        candles = []
+        for c in state.historical_candles.get(symbol, []):
+            try:
+                candles.append(c.model_dump())
+            except AttributeError:
+                candles.append(c.dict())
+        current = state.current_candle.get(symbol)
+        if current:
+            try:
+                candles.append(current.model_dump())
+            except AttributeError:
+                candles.append(current.dict())
+        return pd.DataFrame(candles)
+
     def on_tick(self, state: Any) -> Tuple[List[Order], str]:
         """
         Adapter that wraps on_bar for compatibility with BacktestEngine.
+        Auto-detects whether the strategy uses old (df, i) or new (state) signature.
 
         Returns:
             (orders_list, trader_data_json)
@@ -134,9 +154,38 @@ class LegacyRuntime:
 
             if strategy_class and hasattr(strategy_class, 'on_bar'):
                 instance = strategy_class()
-                result = instance.on_bar(state)
+                method = getattr(instance, 'on_bar')
+                sig = inspect.signature(method)
+                # Count non-self parameters
+                param_names = [p.name for p in sig.parameters.values() if p.name != 'self']
+                param_count = len(param_names)
+
+                if param_count == 2:
+                    # Old signature: on_bar(self, df, i)
+                    primary_symbol = next(iter(state.current_candle.keys()), None)
+                    if primary_symbol:
+                        df = self._build_df_from_state(state, primary_symbol)
+                        i = len(state.historical_candles.get(primary_symbol, []))
+                        result = instance.on_bar(df, i)
+                    else:
+                        result = instance.on_bar(state)
+                else:
+                    result = instance.on_bar(state)
             elif on_bar_func:
-                result = on_bar_func(state)
+                sig = inspect.signature(on_bar_func)
+                param_count = len(list(sig.parameters.values()))
+
+                if param_count == 2:
+                    # Old standalone function: on_bar(df, i)
+                    primary_symbol = next(iter(state.current_candle.keys()), None)
+                    if primary_symbol:
+                        df = self._build_df_from_state(state, primary_symbol)
+                        i = len(state.historical_candles.get(primary_symbol, []))
+                        result = on_bar_func(df, i)
+                    else:
+                        result = on_bar_func(state)
+                else:
+                    result = on_bar_func(state)
             else:
                 raise RuntimeError("on_bar function not found in strategy code")
 

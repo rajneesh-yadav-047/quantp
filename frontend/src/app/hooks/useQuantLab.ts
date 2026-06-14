@@ -147,6 +147,11 @@ export function useQuantLab() {
   const [dlToDate, setDlToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [downloading, setDownloading] = useState<boolean>(false);
 
+  // ── Dataset preview ──
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
   // ── Pending backtest auto-download ──
   const [pendingBacktest, setPendingBacktest] = useState<{
     strategyId: string;
@@ -155,6 +160,25 @@ export function useQuantLab() {
     startDate: string;
     endDate: string;
   } | null>(null);
+
+  // ── Pending multi-asset auto-download ──
+  const [pendingMultiAsset, setPendingMultiAsset] = useState<{
+    symbols: string[];
+    interval: string;
+    activeTab: string;
+    params: any;
+  } | null>(null);
+
+  // ── Multi-asset retry signal ──
+  const [multiAssetRetrySignal, setMultiAssetRetrySignal] = useState<number>(0);
+
+  // ── Batch download queue (mutable ref, used for sequential auto-downloads) ──
+  const downloadQueueRef = useRef<string[]>([]);
+  const batchDownloadCountRef = useRef(0);
+  const setDownloadQueue = useCallback((symbols: string[]) => {
+    downloadQueueRef.current = symbols;
+    batchDownloadCountRef.current = 0;
+  }, []);
 
   // ── Autocomplete ──
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -195,7 +219,7 @@ export function useQuantLab() {
     dlFromDate, dlToDate, strategyCapital, strategyName,
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
-    pendingBacktest, backendOnlineRef: false,
+    pendingBacktest, pendingMultiAsset, backendOnlineRef: false,
   });
   stateRef.current = {
     strategies, datasets, backtestRuns, deployments,
@@ -203,7 +227,7 @@ export function useQuantLab() {
     dlFromDate, dlToDate, strategyCapital, strategyName,
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
-    pendingBacktest, backendOnlineRef: backendOnline,
+    pendingBacktest, pendingMultiAsset, backendOnlineRef: backendOnline,
   };
 
   // ── CONNECTIVITY ──
@@ -608,8 +632,13 @@ export function useQuantLab() {
   const checkDataCoverage = useCallback((symbols: string[], interval: string, startDate: string, endDate: string) => {
     const missing: { symbol: string; interval: string; reason: string }[] = [];
     for (const sym of symbols) {
-      const key = `${sym.toUpperCase()}_${interval.toUpperCase()}`;
-      const ds = datasets.find((d: any) => `${d.symbol?.toUpperCase()}_${d.interval?.toUpperCase()}` === key);
+      const symBase = sym.toUpperCase().trim();
+      const ds = datasets.find((d: any) => {
+        const dsSym = (d.symbol || "").toUpperCase().trim();
+        // Match either bare "SBIN" or canonical "NSE:SBIN-EQ" by extracting the base symbol
+        const dsBase = dsSym.includes(":") ? dsSym.split(":")[1].replace(/-EQ$|-BE$/i, "") : dsSym.replace(/-EQ$|-BE$/i, "");
+        return dsBase === symBase && (d.interval || "").toUpperCase() === interval.toUpperCase();
+      });
       if (!ds) {
         missing.push({ symbol: sym, interval, reason: "No dataset found." });
         continue;
@@ -639,6 +668,8 @@ export function useQuantLab() {
     const missing = checkDataCoverage(symbols, interval, ref.btStartDate, ref.btEndDate);
     if (missing.length > 0) {
       const first = missing[0];
+      downloadQueueRef.current = []; // clear any stale batch queue
+      batchDownloadCountRef.current = 0;
       triggerNotif("error", `Missing data for ${first.symbol} (${first.interval}): ${first.reason}`);
       setPendingBacktest({ strategyId: ref.selectedStrategyId, symbols, interval, startDate: ref.btStartDate, endDate: ref.btEndDate });
       setDlSymbol(first.symbol);
@@ -740,14 +771,17 @@ export function useQuantLab() {
 
   const triggerDownload = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    downloadQueueRef.current = []; // clear any stale batch queue
+    batchDownloadCountRef.current = 0;
     setPendingAction("DOWNLOAD");
     setIsTotpModalOpen(true);
   }, []);
 
   const finalizeDownload = useCallback(async (code: string) => {
     const ref = stateRef.current;
+    const sym = ref.dlSymbol;
     setDownloading(true);
-    triggerNotif("info", `Downloading historical candles for ${ref.dlSymbol}...`);
+    triggerNotif("info", `Downloading ${sym}…`);
     if (!ref.backendOnline) {
       setDownloading(false);
       triggerNotif("error", "Backend is offline. Cannot download data.");
@@ -756,14 +790,30 @@ export function useQuantLab() {
     // Append market hours to dates so SmartAPI receives YYYY-MM-DD HH:MM format
     const fromDate = `${ref.dlFromDate} 09:15`;
     const toDate = `${ref.dlToDate} 15:30`;
-    const result = await api.post("/data/download", { symbol: ref.dlSymbol, interval: ref.dlInterval, from_date: fromDate, to_date: toDate, totp: code });
+    // First download in a batch uses TOTP; chained downloads reuse the already-authenticated SmartAPI session
+    batchDownloadCountRef.current += 1;
+    const isFirst = batchDownloadCountRef.current === 1;
+    const result = await api.post("/data/download", { symbol: sym, interval: ref.dlInterval, from_date: fromDate, to_date: toDate, totp: isFirst ? code : undefined });
     setDownloading(false);
     if (result.ok && result.data) {
-      triggerNotif("success", "Dataset downloaded from SmartAPI and cataloged in CSV!");
+      triggerNotif("success", `Downloaded ${sym} successfully!`);
       fetchCoreData();
+      // ── Batch queue chaining ──
+      // Remove the just-downloaded symbol from the queue
+      downloadQueueRef.current = downloadQueueRef.current.filter(s => s.toUpperCase() !== sym.toUpperCase());
+      if (downloadQueueRef.current.length > 0) {
+        const next = downloadQueueRef.current[0];
+        setDlSymbol(next);
+        triggerNotif("info", `Next: downloading ${next}…`);
+        setTimeout(() => finalizeDownload(code), 600);
+        return;
+      }
+      // ── Queue exhausted: reset counter ──
+      batchDownloadCountRef.current = 0;
+      // ── Single backtest auto-resume ──
       if (ref.pendingBacktest) {
         const pb = ref.pendingBacktest;
-        const covers = pb.symbols.some(s => s.toUpperCase() === ref.dlSymbol.toUpperCase()) && pb.interval.toUpperCase() === ref.dlInterval.toUpperCase();
+        const covers = pb.symbols.some(s => s.toUpperCase() === sym.toUpperCase()) && pb.interval.toUpperCase() === ref.dlInterval.toUpperCase();
         if (covers) {
           setTimeout(() => {
             setPendingBacktest(null);
@@ -771,10 +821,32 @@ export function useQuantLab() {
           }, 500);
         }
       }
+      // ── Multi-asset auto-resume ──
+      if (ref.pendingMultiAsset) {
+        setTimeout(() => {
+          setPendingMultiAsset(null);
+          setMultiAssetRetrySignal(Date.now());
+        }, 500);
+      }
     } else {
-      triggerNotif("error", result.error || "Download failed: SmartAPI may not have data for this symbol. Check the symbol spelling and try again.");
+      triggerNotif("error", result.error || `Download failed for ${sym}. Check the symbol spelling and try again.`);
     }
   }, [triggerNotif, fetchCoreData, handleRunBacktest]);
+
+  const handlePreviewDataset = useCallback(async (symbol: string, interval: string) => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewData(null);
+    const result = await api.get(`/data/datasets/${encodeURIComponent(symbol)}/${encodeURIComponent(interval)}`);
+    setPreviewLoading(false);
+    if (result.ok && result.data) {
+      setPreviewData(result.data);
+      triggerNotif("success", `Loaded preview for ${symbol} (${interval})`);
+    } else {
+      setPreviewError(result.error || "Failed to load dataset preview.");
+      triggerNotif("error", result.error || "Failed to load dataset preview.");
+    }
+  }, [triggerNotif]);
 
   const handleTotpConfirm = useCallback(() => {
     if (totpInput.length !== 6) { triggerNotif("error", "Invalid code. Please enter 6 digits."); return; }
@@ -911,8 +983,12 @@ export function useQuantLab() {
     cleanupOlderThan, setCleanupOlderThan, cleanupStrategyId, setCleanupStrategyId, cleanupResult, setCleanupResult,
     // Dataset download
     dlSymbol, setDlSymbol, dlInterval, setDlInterval, dlFromDate, setDlFromDate, dlToDate, setDlToDate, downloading, setDownloading,
+    // Dataset preview
+    previewData, setPreviewData, previewLoading, previewError, handlePreviewDataset,
     // Data coverage
     checkDataCoverage, pendingBacktest, setPendingBacktest,
+    pendingMultiAsset, setPendingMultiAsset, multiAssetRetrySignal, setMultiAssetRetrySignal,
+    setDownloadQueue,
     // Autocomplete
     suggestions, setSuggestions, showSuggestions, setShowSuggestions,
     strategySuggestions, setStrategySuggestions, showStrategySuggestions, setShowStrategySuggestions,

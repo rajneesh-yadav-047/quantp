@@ -291,3 +291,95 @@ def match_trades_fifo(trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 sells[symbol].append([ts, price, qty, fee])
 
     return matched
+
+
+# ---------------------------------------------------------------------------
+# Portfolio-level attribution analytics
+# ---------------------------------------------------------------------------
+
+def calculate_sortino_ratio(
+    equity_curve: List[Dict[str, Any]],
+    risk_free_rate: float = 0.0,
+    annual_factor: float = 252.0,
+) -> float:
+    """Compute the Sortino ratio (penalises only downside deviation)."""
+    if not equity_curve or len(equity_curve) < 2:
+        return 0.0
+    df = pd.DataFrame(equity_curve).sort_values("time")
+    rets = df["equity"].astype(float).pct_change().dropna().values
+    excess = rets - (risk_free_rate / annual_factor)
+    downside = excess[excess < 0]
+    if len(downside) == 0:
+        return float("inf")
+    downside_std = float(np.std(downside))
+    if downside_std == 0:
+        return 0.0
+    return round(float(np.mean(excess)) / downside_std * np.sqrt(annual_factor), 4)
+
+
+def calculate_calmar_ratio(
+    equity_curve: List[Dict[str, Any]],
+    annual_factor: float = 252.0,
+) -> float:
+    """Compute the Calmar ratio (CAGR / Max Drawdown)."""
+    if not equity_curve or len(equity_curve) < 2:
+        return 0.0
+    df = pd.DataFrame(equity_curve).sort_values("time")
+    equities = df["equity"].astype(float).values
+    first, last = equities[0], equities[-1]
+    n_bars = len(equities)
+    years = n_bars / annual_factor
+    cagr = ((last / first) ** (1 / years) - 1) if (first > 0 and years > 0) else 0.0
+    peak = np.maximum.accumulate(equities)
+    dd = (peak - equities) / np.where(peak > 0, peak, 1)
+    max_dd = float(np.max(dd))
+    if max_dd == 0:
+        return float("inf")
+    return round(float(cagr) / max_dd, 4)
+
+
+def portfolio_attribution(
+    matched_trades: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Compute per-symbol P&L attribution from a list of matched trades.
+
+    Returns a dict with:
+    - per_symbol: {symbol: {pnl, trade_count, win_rate, avg_pnl, contribution_pct}}
+    - top_contributor, worst_contributor
+    - total_pnl
+    """
+    from collections import defaultdict
+
+    sym_stats: Dict[str, Dict] = defaultdict(lambda: {"pnl": 0.0, "wins": 0, "count": 0})
+
+    for t in matched_trades:
+        sym = t.get("symbol", "UNKNOWN").upper()
+        pnl = float(t.get("pnl", 0.0))
+        sym_stats[sym]["pnl"] += pnl
+        sym_stats[sym]["count"] += 1
+        if pnl > 0:
+            sym_stats[sym]["wins"] += 1
+
+    total_pnl = sum(v["pnl"] for v in sym_stats.values())
+    per_symbol = {}
+    for sym, stats in sym_stats.items():
+        pnl = stats["pnl"]
+        cnt = max(stats["count"], 1)
+        per_symbol[sym] = {
+            "pnl": round(pnl, 2),
+            "trade_count": stats["count"],
+            "win_rate": round(stats["wins"] / cnt, 4),
+            "avg_pnl": round(pnl / cnt, 2),
+            "contribution_pct": round(pnl / total_pnl * 100, 2) if total_pnl != 0 else 0.0,
+        }
+
+    sorted_syms = sorted(per_symbol, key=lambda k: per_symbol[k]["pnl"], reverse=True)
+
+    return {
+        "per_symbol": per_symbol,
+        "total_pnl": round(total_pnl, 2),
+        "top_contributor": sorted_syms[0] if sorted_syms else None,
+        "worst_contributor": sorted_syms[-1] if sorted_syms else None,
+        "symbol_count": len(per_symbol),
+    }

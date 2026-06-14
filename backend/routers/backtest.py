@@ -171,6 +171,20 @@ def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
     r = db.query(BacktestResultDB).filter(BacktestResultDB.id == run_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Backtest run not found")
+    
+    # Extract trades from the log file
+    trades = []
+    if r.log_file_path and os.path.exists(r.log_file_path):
+        with open(r.log_file_path, "r") as f:
+            for line in f:
+                try:
+                    event = json.loads(line.strip())
+                    filled = event.get("orders_filled", [])
+                    if filled:
+                        trades.extend(filled)
+                except (json.JSONDecodeError, Exception):
+                    pass
+    
     return {
         "id": r.id,
         "strategy_id": r.strategy_id,
@@ -191,6 +205,8 @@ def get_backtest_result(run_id: str, db: Session = Depends(get_db)):
         "profit_factor": r.profit_factor,
         "total_fees": r.total_fees,
         "metrics": json.loads(r.metrics_json or "{}"),
+        "trades": trades,
+        "trade_count": len(trades),
         "created_at": r.created_at,
     }
 
