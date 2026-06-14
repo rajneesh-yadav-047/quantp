@@ -36,11 +36,37 @@ QuantLab integrates **Angel One SmartAPI** (with TOTP) for real historical data,
 
 ## 📸 Screenshots & UI Highlights
 
-- **Dark & Light Theme** — Fully theme-aware dashboard with Tailwind CSS
-- **TradingView Charts** — Lightweight, high-performance candlestick charts for data preview and replay
-- **Monaco Editor** — VS Code-grade Python IDE embedded in the browser
-- **ECharts Visualizations** — Statistical charts, heatmaps, and 3D parameter surfaces
-- **Real-Time SSE** — Live deployment status and trade event streaming
+All screenshots were captured live from the running application on `localhost:3000` via Kimi WebBridge.
+
+### 🏠 Dashboard
+![Dashboard](/webbridge_homepage.png)
+
+### 📥 Datasets — Real Historical Data Catalog
+![Datasets](/webbridge_datasets.png)
+
+### 📝 Strategy Workspace — Monaco Editor & Configuration
+![Strategies](/webbridge_strategies.png)
+
+### 🚀 Backtest Simulation Engine
+![Backtests](/webbridge_backtests.png)
+
+### 📡 Live Mock Trading (Paper Mode)
+![Live Trading](/webbridge_live.png)
+
+### 🔬 Research Lab — Statistical Diagnostics
+![Research Lab](/webbridge_tab_research.png)
+
+### 🔗 Multi-Asset Research — Correlation & Pair Analysis
+![Multi-Asset](/webbridge_tab_multiasset.png)
+
+### ⚡ Portfolio Risk — Monte Carlo Simulation
+![Portfolio Risk](/webbridge_tab_portfolio_risk.png)
+
+### 🎯 Optimizer — Grid Search Parameter Sweeps
+![Optimizer](/webbridge_tab_optimizer.png)
+
+### 🧹 System Cleanup — Disk & Database Maintenance
+![Cleanup](/webbridge_tab_cleanup.png)
 
 ---
 
