@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useQuantLab } from "./hooks/useQuantLab";
 import Sidebar from "./components/shared/Sidebar";
@@ -12,9 +12,31 @@ import { OptimizerTab } from "./components/tabs/OptimizerTab";
 import { CleanupTab } from "./components/tabs/CleanupTab";
 
 const ResearchLab = dynamic(() => import("../components/ResearchLab"), { ssr: false });
+const MultiAssetResearch = dynamic(() => import("../components/MultiAssetResearch"), { ssr: false });
+const PortfolioAnalytics = dynamic(() => import("../components/PortfolioAnalytics"), { ssr: false });
 
 export default function Home() {
   const q = useQuantLab();
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as "dark" | "light" | null;
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+    } else {
+      setTheme("dark");
+    }
+  }, []);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const tabDescriptions: Record<string, string> = {
     dashboard: "System overview, connection status, and quick actions.",
@@ -24,12 +46,14 @@ export default function Home() {
     deployments: "Manage paper and live deployments per strategy.",
     live: "Real-time mock trading with live market data. No real money used.",
     research: "Deep statistical analysis of any dataset — returns, volatility, regimes, seasonality, and strategy suitability scoring.",
-    optimizer: "Execute grid-search sweeps to find mathematically optimal strategy weights.",
+    "multi-asset": "Multi-asset research: correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, sector breadth, and factor ranking.",
+    "portfolio-risk": "Portfolio risk analytics: Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals.",
+    optimizer: "Execute grid-search and random-search sweeps to find mathematically optimal strategy weights.",
     cleanup: "Manage disk space by deleting old backtest logs and downloaded CSV datasets.",
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#050811] text-[#E2E8F0]">
+    <div className="flex h-screen w-screen overflow-hidden transition-colors duration-200" style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}>
       <Sidebar
         activeTab={q.activeTab}
         setActiveTab={q.setActiveTab}
@@ -37,25 +61,27 @@ export default function Home() {
         backendOnline={q.backendOnline}
         smartapiConnected={q.smartapiConnected}
         apiErrors={q.apiErrors}
+        theme={theme}
+        setTheme={setTheme}
       />
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#070B16] p-6">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6" style={{ backgroundColor: 'var(--background)' }}>
         {/* Header */}
-        <header className="flex justify-between items-center pb-5 mb-5 border-b border-slate-800/70 shrink-0">
+        <header className="flex justify-between items-center pb-5 mb-5 shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
           <div>
-            <h2 className="text-2xl font-bold capitalize text-slate-100 font-sans tracking-tight">
+            <h2 className="text-2xl font-bold capitalize font-sans tracking-tight" style={{ color: 'var(--text-primary)' }}>
               {q.activeTab === "strategies" ? "Strategy Workspace" : q.activeTab.replace("-", " ")}
             </h2>
-            <p className="text-xs text-slate-400 mt-1">{tabDescriptions[q.activeTab] || ""}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{tabDescriptions[q.activeTab] || ""}</p>
           </div>
           <div className="flex items-center gap-3">
             {q.selectedStrategyId && (
-              <div className="px-3 py-1 bg-slate-900 border border-slate-800 text-xs rounded-full text-blue-400 font-mono">
+              <div className="px-3 py-1 text-xs rounded-full font-mono font-medium" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--accent-blue)' }}>
                 Strategy: {q.strategies.find((s: any) => s.id === q.selectedStrategyId)?.name || q.selectedStrategyId}
               </div>
             )}
             {q.selectedRunId && (
-              <div className="px-3 py-1 bg-slate-900 border border-slate-800 text-xs rounded-full text-emerald-400 font-mono">
+              <div className="px-3 py-1 text-xs rounded-full font-mono font-medium" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--accent-green)' }}>
                 Run: {q.selectedRunId}
               </div>
             )}
@@ -103,6 +129,11 @@ export default function Home() {
               showSuggestions={q.showSuggestions}
               setShowSuggestions={q.setShowSuggestions}
               triggerNotif={q.triggerNotif}
+              previewData={q.previewData}
+              setPreviewData={q.setPreviewData}
+              previewLoading={q.previewLoading}
+              previewError={q.previewError}
+              handlePreviewDataset={q.handlePreviewDataset}
             />
           )}
 
@@ -220,6 +251,38 @@ export default function Home() {
               apiErrors={q.apiErrors}
               setEndpointError={q.setEndpointError}
               clearEndpointError={q.clearEndpointError}
+              setNotif={q.setNotif}
+              theme={theme}
+            />
+          )}
+
+          {q.activeTab === "multi-asset" && (
+            <MultiAssetResearch
+              datasets={q.datasets}
+              theme={theme}
+              setNotif={q.setNotif}
+              backendOnline={q.backendOnline}
+              dlSymbol={q.dlSymbol}
+              setDlSymbol={q.setDlSymbol}
+              dlInterval={q.dlInterval}
+              setDlInterval={q.setDlInterval}
+              dlFromDate={q.dlFromDate}
+              setDlFromDate={q.setDlFromDate}
+              dlToDate={q.dlToDate}
+              setDlToDate={q.setDlToDate}
+              pendingMultiAsset={q.pendingMultiAsset}
+              setPendingMultiAsset={q.setPendingMultiAsset}
+              multiAssetRetrySignal={q.multiAssetRetrySignal}
+              setIsTotpModalOpen={q.setIsTotpModalOpen}
+              setPendingAction={q.setPendingAction}
+              setDownloadQueue={q.setDownloadQueue}
+            />
+          )}
+
+          {q.activeTab === "portfolio-risk" && (
+            <PortfolioAnalytics
+              backtestResults={q.backtestRuns || []}
+              theme={theme}
               setNotif={q.setNotif}
             />
           )}

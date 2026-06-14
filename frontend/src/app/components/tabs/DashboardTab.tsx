@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import { Shield, RefreshCw, Trash2, Database, CheckCircle2, XCircle, ServerCrash, RotateCcw, Play, Pause, SkipForward, SkipBack, AlertTriangle, PlayCircle, PieChart, Rocket, Plus, Code, FileText, TrendingUp, TrendingDown, BarChart3, ArrowLeft, Radio, Activity, DollarSign, Wallet, Clock, Bell, ChevronDown, ChevronUp, BarChart, Calendar } from "lucide-react";
 import type { Notif, ApiErrorInfo, BacktestDetail, ReplayEvent } from "../../hooks/useQuantLab";
 import LightweightChart from "../../../components/LightweightChart";
@@ -70,7 +71,7 @@ export function ErrorBanners({ apiErrors, clearEndpointError }: {
 /* ---------- DashboardTab ---------- */
 export function DashboardTab({
   smartapiConnected, datasets, strategies, backtestRuns, selectedStrategyId, btStartDate, btEndDate,
-  setBtStartDate, setBtEndDate, handleSelectStrategy, handleRunBacktest, triggerAuth,
+  setBtStartDate, setBtEndDate, handleSelectStrategy, handleRunBacktest, triggerAuth, handleSelectRun,
 }: any) {
   return (
     <div className="space-y-6">
@@ -132,7 +133,7 @@ export function DashboardTab({
                 <select
                   value={selectedStrategyId}
                   onChange={e => handleSelectStrategy(e.target.value)}
-                  className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500"
+                  className="t-input w-full text-xs rounded px-2.5 py-1.5"
                 >
                   <option value="">-- Choose Strategy --</option>
                   {strategies.map((s: any) => (
@@ -145,8 +146,8 @@ export function DashboardTab({
                   <Calendar size={10} className="text-blue-400" /> Date Range
                 </label>
                 <div className="flex gap-2">
-                  <input type="date" value={btStartDate} onChange={e => setBtStartDate(e.target.value)} className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
-                  <input type="date" value={btEndDate} onChange={e => setBtEndDate(e.target.value)} className="flex-1 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+                  <input type="date" value={btStartDate} onChange={e => setBtStartDate(e.target.value)} className="t-input flex-1 text-xs rounded px-2 py-1" />
+                  <input type="date" value={btEndDate} onChange={e => setBtEndDate(e.target.value)} className="t-input flex-1 text-xs rounded px-2 py-1" />
                 </div>
               </div>
               <div className="col-span-2">
@@ -216,7 +217,11 @@ export function DatasetsTab({
   dlSymbol, setDlSymbol, dlInterval, setDlInterval, dlFromDate, setDlFromDate, dlToDate, setDlToDate,
   downloading, triggerDownload, datasets, selectedDataset, setSelectedDataset, suggestions, showSuggestions, setShowSuggestions,
   triggerNotif,
+  // New props for preview:
+  previewData, setPreviewData, previewLoading, previewError, handlePreviewDataset,
 }: any) {
+  const [previewTab, setPreviewTab] = useState<"chart" | "table">("chart");
+
   const handleDownloadFile = (symbol: string, interval: string, filePath: string) => {
     const url = `/api/data/download-file/${encodeURIComponent(symbol)}/${encodeURIComponent(interval)}`;
     const a = document.createElement("a");
@@ -227,6 +232,22 @@ export function DatasetsTab({
     document.body.removeChild(a);
     triggerNotif("success", `Downloaded ${symbol} ${interval} dataset.`);
   };
+
+  const formatTimeLabel = (timeVal: any, interval: string) => {
+    if (!timeVal) return "-";
+    if (typeof timeVal === "number") {
+      const date = new Date(timeVal * 1000);
+      const year = date.getUTCFullYear();
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const month = monthNames[date.getUTCMonth()];
+      const day = date.getUTCDate();
+      const hours = String(date.getUTCHours()).padStart(2, '0');
+      const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+      return `${day} ${month} ${year}, ${hours}:${minutes}`;
+    }
+    return String(timeVal);
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="glass-panel p-5 rounded-xl self-start">
@@ -245,19 +266,30 @@ export function DatasetsTab({
               onChange={e => { setDlSymbol(e.target.value.toUpperCase()); setShowSuggestions(true); }}
               onFocus={() => setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
+              className="t-input w-full text-xs rounded px-2.5 py-1.5 font-semibold"
               placeholder="e.g. SBIN, RELIANCE, NIFTY"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded shadow-2xl divide-y divide-slate-800/60 custom-scrollbar">
+              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto rounded shadow-2xl divide-y custom-scrollbar" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
                 {suggestions.map((s: any) => (
-                  <div key={s.token} onClick={() => { setDlSymbol(s.symbol); setShowSuggestions(false); }}
-                    className="px-3 py-2 text-xs hover:bg-slate-900 cursor-pointer flex justify-between items-center transition-colors duration-150">
+                  <div
+                    key={s.token}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const bare = s.bare_symbol || s.symbol;
+                      setDlSymbol(bare);
+                      setShowSuggestions(false);
+                    }}
+                    className="px-3 py-2 text-xs cursor-pointer flex justify-between items-center transition-colors duration-150"
+                    style={{ borderColor: 'var(--border-color)' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-panel-inner)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
+                  >
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-200">{s.symbol}</span>
-                      <span className="text-[9px] text-slate-500 truncate max-w-[160px]">{s.name}</span>
+                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{s.bare_symbol || s.symbol}</span>
+                      <span className="text-[9px] truncate max-w-[160px]" style={{ color: 'var(--text-tertiary)' }}>{s.name}</span>
                     </div>
-                    <span className="text-[9px] font-mono bg-slate-900 border border-slate-800/80 rounded px-1.5 py-0.5 text-slate-400">{s.token}</span>
+                    <span className="text-[9px] font-mono rounded px-1.5 py-0.5" style={{ backgroundColor: 'var(--bg-panel-inner)', border: '1px solid var(--border-color)', color: 'var(--text-tertiary)' }}>{s.token}</span>
                   </div>
                 ))}
               </div>
@@ -265,7 +297,7 @@ export function DatasetsTab({
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Timeframe Interval</label>
-            <select value={dlInterval} onChange={e => setDlInterval(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500">
+            <select value={dlInterval} onChange={e => setDlInterval(e.target.value)} className="t-input w-full text-xs rounded px-2.5 py-1.5">
               <option value="ONE_MINUTE">1 Minute (Intraday)</option>
               <option value="FIVE_MINUTE">5 Minute (Intraday)</option>
               <option value="FIFTEEN_MINUTE">15 Minute (Intraday)</option>
@@ -278,13 +310,13 @@ export function DatasetsTab({
               <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
                 <Calendar size={10} className="text-white" /> From Date
               </label>
-              <input type="date" value={dlFromDate} onChange={e => setDlFromDate(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+              <input type="date" value={dlFromDate} onChange={e => setDlFromDate(e.target.value)} className="t-input w-full text-xs rounded px-2 py-1" />
             </div>
             <div>
               <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
                 <Calendar size={10} className="text-white" /> To Date
               </label>
-              <input type="date" value={dlToDate} onChange={e => setDlToDate(e.target.value)} className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200" />
+              <input type="date" value={dlToDate} onChange={e => setDlToDate(e.target.value)} className="t-input w-full text-xs rounded px-2 py-1" />
             </div>
           </div>
           <button type="submit" disabled={downloading} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2">
@@ -305,12 +337,27 @@ export function DatasetsTab({
             <tbody className="divide-y divide-slate-800/50">
               {datasets.map((d: any) => (
                 <tr key={`${d.symbol}_${d.interval}`} className="hover:bg-slate-900/30">
-                  <td className="py-3 font-bold text-slate-200">{d.symbol}</td>
+                  <td className="py-3 font-bold text-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span>{d.symbol}</span>
+                      {d.is_mock ? (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded">Mock</span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded">Real</span>
+                      )}
+                    </div>
+                  </td>
                   <td>{d.interval}</td>
                   <td className="text-slate-500 font-mono text-[10px]">{d.start_date || "-"} - {d.end_date || "-"}</td>
                   <td className="font-semibold text-blue-400 font-mono">{d.records_count ?? "-"}</td>
                   <td className="text-slate-600 truncate max-w-xs text-[10px]" title={d.file_path || ""}>{d.file_path || "-"}</td>
-                  <td className="text-right">
+                  <td className="text-right whitespace-nowrap">
+                    <button
+                      onClick={() => handlePreviewDataset(d.symbol, d.interval)}
+                      className="px-2.5 py-1 rounded text-[10px] font-bold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition-all mr-2"
+                    >
+                      Preview
+                    </button>
                     <button
                       onClick={() => { setSelectedDataset(`${d.symbol}_${d.interval}`); triggerNotif("success", `Dataset ${d.symbol} selected as active simulation feed.`); }}
                       className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all mr-2 ${selectedDataset === `${d.symbol}_${d.interval}` ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}
@@ -337,6 +384,140 @@ export function DatasetsTab({
           </table>
         </div>
       </div>
+
+      {/* Dataset Preview section (when loading) */}
+      {previewLoading && (
+        <div className="glass-panel p-6 rounded-xl col-span-3 flex flex-col items-center justify-center min-h-[300px] border border-blue-500/20">
+          <RefreshCw size={24} className="animate-spin text-blue-400 mb-2" />
+          <span className="text-sm font-semibold text-slate-300">Loading dataset preview...</span>
+        </div>
+      )}
+
+      {/* Dataset Preview section (when error) */}
+      {previewError && (
+        <div className="glass-panel p-6 rounded-xl col-span-3 flex flex-col items-center justify-center min-h-[200px] border border-rose-500/20 text-rose-400">
+          <AlertTriangle size={24} className="mb-2 text-rose-500" />
+          <span className="text-sm font-semibold">Failed to load preview</span>
+          <p className="text-xs text-rose-300/80 mt-1">{previewError}</p>
+          <button onClick={() => setPreviewData(null)} className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 font-bold border border-slate-700">Dismiss</button>
+        </div>
+      )}
+
+      {/* Dataset Preview Panel */}
+      {previewData && (
+        <div className="glass-panel p-6 rounded-xl col-span-3 flex flex-col gap-5 border border-slate-800/80 shadow-2xl relative animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {/* Header */}
+          <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-600/10 border border-blue-500/20 rounded-xl text-blue-400">
+                <Database size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-100 text-base flex items-center gap-2">
+                  Dataset Preview: {previewData.symbol}
+                  {previewData.is_mock ? (
+                    <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full">Mock Data</span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full">Real Data (Verified)</span>
+                  )}
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">Timeframe: <span className="font-mono text-blue-400 font-semibold">{previewData.interval}</span> • Total Records: <span className="font-semibold text-slate-200">{previewData.total_records} candles</span></p>
+              </div>
+            </div>
+            
+            {/* Actions & Close */}
+            <div className="flex items-center gap-3">
+              {/* Chart/Table Toggle */}
+              <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <button
+                  onClick={() => setPreviewTab("chart")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    previewTab === "chart"
+                      ? "bg-slate-800 text-blue-400 shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-slate-200 font-medium"
+                  }`}
+                >
+                  Chart View
+                </button>
+                <button
+                  onClick={() => setPreviewTab("table")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    previewTab === "table"
+                      ? "bg-slate-800 text-blue-400 shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-slate-200 font-medium"
+                  }`}
+                >
+                  Spreadsheet View
+                </button>
+              </div>
+              
+              {/* Close button */}
+              <button
+                onClick={() => setPreviewData(null)}
+                className="p-1.5 rounded-lg border border-slate-850 bg-slate-900/50 hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-all font-bold text-sm w-8 h-8 flex items-center justify-center"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          
+          {/* Stats Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-950/40 p-4 rounded-xl border border-slate-800/60">
+            {[
+              { label: "Date Range Covered", value: previewData.candles.length > 0 ? `${formatTimeLabel(previewData.candles[0].time, previewData.interval)} to ${formatTimeLabel(previewData.candles[previewData.candles.length - 1].time, previewData.interval)}` : "N/A" },
+              { label: "Suggested Max Pos Size", value: previewData.suggested_max_position ? `₹${previewData.suggested_max_position.toLocaleString(undefined, {maximumFractionDigits: 0})}` : "Auto" },
+              { label: "Average Close Price", value: previewData.candles.length > 0 ? `₹${(previewData.candles.reduce((acc: number, c: any) => acc + c.close, 0) / previewData.candles.length).toFixed(2)}` : "N/A" },
+              { label: "Price Range (Min - Max)", value: previewData.candles.length > 0 ? `₹${Math.min(...previewData.candles.map((c: any) => c.close)).toFixed(1)} - ₹${Math.max(...previewData.candles.map((c: any) => c.close)).toFixed(1)}` : "N/A" }
+            ].map((stat, i) => (
+              <div key={i} className="flex flex-col">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{stat.label}</span>
+                <span className="text-xs font-semibold text-slate-300 mt-1 font-mono">{stat.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Main Preview Tab Content */}
+          <div className="flex-1 min-h-[400px]">
+            {previewTab === "chart" ? (
+              <div className="h-[400px] w-full rounded-xl overflow-hidden bg-slate-950">
+                <LightweightChart candles={previewData.candles} height={400} showEmaFast={false} showEmaSlow={false} />
+              </div>
+            ) : (
+              <div className="max-h-[400px] overflow-auto rounded-xl border border-slate-800/80 bg-slate-950/20 custom-scrollbar">
+                <table className="w-full text-left text-xs text-slate-400 border-collapse">
+                  <thead>
+                    <tr className="sticky top-0 bg-slate-900 border-b border-slate-800 text-slate-300 font-semibold shadow-[0_1px_0_rgba(255,255,255,0.05)]">
+                      <th className="p-3">Time / Date</th>
+                      <th className="p-3 text-right">Open (₹)</th>
+                      <th className="p-3 text-right">High (₹)</th>
+                      <th className="p-3 text-right">Low (₹)</th>
+                      <th className="p-3 text-right">Close (₹)</th>
+                      <th className="p-3 text-right">Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/40 font-mono">
+                    {previewData.candles.slice(0, 50).map((c: any, index: number) => (
+                      <tr key={index} className="hover:bg-slate-900/30">
+                        <td className="p-3 text-slate-300">{formatTimeLabel(c.time, previewData.interval)}</td>
+                        <td className="p-3 text-right">₹{Number(c.open).toFixed(2)}</td>
+                        <td className="p-3 text-right text-emerald-400">₹{Number(c.high).toFixed(2)}</td>
+                        <td className="p-3 text-right text-rose-400">₹{Number(c.low).toFixed(2)}</td>
+                        <td className="p-3 text-right text-slate-200">₹{Number(c.close).toFixed(2)}</td>
+                        <td className="p-3 text-right text-slate-400">{Number(c.volume || 0).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {previewData.candles.length > 50 && (
+                  <div className="p-3 text-center text-[10px] text-slate-500 bg-slate-950/20 border-t border-slate-800/30">
+                    Showing first 50 rows of {previewData.candles.length} total candles.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -382,3 +382,66 @@ def unsubscribe_from_symbol(symbol: str):
         return {"status": "unsubscribed", "symbol": symbol}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ManualOrderRequest(BaseModel):
+    deployment_id: str
+    direction: str
+    qty: int
+    price: Optional[float] = None
+    order_type: str = "MARKET"
+
+
+@router.post("/order")
+async def place_manual_order(req: ManualOrderRequest, db: Session = Depends(get_db)):
+    """Place a manual buy or sell order for a deployment."""
+    engine = get_engine()
+    runner = engine.runners.get(req.deployment_id)
+    if not runner:
+        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+    
+    result = runner.place_manual_order(
+        direction=req.direction,
+        qty=req.qty,
+        price=req.price,
+        order_type=req.order_type
+    )
+    return result
+
+
+class ResetCapitalRequest(BaseModel):
+    deployment_id: str
+    amount: float
+
+
+@router.post("/reset-capital")
+async def reset_capital(req: ResetCapitalRequest):
+    """Reset the cash and equity of a running deployment to a starting amount."""
+    engine = get_engine()
+    runner = engine.runners.get(req.deployment_id)
+    if not runner:
+        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+    
+    runner.reset_capital(req.amount)
+    return {"status": "success", "message": f"Starting capital reset to ₹{req.amount:.2f}"}
+
+
+@router.get("/candles/{deployment_id}")
+def get_deployment_candles(deployment_id: str):
+    """Get the current list of formatted candles in the active deployment runner."""
+    engine = get_engine()
+    runner = engine.runners.get(deployment_id)
+    if not runner:
+        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+    
+    return [
+        {
+            "time": int(float(c.time)),
+            "open": c.open,
+            "high": c.high,
+            "low": c.low,
+            "close": c.close,
+            "volume": c.volume
+        }
+        for c in runner.historical_candles
+    ]

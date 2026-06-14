@@ -1,29 +1,372 @@
 {
-  "GODFR_FIVE_MINUTE": {
-    "symbol": "GODFR",
+  "NSE:SBIN-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:SBIN-EQ",
     "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\GODFR\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-06-05 09:15:00",
-    "end_date": "2026-06-12 15:30:00",
-    "records_count": 456,
-    "updated_at": "2026-06-13 00:42:46"
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_SBIN-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 750,
+    "is_mock": false,
+    "updated_at": "2026-06-14 16:51:32"
   },
-  "AFC_FIVE_MINUTE": {
-    "symbol": "AFC",
+  "NSE:AFCONS-EQ_ONE_MINUTE": {
+    "symbol": "NSE:AFCONS-EQ",
+    "interval": "ONE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AFCONS-EQ\\ONE_MINUTE\\data.csv",
+    "start_date": "2026-06-08T09:15:00+05:30",
+    "end_date": "2026-06-12T15:29:00+05:30",
+    "records_count": 1743,
+    "is_mock": false,
+    "updated_at": "2026-06-13 16:44:24"
+  },
+  "NSE:BLS-EQ_ONE_MINUTE": {
+    "symbol": "NSE:BLS-EQ",
+    "interval": "ONE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_BLS-EQ\\ONE_MINUTE\\data.csv",
+    "start_date": "2026-06-08T09:15:00+05:30",
+    "end_date": "2026-06-12T15:29:00+05:30",
+    "records_count": 1869,
+    "is_mock": false,
+    "updated_at": "2026-06-13 17:01:24"
+  },
+  "NSE:BLS-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:BLS-EQ",
     "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\AFC\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-06-05 09:15:00",
-    "end_date": "2026-06-12 15:30:00",
-    "records_count": 456,
-    "updated_at": "2026-06-13 00:49:51"
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_BLS-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-04-06T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 3525,
+    "is_mock": false,
+    "updated_at": "2026-06-13 17:04:56"
   },
-  "GODFR_FIFTEEN_MINUTE": {
-    "symbol": "GODFR",
-    "interval": "FIFTEEN_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\GODFR\\FIFTEEN_MINUTE\\data.csv",
-    "start_date": "2026-06-05 09:15:00",
-    "end_date": "2026-06-12 15:30:00",
-    "records_count": 156,
-    "updated_at": "2026-06-13 01:01:03"
+  "NSE:RITES-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:RITES-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_RITES-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-08T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 375,
+    "is_mock": false,
+    "updated_at": "2026-06-13 17:10:21"
+  },
+  "NSE:RELIANCE-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:RELIANCE-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_RELIANCE-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 750,
+    "is_mock": false,
+    "updated_at": "2026-06-14 16:53:10"
+  },
+  "NSE:AXISBANK-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:AXISBANK-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AXISBANK-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 750,
+    "is_mock": false,
+    "updated_at": "2026-06-14 16:58:23"
+  },
+  "NSE:SBIN-EQ_ONE_DAY": {
+    "symbol": "NSE:SBIN-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_SBIN-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 18:16:10"
+  },
+  "NSE:INFY-EQ_ONE_DAY": {
+    "symbol": "NSE:INFY-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_INFY-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 18:16:55"
+  },
+  "NSE:HDFCBANK-EQ_ONE_DAY": {
+    "symbol": "NSE:HDFCBANK-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HDFCBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:18:52"
+  },
+  "NSE:ICICIBANK-EQ_ONE_DAY": {
+    "symbol": "NSE:ICICIBANK-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_ICICIBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:18:54"
+  },
+  "NSE:AXISBANK-EQ_ONE_DAY": {
+    "symbol": "NSE:AXISBANK-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AXISBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:18:56"
+  },
+  "NSE:KOTAKBANK-EQ_ONE_DAY": {
+    "symbol": "NSE:KOTAKBANK-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_KOTAKBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:18:58"
+  },
+  "NSE:TCS-EQ_ONE_DAY": {
+    "symbol": "NSE:TCS-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_TCS-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:21:18"
+  },
+  "NSE:WIPRO-EQ_ONE_DAY": {
+    "symbol": "NSE:WIPRO-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_WIPRO-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:21:20"
+  },
+  "NSE:TECHM-EQ_ONE_DAY": {
+    "symbol": "NSE:TECHM-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_TECHM-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:21:21"
+  },
+  "NSE:HCLTECH-EQ_ONE_DAY": {
+    "symbol": "NSE:HCLTECH-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HCLTECH-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-14 19:21:23"
+  },
+  "NSE:SUNPHARMA-EQ_ONE_DAY": {
+    "symbol": "NSE:SUNPHARMA-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_SUNPHARMA-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:21:15"
+  },
+  "NSE:DRREDDY-EQ_ONE_DAY": {
+    "symbol": "NSE:DRREDDY-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_DRREDDY-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:21:17"
+  },
+  "NSE:CIPLA-EQ_ONE_DAY": {
+    "symbol": "NSE:CIPLA-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_CIPLA-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:21:19"
+  },
+  "NSE:DIVISLAB-EQ_ONE_DAY": {
+    "symbol": "NSE:DIVISLAB-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_DIVISLAB-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:21:20"
+  },
+  "NSE:BIOCON-EQ_ONE_DAY": {
+    "symbol": "NSE:BIOCON-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_BIOCON-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:21:22"
+  },
+  "NSE:MARUTI-EQ_ONE_DAY": {
+    "symbol": "NSE:MARUTI-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_MARUTI-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:23:18"
+  },
+  "NSE:M&M-EQ_ONE_DAY": {
+    "symbol": "NSE:M&M-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_M&M-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:23:20"
+  },
+  "NSE:BAJAJ-AUTO-EQ_ONE_DAY": {
+    "symbol": "NSE:BAJAJ-AUTO-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_BAJAJ-AUTO-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:23:22"
+  },
+  "NSE:HEROMOTOCO-EQ_ONE_DAY": {
+    "symbol": "NSE:HEROMOTOCO-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HEROMOTOCO-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:23:23"
+  },
+  "NSE:HINDUNILVR-EQ_ONE_DAY": {
+    "symbol": "NSE:HINDUNILVR-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HINDUNILVR-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:25:39"
+  },
+  "NSE:ITC-EQ_ONE_DAY": {
+    "symbol": "NSE:ITC-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_ITC-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:25:41"
+  },
+  "NSE:NESTLEIND-EQ_ONE_DAY": {
+    "symbol": "NSE:NESTLEIND-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_NESTLEIND-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:25:43"
+  },
+  "NSE:BRITANNIA-EQ_ONE_DAY": {
+    "symbol": "NSE:BRITANNIA-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_BRITANNIA-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:25:44"
+  },
+  "NSE:DABUR-EQ_ONE_DAY": {
+    "symbol": "NSE:DABUR-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_DABUR-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:25:46"
+  },
+  "NSE:TATASTEEL-EQ_ONE_DAY": {
+    "symbol": "NSE:TATASTEEL-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_TATASTEEL-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:26:48"
+  },
+  "NSE:HINDALCO-EQ_ONE_DAY": {
+    "symbol": "NSE:HINDALCO-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HINDALCO-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:26:50"
+  },
+  "NSE:JSWSTEEL-EQ_ONE_DAY": {
+    "symbol": "NSE:JSWSTEEL-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_JSWSTEEL-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:26:51"
+  },
+  "NSE:VEDL-EQ_ONE_DAY": {
+    "symbol": "NSE:VEDL-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_VEDL-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:26:53"
+  },
+  "NSE:RELIANCE-EQ_ONE_DAY": {
+    "symbol": "NSE:RELIANCE-EQ",
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_RELIANCE-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2026-04-16T00:00:00+05:30",
+    "end_date": "2026-06-12T00:00:00+05:30",
+    "records_count": 40,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:27:53"
+  },
+  "NSE:HDFCBANK-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:HDFCBANK-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HDFCBANK-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-06-01T09:15:00+05:30",
+    "end_date": "2026-06-12T15:25:00+05:30",
+    "records_count": 750,
+    "is_mock": false,
+    "updated_at": "2026-06-15 04:34:50"
   }
 }

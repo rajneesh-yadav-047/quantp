@@ -8,6 +8,12 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
 
 class SmartAPIClient:
+    # Class-level cache variables for fast in-memory lookups
+    _tokens_cache = None
+    _tokens_by_token = {}
+    _tokens_by_symbol_exch = {}
+    _tokens_by_name = {}
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -110,127 +116,170 @@ class SmartAPIClient:
                 with open(self.symbol_token_path, "w", encoding="utf-8") as f:
                     f.write(res.text)
                 print("Symbol token map cached locally.")
+                # Reset cache to force reload on next resolution
+                SmartAPIClient._tokens_cache = None
         except Exception as e:
             print(f"Failed to download symbol tokens: {str(e)}")
 
     def resolve_symbol(self, symbol: str, from_date: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Resolves a text symbol (e.g. NSE:SBIN, NFO:SBIN-FUT) or numeric token to its Angel One token details."""
-        if not os.path.exists(self.symbol_token_path):
-            self.download_symbol_tokens(force=True)
+        if SmartAPIClient._tokens_cache is None:
             if not os.path.exists(self.symbol_token_path):
-                return None
+                self.download_symbol_tokens(force=True)
+                if not os.path.exists(self.symbol_token_path):
+                    return None
+            try:
+                print("Loading Angel One Symbol Token List into memory...")
+                start_time = time.time()
+                with open(self.symbol_token_path, "r", encoding="utf-8") as f:
+                    tokens = json.load(f)
                 
-        try:
-            with open(self.symbol_token_path, "r", encoding="utf-8") as f:
-                tokens = json.load(f)
+                by_token = {}
+                by_symbol_exch = {}
+                by_name = {}
                 
-            target = symbol.upper()
-            is_digit = symbol.isdigit()
-            
-            # 1. Match by token directly if input is numeric
-            if is_digit:
                 for item in tokens:
-                    if item.get("token") == symbol:
-                        return item
-                return None
+                    token = item.get("token")
+                    sym = item.get("symbol")
+                    exch = item.get("exch_seg")
+                    name = item.get("name")
+                    
+                    if token:
+                        by_token[str(token)] = item
+                    if sym and exch:
+                        by_symbol_exch[f"{exch.upper()}:{sym.upper()}"] = item
+                    if name:
+                        name_upper = str(name).upper()
+                        if name_upper not in by_name:
+                            by_name[name_upper] = []
+                        by_name[name_upper].append(item)
                 
-            # 2. Check for exchange prefix
+                SmartAPIClient._tokens_cache = tokens
+                SmartAPIClient._tokens_by_token = by_token
+                SmartAPIClient._tokens_by_symbol_exch = by_symbol_exch
+                SmartAPIClient._tokens_by_name = by_name
+                print(f"INFO: Built SmartAPI token cache with {len(tokens)} items in {time.time() - start_time:.2f}s.")
+            except Exception as e:
+                print(f"Error loading symbol tokens: {str(e)}")
+                return None
+
+        try:
+            target = symbol.upper().strip()
+            
+            # 1. Check for exchange prefix
             exch_filter = None
             if ":" in target:
                 parts = target.split(":", 1)
                 exch_filter = parts[0]
                 target = parts[1]
-                
-            target_eq = f"{target}-EQ"
             
+            is_digit = target.isdigit()
+            
+            # 2. Match by token directly if input is numeric
+            if is_digit:
+                item = SmartAPIClient._tokens_by_token.get(target)
+                if item:
+                    if exch_filter and item.get("exch_seg") != exch_filter:
+                        return None
+                    return item
+                return None
+                
             # 3. Check for generic FUT suffix
             is_generic_fut = False
             base_symbol = target
             if target.endswith("-FUT"):
                 is_generic_fut = True
                 base_symbol = target[:-4] # strip -FUT
-                
-            # Keep track of candidates if generic FUT is requested
-            candidates = []
-            
-            for item in tokens:
-                item_symbol = str(item.get("symbol", "")).upper()
-                item_name = str(item.get("name", "")).upper()
-                item_exch = str(item.get("exch_seg", "")).upper()
-                item_inst = str(item.get("instrumenttype", "")).upper()
-                
-                # Apply exchange filter if specified
-                if exch_filter and item_exch != exch_filter:
-                    continue
-                # If no exchange filter is specified, restrict default search to NSE, NFO, MCX, BSE for safety
-                elif not exch_filter and item_exch not in ("NSE", "NFO", "MCX", "BSE"):
-                    continue
-                    
-                if is_generic_fut:
-                    # Generic future match
-                    # name must match base_symbol (e.g. SBIN) and instrument type must start with FUT
-                    if item_name == base_symbol and item_inst.startswith("FUT"):
-                        candidates.append(item)
-                else:
-                    # Direct match by symbol or name
-                    if item_symbol in (target, target_eq) or item_name == target:
-                        # If no exchange filter, prefer equity/default first
-                        # We return immediately on exact symbol match
-                        if item_symbol == target or item_symbol == target_eq:
-                            return item
-                            
-            # If we were looking for generic futures and have candidates, resolve the near-month contract
-            if is_generic_fut and candidates:
-                # Filter candidates that have an expiry
-                valid_candidates = []
-                for c in candidates:
-                    exp_str = c.get("expiry")
-                    if exp_str:
-                        try:
-                            # format like 30JUN2026
-                            exp_dt = datetime.strptime(exp_str, "%d%b%Y").date()
-                            valid_candidates.append((c, exp_dt))
-                        except Exception:
-                            pass
-                            
-                if valid_candidates:
-                    # Determine target date for near-month calculation
-                    target_date = datetime.today().date()
-                    if from_date:
-                        try:
-                            # Parse from_date which can be YYYY-MM-DD or YYYY-MM-DD HH:MM
-                            if " " in from_date:
-                                target_date = datetime.strptime(from_date.split(" ")[0], "%Y-%m-%d").date()
-                            else:
-                                target_date = datetime.strptime(from_date, "%Y-%m-%d").date()
-                        except Exception:
-                            pass
-                            
-                    # Filter candidates whose expiry is on or after the target_date
-                    future_candidates = [vc for vc in valid_candidates if vc[1] >= target_date]
-                    if future_candidates:
-                        # Sort by expiry date ascending (earliest expiry first)
-                        future_candidates.sort(key=lambda x: x[1])
-                        return future_candidates[0][0]
-                    else:
-                        # If all expiries are in the past relative to target_date (e.g. historical backtest query for an old date range),
-                        # return the one with the closest expiry date to target_date
-                        valid_candidates.sort(key=lambda x: abs((x[1] - target_date).days))
-                        return valid_candidates[0][0]
-                        
-            # Fallback direct loop for item_name == target if not returned already
-            if not is_generic_fut:
-                for item in tokens:
-                    item_symbol = str(item.get("symbol", "")).upper()
-                    item_name = str(item.get("name", "")).upper()
+
+            # We can find candidate future contracts
+            if is_generic_fut:
+                candidates = []
+                # Find all items where name is base_symbol and instrument type is FUT*
+                name_matches = SmartAPIClient._tokens_by_name.get(base_symbol, [])
+                for item in name_matches:
                     item_exch = str(item.get("exch_seg", "")).upper()
+                    item_inst = str(item.get("instrumenttype", "")).upper()
+                    
                     if exch_filter and item_exch != exch_filter:
                         continue
                     elif not exch_filter and item_exch not in ("NSE", "NFO", "MCX", "BSE"):
                         continue
                         
-                    if item_name == target:
+                    if item_inst.startswith("FUT"):
+                        candidates.append(item)
+                
+                if candidates:
+                    # Filter candidates that have an expiry
+                    valid_candidates = []
+                    for c in candidates:
+                        exp_str = c.get("expiry")
+                        if exp_str:
+                            try:
+                                exp_dt = datetime.strptime(exp_str, "%d%b%Y").date()
+                                valid_candidates.append((c, exp_dt))
+                            except Exception:
+                                pass
+                                
+                    if valid_candidates:
+                        target_date = datetime.today().date()
+                        if from_date:
+                            try:
+                                if " " in from_date:
+                                    target_date = datetime.strptime(from_date.split(" ")[0], "%Y-%m-%d").date()
+                                else:
+                                    target_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+                            except Exception:
+                                pass
+                                
+                        future_candidates = [vc for vc in valid_candidates if vc[1] >= target_date]
+                        if future_candidates:
+                            future_candidates.sort(key=lambda x: x[1])
+                            return future_candidates[0][0]
+                        else:
+                            valid_candidates.sort(key=lambda x: abs((x[1] - target_date).days))
+                            return valid_candidates[0][0]
+
+            # 4. Standard lookup (non-futures)
+            # Try symbol matching
+            if exch_filter:
+                # Try exact symbol
+                key = f"{exch_filter}:{target}"
+                item = SmartAPIClient._tokens_by_symbol_exch.get(key)
+                if item:
+                    return item
+                # Try symbol with -EQ suffix
+                key_eq = f"{exch_filter}:{target}-EQ"
+                item = SmartAPIClient._tokens_by_symbol_exch.get(key_eq)
+                if item:
+                    return item
+                # Try name matching with exchange filter
+                name_matches = SmartAPIClient._tokens_by_name.get(target, [])
+                for item in name_matches:
+                    if str(item.get("exch_seg", "")).upper() == exch_filter:
                         return item
+            else:
+                # No exchange filter: try default exchanges in order (prefer NSE equity, BSE, NFO future/options, MCX)
+                for exch in ("NSE", "BSE", "NFO", "MCX"):
+                    # Try exact symbol first on this exchange
+                    key = f"{exch}:{target}"
+                    item = SmartAPIClient._tokens_by_symbol_exch.get(key)
+                    if item:
+                        return item
+                    # Try symbol-EQ on this exchange
+                    key_eq = f"{exch}:{target}-EQ"
+                    item = SmartAPIClient._tokens_by_symbol_exch.get(key_eq)
+                    if item:
+                        return item
+                
+                # Try name matches
+                name_matches = SmartAPIClient._tokens_by_name.get(target, [])
+                if name_matches:
+                    # Sort by exchange preference
+                    exch_order = {"NSE": 1, "BSE": 2, "NFO": 3, "MCX": 4}
+                    name_matches = [m for m in name_matches if str(m.get("exch_seg", "")).upper() in exch_order]
+                    if name_matches:
+                        name_matches.sort(key=lambda x: exch_order.get(str(x.get("exch_seg", "")).upper(), 99))
+                        return name_matches[0]
                         
         except Exception as e:
             print(f"Error resolving symbol token: {str(e)}")
@@ -567,7 +616,7 @@ class SmartAPIClient:
             
         return pd.DataFrame(records)
 
-    def save_dataset_csv(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
+    def save_dataset_csv(self, symbol: str, interval: str, df: pd.DataFrame, is_mock: bool = False) -> str:
         """Saves a candle DataFrame as CSV and indexes it in the catalog."""
         # Folder structure: /datasets/csv/{symbol}/{interval}/data.csv
         clean_symbol = symbol.upper().replace(":", "_")
@@ -579,11 +628,11 @@ class SmartAPIClient:
         df.to_csv(file_path, index=False)
         
         # Register in catalog
-        self.register_in_catalog(symbol, interval, file_path, df)
+        self.register_in_catalog(symbol, interval, file_path, df, is_mock=is_mock)
         
         return file_path
 
-    def save_dataset_excel(self, symbol: str, interval: str, df: pd.DataFrame) -> str:
+    def save_dataset_excel(self, symbol: str, interval: str, df: pd.DataFrame, is_mock: bool = False) -> str:
         """Saves a candle DataFrame as Excel (.xlsx) and indexes it in the catalog."""
         # Folder structure: /datasets/excel/{symbol}/{interval}/data.xlsx
         clean_symbol = symbol.upper().replace(":", "_")
@@ -595,11 +644,11 @@ class SmartAPIClient:
         df.to_excel(file_path, index=False, engine='openpyxl')
         
         # Register in catalog
-        self.register_in_catalog(symbol, interval, file_path, df)
+        self.register_in_catalog(symbol, interval, file_path, df, is_mock=is_mock)
         
         return file_path
 
-    def register_in_catalog(self, symbol: str, interval: str, file_path: str, df: pd.DataFrame):
+    def register_in_catalog(self, symbol: str, interval: str, file_path: str, df: pd.DataFrame, is_mock: bool = False):
         """Indexes dataset details into local JSON catalog catalog.json."""
         catalog = {}
         if os.path.exists(self.catalog_path):
@@ -630,6 +679,7 @@ class SmartAPIClient:
             "start_date": str(start_date),
             "end_date": str(end_date),
             "records_count": num_rows,
+            "is_mock": is_mock,
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         

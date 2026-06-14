@@ -25,12 +25,23 @@ _active_feed_key: Optional[str] = None
 
 def _load_symbol_suggestions():
     global _symbol_suggestions
-    token_path = os.path.join("./datasets", "symbol_tokens.json")
-    if not os.path.exists(token_path):
-        return
+    from backend.smartapi import SmartAPIClient
+    
+    tokens = None
+    if SmartAPIClient._tokens_cache is not None:
+        tokens = SmartAPIClient._tokens_cache
+    else:
+        token_path = os.path.join("./datasets", "symbol_tokens.json")
+        if not os.path.exists(token_path):
+            return
+        try:
+            with open(token_path, "r", encoding="utf-8") as f:
+                tokens = json.load(f)
+        except Exception as e:
+            print(f"ERROR: Failed to load symbol suggestions from file: {e}")
+            return
+            
     try:
-        with open(token_path, "r", encoding="utf-8") as f:
-            tokens = json.load(f)
         seen = set()
         temp = []
         for item in tokens:
@@ -98,8 +109,12 @@ def download_data(req: DownloadDataRequest):
     from_date = _normalize_download_date(req.from_date, "09:15")
     to_date = _normalize_download_date(req.to_date, "15:30")
 
+    # Canonicalize the symbol (e.g. NSE:SBIN-EQ or SBIN)
+    from backend.services.data_service import normalize_symbol
+    normalized_sym = normalize_symbol(req.symbol, req.interval, client)
+
     df, is_mock = client.fetch_historical_candles(
-        symbol=req.symbol,
+        symbol=normalized_sym,
         from_date=from_date,
         to_date=to_date,
         interval=req.interval,
@@ -113,9 +128,9 @@ def download_data(req: DownloadDataRequest):
             detail=f"Symbol '{req.symbol}' not found on SmartAPI. Check spelling and use exact exchange symbol (e.g. GODFRYPHLP, not GODFREYPHILLIPS). No mock data was saved.",
         )
 
-    file_path = client.save_dataset_csv(req.symbol, req.interval, df)
+    file_path = client.save_dataset_csv(normalized_sym, req.interval, df, is_mock=is_mock)
     catalog = client.load_catalog()
-    key = f"{req.symbol.upper()}_{req.interval.upper()}"
+    key = f"{normalized_sym.upper()}_{req.interval.upper()}"
 
     global _active_feed_key
     _active_feed_key = key
@@ -151,7 +166,8 @@ def set_active_feed(req: Dict[str, str]):
 def search_symbols(q: str):
     if not q:
         return []
-    query = q.upper()
+    query = q.upper().strip()
+    query_no_space = query.replace(" ", "")
     suggestions = get_symbol_suggestions()
 
     p1, p2, p3 = [], [], []
@@ -159,11 +175,20 @@ def search_symbols(q: str):
         sym = item["symbol"].upper()
         name = item["name"].upper()
         tok = item.get("token", "")
-        if query == sym or query == name or query == tok:
+        # Build a bare symbol (e.g. NSE:TATAMOTORS-EQ -> TATAMOTORS)
+        bare = sym
+        if ":" in bare:
+            bare = bare.split(":", 1)[1]
+        for suffix in ("-EQ", "-BE", "-FUT"):
+            if bare.endswith(suffix):
+                bare = bare[:-len(suffix)]
+        item["bare_symbol"] = bare
+
+        if query == sym or query == name or query == tok or query == bare:
             p1.append(item)
-        elif sym.startswith(query) or name.startswith(query):
+        elif sym.startswith(query) or name.startswith(query) or bare.startswith(query) or sym.startswith(query_no_space) or bare.startswith(query_no_space):
             p2.append(item)
-        elif query in sym or query in name:
+        elif query in sym or query in name or query in bare or query_no_space in sym.replace(" ", "") or query_no_space in bare:
             p3.append(item)
 
     p1.sort(key=lambda x: len(x["symbol"]))
@@ -179,13 +204,25 @@ def get_dataset(symbol: str, interval: str):
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail="Dataset not found or empty.")
 
+    # Get is_mock from catalog
+    catalog = client.load_catalog()
+    key = f"{symbol.upper()}_{interval.upper()}"
+    is_mock = False
+    if key in catalog:
+        is_mock = catalog[key].get("is_mock", False)
+
     # Format time column for Lightweight Charts compatibility
     try:
         times = pd.to_datetime(df['time'])
         if interval.upper() == "ONE_DAY":
             df['time'] = times.dt.strftime('%Y-%m-%d')
         else:
-            df['time'] = times.apply(lambda x: int(x.timestamp()))
+            if times.dt.tz is None:
+                times = times.dt.tz_localize('Asia/Kolkata')
+            else:
+                times = times.dt.tz_convert('Asia/Kolkata')
+            naive_times = times.dt.tz_localize(None)
+            df['time'] = naive_times.astype('datetime64[s]').astype('int64')
     except Exception as e:
         print(f"DEBUG: Date formatting error for {symbol}: {e}")
 
@@ -202,6 +239,7 @@ def get_dataset(symbol: str, interval: str):
         "interval": interval.upper(),
         "total_records": len(df),
         "suggested_max_position": suggested,
+        "is_mock": is_mock,
         "candles": data[:2000],
     }
 
