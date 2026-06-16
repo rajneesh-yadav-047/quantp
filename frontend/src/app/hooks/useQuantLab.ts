@@ -26,6 +26,7 @@ export interface BacktestDetail {
   max_position_size: number;
   profit_factor: number;
   total_fees: number;
+  trades?: any[];
   metrics?: any;
 }
 
@@ -542,7 +543,7 @@ export function useQuantLab() {
         step: idx, timestamp: ts,
         candle: { [symbol]: currentCandle },
         orders_submitted: orderRequests, orders_filled: filledTrades,
-        portfolio: { cash, margin_used: marginUsed, margin_free: equity - marginUsed, equity, unrealized_pnl: unrealized, total_fees: fees, total_pnl: realized + unrealized, positions: { [symbol]: { symbol, qty: positionQty, avg_price: avgPrice, unrealized_pnl: unrealized } } },
+        portfolio: { cash, margin_used: marginUsed, margin_free: equity - marginUsed, equity, unrealized_pnl: unrealized, total_fees: fees, total_pnl: realized + unrealized, positions: { [symbol]: { symbol, qty: positionQty, avg_price: avgPrice, unrealized_pnl: unrealized, realized_pnl: realized } } },
         log_messages: orderRequests.length > 0 ? ["[Sim Engine] Technical EMA Crossover triggered trade order!"] : []
       });
     }
@@ -747,6 +748,30 @@ export function useQuantLab() {
       time: ev.timestamp,
       value: ev.portfolio?.positions ? Object.values(ev.portfolio.positions).reduce((acc: number, p: any) => acc + p.qty, 0) : 0
     }));
+  }, [replayEvents, currentStep]);
+
+  const pnlCurveData = useMemo(() => {
+    if (replayEvents.length === 0) return [];
+    const cumulativePnL: Record<string, number> = {};
+    return replayEvents.slice(0, currentStep + 1).map((ev: any) => {
+      const positions = ev.portfolio?.positions || {};
+      const values: Record<string, number> = {};
+      Object.values(positions).forEach((p: any) => {
+        const sym = p.symbol;
+        const unrealized = p.unrealized_pnl || 0;
+        const realized = p.realized_pnl || 0;
+        const total = unrealized + realized;
+        cumulativePnL[sym] = total;
+        values[sym] = total;
+      });
+      // Carry forward any symbols that were previously traded but are missing now
+      Object.keys(cumulativePnL).forEach((sym) => {
+        if (!(sym in values)) {
+          values[sym] = cumulativePnL[sym];
+        }
+      });
+      return { time: ev.timestamp, values };
+    });
   }, [replayEvents, currentStep]);
 
   // ── AUTH & DOWNLOAD ──
@@ -1002,7 +1027,7 @@ export function useQuantLab() {
     fetchCleanupStatus, handleRunCleanup, handleVacuumDB,
     // Replay computed
     currentEvent, currentCandleMap, currentSymbol, currentPortfolio,
-    activeCandles, activeTrades, positionCurveData,
+    activeCandles, activeTrades, positionCurveData, pnlCurveData,
     // Refetch
     fetchCoreData, checkBackendHealth, checkOllamaHealth,
   };

@@ -42,7 +42,7 @@ class Strategy:
                     "direction": "BUY",
                     "type": "MARKET",
                     "price": 0.0,
-                    "qty": 10
+                    "qty": 100
                 })
             # Bearish crossover (fast crosses below slow)
             elif prev_fast >= prev_slow and fast_ema < slow_ema and not has_short:
@@ -51,7 +51,7 @@ class Strategy:
                     "direction": "SELL",
                     "type": "MARKET",
                     "price": 0.0,
-                    "qty": 10
+                    "qty": 100
                 })
             
             # Close position if trend reverses

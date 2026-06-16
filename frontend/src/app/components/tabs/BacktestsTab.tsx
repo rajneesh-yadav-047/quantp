@@ -11,6 +11,8 @@ import dynamic from "next/dynamic";
 
 const LightweightChart = dynamic(() => import("../../../components/LightweightChart"), { ssr: false });
 const PositionChart = dynamic(() => import("../../../components/PositionChart"), { ssr: false });
+const PnLChart = dynamic(() => import("../../../components/PnLChart"), { ssr: false });
+const DailyPnLHeatmap = dynamic(() => import("../DailyPnLHeatmap"), { ssr: false });
 
 export function BacktestsTab({
   strategies, selectedStrategyId, handleSelectStrategy,
@@ -22,10 +24,10 @@ export function BacktestsTab({
   showBuyTrades, setShowBuyTrades, showSellTrades, setShowSellTrades,
   isPlaying, setIsPlaying, playbackSpeed, setPlaybackSpeed,
   currentStep, setCurrentStep, replayEvents, currentEvent, currentPortfolio,
-  activeCandles, activeTrades, positionCurveData,
+  activeCandles, activeTrades, positionCurveData, pnlCurveData,
   datasets, checkDataCoverage, pendingBacktest, setPendingBacktest,
 }: any) {
-  const [activeResultsTab, setActiveResultsTab] = useState<"replay" | "trades" | "metrics">("replay");
+  const [activeResultsTab, setActiveResultsTab] = useState<"replay" | "trades" | "metrics" | "calendar">("replay");
 
   const selectedStrategy = strategies.find((s: any) => s.id === selectedStrategyId);
   const symbols = selectedStrategy?.symbols || [selectedStrategy?.symbol || "SBIN"];
@@ -198,8 +200,45 @@ export function BacktestsTab({
           <>
             {/* Top Stat Ribbon */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Net PnL Card — expanded for multi-symbol breakdown */}
+              <div className="glass-panel p-4 rounded-xl shadow flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500">Net PnL</span>
+                    <h3 className={`text-xl font-bold font-mono mt-1 ${backtestDetail.total_pnl > 0 ? "text-emerald-400" : backtestDetail.total_pnl < 0 ? "text-rose-400" : "text-orange-400"}`}>
+                      ₹{backtestDetail.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? "0"}
+                    </h3>
+                  </div>
+                  <TrendingUp className="w-5 h-5 text-slate-600/70" />
+                </div>
+                {/* Per-symbol breakdown */}
+                {pnlCurveData.length > 0 && (() => {
+                  const finalValues = pnlCurveData[pnlCurveData.length - 1].values;
+                  const symbols = Object.keys(finalValues);
+                  if (symbols.length <= 1) return null;
+                  return (
+                    <div className="mt-2 pt-2 border-t border-slate-800/50 space-y-1">
+                      {symbols.map((sym) => {
+                        const val = finalValues[sym] || 0;
+                        const hasTrade = val !== 0 || backtestDetail.trades?.some((t: any) => t.symbol === sym);
+                        return (
+                          <div key={sym} className="flex items-center justify-between text-[10px] font-mono">
+                            <span className="text-slate-400">{sym}</span>
+                            <span className={val > 0 ? "text-emerald-400" : val < 0 ? "text-rose-400" : !hasTrade ? "text-orange-400" : "text-slate-500"}>
+                              ₹{val.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                <div className={`text-[10px] font-mono mt-1 ${backtestDetail.total_pnl >= 0 ? "text-emerald-500/70" : "text-rose-500/70"}`}>
+                  Return: {(((backtestDetail.final_equity - backtestDetail.initial_capital) / backtestDetail.initial_capital) * 100).toFixed(1)}%
+                </div>
+              </div>
+
               {[
-                { label: "Simulator Return", val: `${(((backtestDetail.final_equity - backtestDetail.initial_capital) / backtestDetail.initial_capital) * 100).toFixed(1)}%`, color: backtestDetail.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400", icon: TrendingUp },
                 { label: "Sharpe Ratio", val: backtestDetail.sharpe_ratio?.toFixed(2) ?? "-", color: "text-purple-400", icon: Award },
                 { label: "Max Drawdown", val: `${(backtestDetail.max_drawdown * 100).toFixed(1)}%`, color: "text-rose-400", icon: AlertTriangle },
                 { label: "Trade Fills Count", val: backtestDetail.metrics?.trade_metrics?.total_trades ?? "-", color: "text-blue-400", icon: Clock },
@@ -248,6 +287,16 @@ export function BacktestsTab({
                     }`}
                   >
                     Analysis Summary
+                  </button>
+                  <button
+                    onClick={() => setActiveResultsTab("calendar")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      activeResultsTab === "calendar"
+                        ? "bg-slate-850 text-blue-400 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Calendar
                   </button>
                 </div>
 
@@ -371,6 +420,15 @@ export function BacktestsTab({
                       </div>
                     </div>
                   </div>
+
+                  {/* Per-Symbol PnL Chart */}
+                  <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/20">
+                    <div className="px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                      <span>Per-Symbol PnL Curve</span>
+                      <span className="font-mono text-slate-500">Realized + Unrealized</span>
+                    </div>
+                    <PnLChart data={pnlCurveData} height={180} title="" />
+                  </div>
                 </div>
               )}
 
@@ -488,6 +546,25 @@ export function BacktestsTab({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+              {/* Tab: Calendar Heatmap */}
+              {activeResultsTab === "calendar" && (
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                      Daily PnL Heatmap
+                    </h5>
+                    <span className="text-[10px] text-slate-500">
+                      {backtestDetail.start_time?.slice(0, 10)} → {backtestDetail.end_time?.slice(0, 10)}
+                    </span>
+                  </div>
+                  <DailyPnLHeatmap
+                    equityCurve={backtestDetail.metrics?.equity_curve}
+                    startDate={backtestDetail.start_time?.slice(0, 10)}
+                    endDate={backtestDetail.end_time?.slice(0, 10)}
+                  />
                 </div>
               )}
             </div>

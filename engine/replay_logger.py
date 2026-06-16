@@ -113,6 +113,7 @@ class ReplayLogger:
                     "qty": pos.quantity,
                     "avg_price": pos.avg_price,
                     "unrealized_pnl": pos.unrealized_pnl,
+                    "realized_pnl": pos.realized_pnl,
                 }
                 for sym, pos in trading_state.positions.items()
             },

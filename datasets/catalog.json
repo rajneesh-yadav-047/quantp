@@ -63,11 +63,11 @@
     "symbol": "NSE:AXISBANK-EQ",
     "interval": "FIVE_MINUTE",
     "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AXISBANK-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-06-01T09:15:00+05:30",
-    "end_date": "2026-06-12T15:25:00+05:30",
-    "records_count": 750,
+    "start_date": "2026-05-18T09:15:00+05:30",
+    "end_date": "2026-06-15T14:00:00+05:30",
+    "records_count": 1483,
     "is_mock": false,
-    "updated_at": "2026-06-14 16:58:23"
+    "updated_at": "2026-06-15 14:00:36"
   },
   "NSE:SBIN-EQ_ONE_DAY": {
     "symbol": "NSE:SBIN-EQ",
@@ -368,5 +368,25 @@
     "records_count": 750,
     "is_mock": false,
     "updated_at": "2026-06-15 04:34:50"
+  },
+  "NSE:ICICIBANK-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:ICICIBANK-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_ICICIBANK-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-04-16T09:15:00+05:30",
+    "end_date": "2026-06-15T13:45:00+05:30",
+    "records_count": 3055,
+    "is_mock": false,
+    "updated_at": "2026-06-15 13:46:06"
+  },
+  "NSE:KOTAKBANK-EQ_FIVE_MINUTE": {
+    "symbol": "NSE:KOTAKBANK-EQ",
+    "interval": "FIVE_MINUTE",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_KOTAKBANK-EQ\\FIVE_MINUTE\\data.csv",
+    "start_date": "2026-05-18T09:15:00+05:30",
+    "end_date": "2026-06-15T13:50:00+05:30",
+    "records_count": 1481,
+    "is_mock": false,
+    "updated_at": "2026-06-15 13:53:09"
   }
 }

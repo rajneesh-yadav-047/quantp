@@ -219,6 +219,7 @@ export default function Home() {
               activeCandles={q.activeCandles}
               activeTrades={q.activeTrades}
               positionCurveData={q.positionCurveData}
+              pnlCurveData={q.pnlCurveData}
               datasets={q.datasets}
               checkDataCoverage={q.checkDataCoverage}
               pendingBacktest={q.pendingBacktest}

@@ -285,6 +285,10 @@ class BacktestEngine:
 
                 # ===== PHASE 7: Finalize =====
                 self.portfolio_mgr.mark_to_market(current_prices)
+
+                # Take snapshot BEFORE pruning zero positions so realized_pnl is preserved in the log
+                portfolio_snapshot = self.portfolio_mgr.get_snapshot()
+
                 self.portfolio_mgr.portfolio.positions = self.order_mgr.prune_zero_positions(
                     self.portfolio_mgr.portfolio.positions
                 )
@@ -319,7 +323,7 @@ class BacktestEngine:
                     orders_submitted=orders_submitted_dicts,
                     orders_filled=orders_filled_dicts,
                     strategy_logs=strategy_logs_json,
-                    portfolio_snapshot=self.portfolio_mgr.get_snapshot(),
+                    portfolio_snapshot=portfolio_snapshot,
                     current_candles=current_candles,
                 )
                 logger.write_event(replay_event)
