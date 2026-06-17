@@ -80,6 +80,13 @@ def list_groups():
     ]
 
 
+def _normalize_sym(s: str) -> str:
+    s = s.upper().strip()
+    if ":" in s:
+        return s
+    return f"NSE:{s}-EQ"
+
+
 @router.post("")
 def create_group(body: GroupCreate):
     """Create a new dataset group."""
@@ -88,7 +95,7 @@ def create_group(body: GroupCreate):
     name = body.name.upper().replace(" ", "_")
     if name in groups:
         raise HTTPException(status_code=409, detail=f"Group '{name}' already exists.")
-    groups[name] = [s.upper() for s in body.symbols]
+    groups[name] = [_normalize_sym(s) for s in body.symbols]
     _save_groups(groups)
     return {"name": name, "symbols": groups[name], "count": len(groups[name])}
 
@@ -101,7 +108,7 @@ def update_group(name: str, body: GroupUpdate):
     groups = _flat_groups(raw)
     if name not in groups:
         raise HTTPException(status_code=404, detail=f"Group '{name}' not found.")
-    groups[name] = [s.upper() for s in body.symbols]
+    groups[name] = [_normalize_sym(s) for s in body.symbols]
     _save_groups(groups)
     return {"name": name, "symbols": groups[name], "count": len(groups[name])}
 

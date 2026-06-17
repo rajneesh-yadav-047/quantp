@@ -13,6 +13,7 @@ This module provides a complete live mock trading environment that:
 NO REAL MONEY IS EVER USED. ALL ORDERS ARE SIMULATED.
 """
 
+import time
 import asyncio
 import json
 import uuid
@@ -32,6 +33,7 @@ from engine.runtime.datamodels import TradingState, Trade as RTrade
 from backend.smartapi import SmartAPIClient
 from backend.services.smartapi_manager import SmartAPIManager
 from backend.services.market_data_service import MarketDataService, ensure_market_data_service
+from backend.services.data_service import normalize_symbol
 from backend.services.redis_client import get_latest_tick, get_latest_candle
 from backend.database import (
     DeploymentDB, LiveTradeDB, LivePnLSnapshotDB, DeploymentEventDB,
@@ -136,6 +138,10 @@ class DeploymentRunner:
             if fresh.connect():
                 SmartAPIManager.set_client(fresh)
                 self.smartapi_client = fresh
+        
+        # Normalize symbol to canonical form so Redis/WebSocket lookups match consistently
+        if self.smartapi_client:
+            self.symbol = normalize_symbol(self.symbol, self.interval, self.smartapi_client)
     
     def add_callback(self, callback: Callable[[str, Dict[str, Any]], None]):
         """Add a callback for real-time events. callback(event_type, data)"""
@@ -213,7 +219,7 @@ class DeploymentRunner:
                 value=trade.price * trade.qty,
                 brokerage=charges_data["brokerage"],
                 stt=charges_data["stt"],
-                exc_charges=charges_data["exchange_charges"],
+                exc_charges=charges_data["exc_charges"],
                 gst=charges_data["gst"],
                 sebi_charges=charges_data["sebi_charges"],
                 stamp_duty=charges_data["stamp_duty"],
@@ -307,84 +313,29 @@ class DeploymentRunner:
             return
         
         candle_data = await self._fetch_live_candle()
-        is_simulated_tick = False
         
-        # Closed market fallback: replay local dataset or generate mock candles
+        # No real data available — skip tick and warn via SSE
         if not candle_data:
-            is_simulated_tick = True
-            if not hasattr(self, '_replay_df') or self._replay_df is None:
-                self._replay_df = None
-                self._replay_index = 0
-                try:
-                    df = self.smartapi_client.load_dataset_csv(self.symbol, self.interval) if self.smartapi_client else None
-                    if df is not None and not df.empty:
-                        self._replay_df = df
-                        # Start replaying from the last 150 candles to give recent history
-                        self._replay_index = max(0, len(df) - 150)
-                except Exception as e:
-                    print(f"[DeploymentRunner] Replay init error: {e}")
-            
-            if hasattr(self, '_replay_df') and self._replay_df is not None and self._replay_index < len(self._replay_df):
-                row = self._replay_df.iloc[self._replay_index]
-                self._replay_index += 1
-                candle_data = {
-                    "time": str(row["time"]),
-                    "open": float(row["open"]),
-                    "high": float(row["high"]),
-                    "low": float(row["low"]),
-                    "close": float(row["close"]),
-                    "volume": int(row.get("volume", 0)),
-                    "open_interest": int(row.get("open_interest", 0)),
-                }
-            else:
-                # Fallback to generating mock candles on the fly
-                last_close = self.current_prices.get(self.symbol, 800.0)
-                import numpy as np
-                np.random.seed(int(time.time()) % 12345)
-                # Small random walk step
-                step = np.random.normal(0, 0.001)
-                o = last_close
-                c = last_close * (1 + step)
-                h = max(o, c) * (1 + abs(np.random.normal(0, 0.0005)))
-                l = min(o, c) * (1 - abs(np.random.normal(0, 0.0005)))
-                
-                from datetime import datetime
-                time_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+05:30")
-                candle_data = {
-                    "time": time_str,
-                    "open": float(round(o, 2)),
-                    "high": float(round(h, 2)),
-                    "low": float(round(l, 2)),
-                    "close": float(round(c, 2)),
-                    "volume": int(np.random.lognormal(8, 0.5)),
-                    "open_interest": 0,
-                }
+            msg = f"No live market data for {self.symbol}. Tick skipped. Ensure market is open and SmartAPI is connected."
+            self._log_event("error", msg)
+            self._notify("error", {"message": msg})
+            return
         
         # Fetch real-time LTP for accurate live price display
-        if is_simulated_tick:
-            self.current_prices[self.symbol] = float(candle_data["close"])
-            ltp_value = self.current_prices[self.symbol]
+        ltp_data = await self._fetch_ltp()
+        if ltp_data and ltp_data.get("ltp", 0) > 0:
+            self.current_prices[self.symbol] = ltp_data["ltp"]
         else:
-            ltp_data = await self._fetch_ltp()
-            if ltp_data and ltp_data.get("ltp", 0) > 0:
-                self.current_prices[self.symbol] = ltp_data["ltp"]
-            else:
-                self.current_prices[self.symbol] = float(candle_data["close"])
-            ltp_value = self.current_prices[self.symbol]
+            self.current_prices[self.symbol] = float(candle_data["close"])
+        ltp_value = self.current_prices[self.symbol]
         
         # Format time to UTC clock-time Unix timestamp for Lightweight Chart compatibility
         ts = str(candle_data["time"])
         try:
-            t_dt = pd.to_datetime(candle_data["time"])
-            if t_dt.tz is None:
-                t_dt = t_dt.tz_localize('Asia/Kolkata')
-            else:
-                t_dt = t_dt.tz_convert('Asia/Kolkata')
-            t_naive = t_dt.tz_localize(None)
-            t_utc = t_naive.tz_localize('UTC')
-            ts_seconds = int(t_utc.timestamp())
+            t_dt = pd.to_datetime(ts, utc=True)
+            ts_seconds = int(t_dt.timestamp())
         except Exception as e:
-            print(f"[DeploymentRunner] Time conversion error: {e}")
+            print(f"[DeploymentRunner] Time conversion error: {e}, ts={ts}")
             ts_seconds = int(time.time())
         
         # Build candle object
@@ -791,7 +742,7 @@ class MockDeploymentEngine:
                 return {"status": "error", "message": "Strategy not found"}
             
             # Determine symbol and interval
-            symbols = json.loads(strategy.symbols) if strategy.symbols else ["SBIN"]
+            symbols = json.loads(strategy.symbols) if strategy.symbols else ["NSE:SBIN-EQ"]
             symbol = deployment.symbol or symbols[0]
             interval = strategy.interval or "FIVE_MINUTE"
             initial_capital = strategy.initial_capital or 100000.0

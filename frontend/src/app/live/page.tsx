@@ -120,8 +120,11 @@ export default function LiveTradingPage() {
   const [totpInput, setTotpInput] = useState("");
   const [authPending, setAuthPending] = useState(false);
 
+  const [lastTickError, setLastTickError] = useState<string | null>(null);
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasSetManualPrice = useRef(false);
 
   const triggerNotif = useCallback((type: "success" | "error" | "info", msg: string) => {
     setNotif({ type, msg });
@@ -146,11 +149,12 @@ export default function LiveTradingPage() {
     if (result.ok && result.data) {
       setStatus(result.data);
       setMarketDataActive(result.data.market_data_active || false);
-      if (result.data.current_price && !manualPrice) {
+      if (result.data.current_price && !hasSetManualPrice.current) {
         setManualPrice(result.data.current_price.toString());
+        hasSetManualPrice.current = true;
       }
     }
-  }, [selectedDeploymentId, manualPrice]);
+  }, [selectedDeploymentId]);
 
   // Fetch candles
   const fetchCandles = useCallback(async () => {
@@ -213,8 +217,9 @@ export default function LiveTradingPage() {
     es.addEventListener("tick", (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.candle && status?.symbol) {
-          const symCandle = data.candle[status.symbol];
+        if (data.candle) {
+          const sym = Object.keys(data.candle)[0];
+          const symCandle = sym ? data.candle[sym] : null;
           if (symCandle) {
             setCandles(prev => {
               const time = symCandle.time;
@@ -234,11 +239,12 @@ export default function LiveTradingPage() {
             ...prev,
             portfolio: data.portfolio,
             step: data.step ?? prev.step,
-            current_price: data.ltp ?? data.candle?.[prev.symbol]?.close ?? prev.current_price
+            current_price: data.ltp ?? prev.current_price
           } : null);
         }
         if (data.ltp !== undefined) {
           setMarketDataActive(true);
+          setLastTickError(null);
         }
         if (data.orders_filled && data.orders_filled.length > 0) {
           fetchTrades();
@@ -258,6 +264,15 @@ export default function LiveTradingPage() {
       } catch (e) {}
     });
 
+    es.addEventListener("error", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.message) {
+          setLastTickError(data.message);
+        }
+      } catch (e) {}
+    });
+
     es.onerror = () => {
       setSseConnected(false);
       es.close();
@@ -267,7 +282,7 @@ export default function LiveTradingPage() {
       es.close();
       setSseConnected(false);
     };
-  }, [selectedDeploymentId, status?.symbol, fetchTrades, fetchPnl, fetchEvents]);
+  }, [selectedDeploymentId, fetchTrades, fetchPnl, fetchEvents]);
 
   // Initial load
   useEffect(() => {
@@ -277,6 +292,7 @@ export default function LiveTradingPage() {
   // Load data when deployment changes
   useEffect(() => {
     if (!selectedDeploymentId) return;
+    hasSetManualPrice.current = false;
     fetchStatus();
     fetchTrades();
     fetchPnl();
@@ -396,9 +412,16 @@ export default function LiveTradingPage() {
   const handleExecuteManualTrade = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDeploymentId) return;
+
+    const orderPrice = manualOrderType === "LIMIT" ? parseFloat(manualPrice) : null;
+    if (manualOrderType === "LIMIT") {
+      if (isNaN(orderPrice!) || orderPrice! <= 0) {
+        triggerNotif("error", "Please enter a valid positive limit price.");
+        return;
+      }
+    }
     
     setManualTradingPending(true);
-    const orderPrice = manualOrderType === "LIMIT" ? parseFloat(manualPrice) : null;
     const result = await api.post("/live/order", {
       deployment_id: selectedDeploymentId,
       direction: manualDirection,
@@ -602,7 +625,7 @@ export default function LiveTradingPage() {
                 <option value="">Select deployment...</option>
                 {deployments.map(d => (
                   <option key={d.deployment_id} value={d.deployment_id}>
-                    {d.symbol || "No symbol"} — {d.status} {d.running ? "(running)" : ""}
+                    {d.symbol || "No symbol"} — {d.status}{d.running ? " ●" : ""}
                   </option>
                 ))}
               </select>
@@ -680,10 +703,15 @@ export default function LiveTradingPage() {
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Real-time Feed
                     </span>
-                  ) : (
+                  ) : isRunning ? (
                     <span className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-950/40 border border-amber-900 px-1.5 py-0.5 rounded">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                      Closed Simulation
+                      Market Closed / No Data
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                      Stopped
                     </span>
                   )
                 ) : (
@@ -734,13 +762,33 @@ export default function LiveTradingPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl p-4">
               <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-blue-400" />
-                Live Candlestick Feed & Orders (Replay / Simulated Ticks)
+                Live Candlestick Feed & Orders
+                {lastTickError && (
+                  <span className="ml-2 text-[10px] text-amber-400 font-normal bg-amber-950/40 border border-amber-900 px-1.5 py-0.5 rounded">
+                    ⚠ {lastTickError}
+                  </span>
+                )}
               </h3>
               {candles.length > 0 ? (
                 <LightweightChart candles={candles} trades={chartTrades} height={420} showEmaFast={false} showEmaSlow={false} />
               ) : (
-                <div className="h-[420px] bg-slate-950 rounded-lg flex items-center justify-center border border-slate-850 text-slate-500 text-sm">
-                  {selectedDeploymentId ? "Waiting for first tick to populate chart..." : "Select a deployment to view chart"}
+                <div className="h-[420px] bg-slate-950 rounded-lg flex flex-col items-center justify-center border border-slate-850 text-slate-500 text-sm gap-3">
+                  {selectedDeploymentId ? (
+                    <>
+                      <div className="flex items-center gap-2 text-amber-400">
+                        <Clock className="w-5 h-5" />
+                        <span className="font-semibold">No live market data</span>
+                      </div>
+                      <p className="text-xs text-slate-600 max-w-md text-center px-4">
+                        {lastTickError || "Market may be closed or SmartAPI is not streaming ticks. Ensure the market is open and SmartAPI is connected."}
+                      </p>
+                      <div className="text-[10px] text-slate-700 mt-2">
+                        Step {status?.step ?? 0} • {status?.interval || "—"}
+                      </div>
+                    </>
+                  ) : (
+                    "Select a deployment to view chart"
+                  )}
                 </div>
               )}
             </div>

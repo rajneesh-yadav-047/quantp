@@ -51,7 +51,7 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Strategy not found")
 
     # 2. Resolve config from strategy or request overrides
-    symbols = req.symbols if req.symbols is not None else (json.loads(s.symbols) if s.symbols else ["SBIN"])
+    symbols = req.symbols if req.symbols is not None else (json.loads(s.symbols) if s.symbols else ["NSE:SBIN-EQ"])
     interval = req.interval if req.interval is not None else (s.interval or "FIVE_MINUTE")
     initial_capital = req.initial_capital if req.initial_capital is not None else (s.initial_capital or 100000.0)
     max_position_size = req.max_position_size if req.max_position_size is not None else s.max_position_size

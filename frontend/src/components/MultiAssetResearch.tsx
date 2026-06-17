@@ -53,13 +53,13 @@ const TABS: { id: AnalysisTab; label: string; icon: React.ElementType }[] = [
 ];
 
 const PRESET_GROUPS: Record<string, string[]> = {
-  BANKING: ["SBIN", "HDFCBANK", "ICICIBANK", "AXISBANK", "KOTAKBANK"],
-  IT: ["INFY", "TCS", "WIPRO", "TECHM", "HCLTECH"],
-  PHARMA: ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "BIOCON"],
-  AUTO: ["TATAMOTORS", "MARUTI", "M&M", "BAJAJ-AUTO", "HEROMOTOCO"],
-  FMCG: ["HINDUNILVR", "ITC", "NESTLEIND", "BRITANNIA", "DABUR"],
-  METALS: ["TATASTEEL", "HINDALCO", "JSWSTEEL", "VEDL"],
-  NIFTY_TOP: ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"],
+  BANKING: ["NSE:SBIN-EQ", "NSE:HDFCBANK-EQ", "NSE:ICICIBANK-EQ", "NSE:AXISBANK-EQ", "NSE:KOTAKBANK-EQ"],
+  IT: ["NSE:INFY-EQ", "NSE:TCS-EQ", "NSE:WIPRO-EQ", "NSE:TECHM-EQ", "NSE:HCLTECH-EQ"],
+  PHARMA: ["NSE:SUNPHARMA-EQ", "NSE:DRREDDY-EQ", "NSE:CIPLA-EQ", "NSE:DIVISLAB-EQ", "NSE:BIOCON-EQ"],
+  AUTO: ["NSE:TATAMOTORS-EQ", "NSE:MARUTI-EQ", "NSE:M&M-EQ", "NSE:BAJAJ-AUTO-EQ", "NSE:HEROMOTOCO-EQ"],
+  FMCG: ["NSE:HINDUNILVR-EQ", "NSE:ITC-EQ", "NSE:NESTLEIND-EQ", "NSE:BRITANNIA-EQ", "NSE:DABUR-EQ"],
+  METALS: ["NSE:TATASTEEL-EQ", "NSE:HINDALCO-EQ", "NSE:JSWSTEEL-EQ", "NSE:VEDL-EQ"],
+  NIFTY_TOP: ["NSE:RELIANCE-EQ", "NSE:TCS-EQ", "NSE:HDFCBANK-EQ", "NSE:INFY-EQ", "NSE:ICICIBANK-EQ"],
 };
 
 /* ─── Symbol Autocomplete Input ─── */
@@ -216,8 +216,8 @@ export default function MultiAssetResearch({
   const [coverageAvailable, setCoverageAvailable] = useState<string[]>([]);
 
   // Pair/cointegration/spread specific
-  const [sym1, setSym1] = useState("SBIN");
-  const [sym2, setSym2] = useState("HDFCBANK");
+  const [sym1, setSym1] = useState("NSE:SBIN-EQ");
+  const [sym2, setSym2] = useState("NSE:HDFCBANK-EQ");
   const [hedgeRatio, setHedgeRatio] = useState(1.0);
   const [factor, setFactor] = useState("momentum");
 

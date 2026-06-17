@@ -188,16 +188,18 @@ def _prices_wide(data: Dict[str, Any]) -> Any:
 @router.post("/analyze")
 def analyze_dataset_endpoint(req: DatasetAnalysisRequest):
     """Deep statistical analysis of a dataset — completely independent of backtest results."""
+    from backend.services.data_service import normalize_symbol
     client = SmartAPIClient()
-    lookup_key = f"{req.symbol.upper()}_{req.interval.upper()}"
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    lookup_key = f"{normalized}_{req.interval.upper()}"
     catalog = client.load_catalog()
     print(f"DEBUG research/analyze: looking for key={lookup_key}, catalog_keys={list(catalog.keys())}")
 
-    df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
-    if df is None:
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
         raise HTTPException(status_code=404, detail=f"Dataset not found in catalog. (looked for: {lookup_key}, available: {list(catalog.keys())})")
-    if df.empty:
-        raise HTTPException(status_code=404, detail="Dataset empty after loading.")
 
     if req.start_date and req.end_date:
         try:
@@ -208,7 +210,7 @@ def analyze_dataset_endpoint(req: DatasetAnalysisRequest):
     if df.empty:
         raise HTTPException(status_code=400, detail="Dataset empty after date filtering.")
 
-    result = analyze_dataset(df=df, symbol=req.symbol.upper(), interval=req.interval.upper())
+    result = analyze_dataset(df=df, symbol=normalized, interval=req.interval.upper())
     return result
 
 
@@ -264,13 +266,17 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(status_code=404, detail="Strategy not found")
 
+    from backend.services.data_service import normalize_symbol
     client = SmartAPIClient()
-    df = client.load_dataset_csv(req.symbol, req.interval)
-    if df is None:
-        raise HTTPException(status_code=404, detail="Dataset not found.")
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
 
     df = slice_dataframe_by_date(df, req.start_date, req.end_date)
-    df_dict = {req.symbol.upper(): df}
+    df_dict = {normalized: df}
 
     try:
         param_grid = json.loads(req.param_grid_json)
@@ -622,31 +628,43 @@ class ExtrasRequest(BaseModel):
 @router.post("/extras/seasonality")
 def seasonality_endpoint(req: ExtrasRequest):
     """Seasonality analysis: day-of-week and month-of-year effects."""
+    from backend.services.data_service import normalize_symbol
     from engine.research_extras import seasonality_analysis
     client = SmartAPIClient()
-    df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
-    if df is None:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
     return seasonality_analysis(df)
 
 
 @router.post("/extras/volume-profile")
 def volume_profile_endpoint(req: ExtrasRequest):
     """Volume profile: POC, VAH, VAL."""
+    from backend.services.data_service import normalize_symbol
     from engine.research_extras import volume_profile
     client = SmartAPIClient()
-    df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
-    if df is None:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
     return volume_profile(df)
 
 
 @router.post("/extras/support-resistance")
 def sr_endpoint(req: ExtrasRequest):
     """Support and resistance level detection."""
+    from backend.services.data_service import normalize_symbol
     from engine.research_extras import detect_support_resistance
     client = SmartAPIClient()
-    df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
-    if df is None:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
     return detect_support_resistance(df)

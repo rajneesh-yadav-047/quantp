@@ -32,7 +32,7 @@ with open(strategy_path, 'r') as f:
 
 # ── Run backtest ──
 engine = BacktestEngine(
-    df_dict={"AFC": df},
+    df_dict={"NSE:AFC-EQ": df},
     strategy_code=strategy_code,
     initial_capital=100000.0,
     slippage_pct=0.0005,

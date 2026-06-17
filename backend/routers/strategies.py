@@ -34,7 +34,7 @@ def list_strategies(db: Session = Depends(get_db)):
         "id": s.id,
         "name": s.name,
         "description": s.description,
-        "symbols": json.loads(s.symbols) if s.symbols else ["SBIN"],
+        "symbols": _canonicalize_symbols(json.loads(s.symbols)) if s.symbols else ["NSE:SBIN-EQ"],
         "interval": s.interval or "FIVE_MINUTE",
         "initial_capital": s.initial_capital or 100000.0,
         "max_position_size": s.max_position_size,
@@ -57,7 +57,7 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
         "name": s.name,
         "description": s.description,
         "code": s.code,
-        "symbols": json.loads(s.symbols) if s.symbols else ["SBIN"],
+        "symbols": _canonicalize_symbols(json.loads(s.symbols)) if s.symbols else ["NSE:SBIN-EQ"],
         "interval": s.interval or "FIVE_MINUTE",
         "initial_capital": s.initial_capital or 100000.0,
         "max_position_size": s.max_position_size,
@@ -70,13 +70,33 @@ def get_strategy(strategy_id: str, db: Session = Depends(get_db)):
     }
 
 
+# --- lightweight canonicalization (no SmartAPI calls) ---
+
+def _canonicalize_sym(s: str) -> str:
+    s = s.upper().strip()
+    if not s:
+        return s
+    if ":" in s:
+        return s  # already canonical
+    # If it already has a suffix like -EQ, -BE, -FUT, prepend NSE: only
+    for suffix in ("-EQ", "-BE", "-FUT", "FUT", "-ST", "-SM"):
+        if s.endswith(suffix):
+            return f"NSE:{s}"
+    return f"NSE:{s}-EQ"
+
+
+def _canonicalize_symbols(symbols: list) -> list:
+    return [_canonicalize_sym(s) for s in symbols]
+
+
 @router.post("")
 def create_strategy(req: StrategyCreateRequest, db: Session = Depends(get_db)):
+    normalized = _canonicalize_symbols(req.symbols) if req.symbols else None
     s = StrategyDB(
         name=req.name,
         description=req.description,
         code=req.code,
-        symbols=json.dumps(req.symbols) if req.symbols else '["SBIN"]',
+        symbols=json.dumps(normalized) if normalized else '["NSE:SBIN-EQ"]',
         interval=req.interval or "FIVE_MINUTE",
         initial_capital=req.initial_capital or 100000.0,
         max_position_size=req.max_position_size,
@@ -100,7 +120,7 @@ def update_strategy(strategy_id: str, req: StrategyCreateRequest, db: Session = 
     s.description = req.description
     s.code = req.code
     if req.symbols is not None:
-        s.symbols = json.dumps(req.symbols)
+        s.symbols = json.dumps(_canonicalize_symbols(req.symbols))
     if req.interval is not None:
         s.interval = req.interval
     if req.initial_capital is not None:

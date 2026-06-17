@@ -36,8 +36,8 @@ class PairTradingStrategy(MultiAssetStrategy):
 
     def __init__(self, parameters: Optional[Dict[str, Any]] = None):
         super().__init__(parameters)
-        self.sym1: str = self.parameters.get("sym1", "SBIN")
-        self.sym2: str = self.parameters.get("sym2", "HDFCBANK")
+        self.sym1: str = self.parameters.get("sym1", "NSE:SBIN-EQ")
+        self.sym2: str = self.parameters.get("sym2", "NSE:HDFCBANK-EQ")
         self.lookback: int = int(self.parameters.get("lookback", 20))
         self.entry_z: float = float(self.parameters.get("entry_z", 2.0))
         self.exit_z: float = float(self.parameters.get("exit_z", 0.5))

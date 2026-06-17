@@ -35,7 +35,7 @@ class StrategyDB(Base):
     code = Column(Text, nullable=False)  # Full strategy source code
 
     # NEW: Strategy configuration (Prosperity-style)
-    symbols = Column(Text, default='["SBIN"]')  # JSON array of symbols
+    symbols = Column(Text, default='["NSE:SBIN-EQ"]')  # JSON array of symbols
     interval = Column(String, default="FIVE_MINUTE", nullable=False)
     initial_capital = Column(Float, default=100000.0, nullable=False)
     max_position_size = Column(Integer, nullable=True)
@@ -179,7 +179,7 @@ def init_db():
     # strategies migrations
     add_column("strategies", "runtime_type", 'TEXT DEFAULT "legacy_on_bar"')
     add_column("strategies", "entrypoint", "TEXT")
-    add_column("strategies", "symbols", 'TEXT DEFAULT \'["SBIN"]\'')
+    add_column("strategies", "symbols", 'TEXT DEFAULT \'["NSE:SBIN-EQ"]\'')
     add_column("strategies", "interval", 'TEXT DEFAULT "FIVE_MINUTE"')
     add_column("strategies", "initial_capital", "REAL DEFAULT 100000.0")
     add_column("strategies", "max_position_size", "INTEGER")

@@ -29,6 +29,20 @@ from backend.services.mock_deployment_engine import MockDeploymentEngine
 
 router = APIRouter(prefix="/api/live", tags=["live_trading"])
 
+# --- lightweight canonicalization (no SmartAPI calls) ---
+
+def _canonicalize_sym(s: str) -> str:
+    s = s.upper().strip()
+    if not s:
+        return s
+    if ":" in s:
+        return s
+    for suffix in ("-EQ", "-BE", "-FUT", "FUT", "-ST", "-SM"):
+        if s.endswith(suffix):
+            return f"NSE:{s}"
+    return f"NSE:{s}-EQ"
+
+
 
 class StartMockDeploymentRequest(BaseModel):
     deployment_id: str
@@ -137,7 +151,7 @@ def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
             "deployment_id": deployment_id,
             "status": deployment.status,
             "mode": deployment.mode,
-            "symbol": deployment.symbol,
+            "symbol": _canonicalize_sym(deployment.symbol) if deployment.symbol else deployment.symbol,
             "running": False,
             "portfolio": None,
         }
@@ -146,12 +160,14 @@ def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
         "deployment_id": deployment_id,
         "status": status["status"],
         "running": status["status"] in ("running", "paused"),
-        "symbol": status["symbol"],
+        "symbol": _canonicalize_sym(status["symbol"]) if status.get("symbol") else status.get("symbol"),
         "interval": status["interval"],
         "step": status["step"],
         "initial_capital": status["initial_capital"],
         "current_price": status["current_price"],
         "smartapi_connected": status["smartapi_connected"],
+        "market_data_active": status.get("market_data_active", False),
+        "mds_subscribed": status.get("mds_subscribed", False),
         "portfolio": status["portfolio"],
         "active_orders": status["active_orders"],
         "poll_interval": status["poll_interval"],
@@ -309,7 +325,7 @@ def get_all_live_deployments(db: Session = Depends(get_db)):
             "deployment_id": s["deployment_id"],
             "status": s["status"],
             "running": True,
-            "symbol": s["symbol"],
+            "symbol": _canonicalize_sym(s.get("symbol", "")) if s.get("symbol") else s.get("symbol"),
             "interval": s["interval"],
             "portfolio": s["portfolio"],
         })
@@ -320,7 +336,7 @@ def get_all_live_deployments(db: Session = Depends(get_db)):
                 "deployment_id": d.id,
                 "status": d.status,
                 "running": False,
-                "symbol": d.symbol,
+                "symbol": _canonicalize_sym(d.symbol) if d.symbol else d.symbol,
                 "interval": None,
                 "portfolio": None,
             })

@@ -8,69 +8,110 @@
   <img src="https://img.shields.io/badge/Data-Real%20Candles%20Only-critical" />
 </p>
 
-> **Professional-grade quantitative trading research, backtesting, replay, and visualization platform designed for Indian markets.**
-
-QuantLab integrates **Angel One SmartAPI** (with TOTP) for real historical data, runs sandboxed Python strategies, simulates **Indian market execution charges** (STT, GST, SEBI, Stamp Duty), and visualizes everything in a premium Next.js dashboard with **TradingView Lightweight Charts**, **ECharts**, and **Monaco Editor**.
+**QuantLab** is a professional-grade quantitative trading platform built for Indian markets. It connects to **Angel One SmartAPI** for real historical data, runs sandboxed Python strategies, simulates real Indian market charges (STT, GST, SEBI, Stamp Duty), and visualizes everything through a premium Next.js dashboard with TradingView Lightweight Charts, ECharts, and the Monaco Editor.
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 🏠 **Dashboard** | System health, connection status, quick backtest launch, and live notifications |
-| 📥 **Datasets** | Download real historical candles from SmartAPI, preview with interactive charts, manage CSV/Parquet/Excel storage |
-| 📝 **Strategy Workspace** | Monaco Editor with Python templates, symbol/interval/capital configuration, risk settings, and parameter JSON |
-| 🚀 **Backtests & Replay** | Event-driven engine with Indian charge simulation, equity/drawdown charts, per-symbol analytics, and frame-by-frame replay studio |
-| 📡 **Live Trading (Mock)** | Real-time market data, manual order placement, live PnL tracking, full charge breakdown, and SSE event streaming |
-| 🛰️ **Deployments** | Paper and live deployment management with status monitoring and event history |
-| 🔬 **Research Lab** | Deep statistical analysis — returns, volatility, regime detection, seasonality, and strategy suitability scoring |
-| 🔗 **Multi-Asset Research** | Correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, and sector breadth |
-| ⚡ **Portfolio Risk** | Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals |
-| 🎯 **Optimization Lab** | Grid/random search with Sharpe/Sortino/Calmar objectives, walk-forward validation, and 3D surface plots |
-| 🧹 **System Cleanup** | Log and dataset cleanup, database vacuum, and disk usage analytics |
+| **Dashboard** | System health, connection status, quick backtest launch, and live notifications |
+| **Datasets** | Download real historical candles from SmartAPI, preview with interactive charts, manage CSV/Parquet/Excel storage |
+| **Strategy Workspace** | Monaco Editor with Python templates, dual runtime support, symbol/interval/capital configuration, risk settings, and parameter JSON |
+| **Backtests & Replay** | Event-driven engine with Indian charge simulation, equity/drawdown charts, per-symbol analytics, and frame-by-frame replay studio |
+| **Live Trading (Mock)** | Real-time market data, manual order placement, live PnL tracking, full charge breakdown, and SSE event streaming |
+| **Deployments** | Paper and live deployment management with status monitoring and event history |
+| **Research Lab** | Deep statistical analysis — returns, volatility, regime detection, seasonality, and strategy suitability scoring |
+| **Multi-Asset Research** | Correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, and sector breadth |
+| **Portfolio Risk** | Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals |
+| **Optimization Lab** | Grid/random search with Sharpe/Sortino/Calmar objectives, walk-forward validation, and 3D surface plots |
+| **System Cleanup** | Log and dataset cleanup, database vacuum, and disk usage analytics |
 
-> **Real Data Only:** The platform enforces real downloaded candles for all production backtests. No simulated or mock data is injected into the backtest engine.
+> **Real Data Only.** The platform enforces real downloaded candles for all production backtests. No simulated or mock data is injected into the backtest engine.
 
 ---
 
-## 📸 Screenshots & UI Highlights
+## Dual Runtime Engine
+
+QuantLab supports two strategy execution models side by side. You pick one per strategy:
+
+| Runtime | Signature | Returns | Best For |
+|---------|-----------|---------|----------|
+| **legacy_on_bar** | `def on_bar(self, state)` | `list[dict]` | Quick backtests, single/multi-symbol, candle-based signals |
+| **prosperity_trader** | `def run(self, state)` | `(orders, conversions, trader_data)` | Order-book-aware strategies, live trading, state persistence |
+
+Both runtimes are sandboxed, charge-aware, and replay-compatible. See the sample files for a working EMA crossover in each style.
+
+---
+
+## Symbol Format
+
+All symbols are automatically normalized to the canonical `NSE:SYMBOL-EQ` format across the entire stack:
+
+- **Frontend** — type `SBIN`, it becomes `NSE:SBIN-EQ` before sending
+- **Backend** — stored as `NSE:SBIN-EQ` in the database
+- **Engine** — catalog lookups, backtests, and live data all use the canonical form
+
+You never need to think about it. Just type the symbol name and everything resolves correctly.
+
+---
+
+## Screenshots
 
 All screenshots were captured live from the running application on `localhost:3000` via Kimi WebBridge.
 
-### 🏠 Dashboard
-![Dashboard](/webbridge_homepage.png)
+**Dashboard**
+![Dashboard](/docs/screenshots/webbridge_homepage.png)
 
-### 📥 Datasets — Real Historical Data Catalog
-![Datasets](/webbridge_datasets.png)
+**Datasets — Real Historical Data Catalog**
+![Datasets](/docs/screenshots/webbridge_datasets.png)
 
-### 📝 Strategy Workspace — Monaco Editor & Configuration
-![Strategies](/webbridge_strategies.png)
+**Strategy Workspace — Monaco Editor & Configuration**
+![Strategies](/docs/screenshots/webbridge_strategies.png)
 
-### 🚀 Backtest Simulation Engine
-![Backtests](/webbridge_backtests.png)
+**Backtest Simulation Engine**
+![Backtests](/docs/screenshots/webbridge_backtests.png)
 
-### 📡 Live Mock Trading (Paper Mode)
-![Live Trading](/webbridge_live.png)
+**Live Mock Trading (Paper Mode)**
+![Live Trading](/docs/screenshots/webbridge_live.png)
 
-### 🔬 Research Lab — Statistical Diagnostics
-![Research Lab](/webbridge_tab_research.png)
+**Live Trading — Order Book & Trades**
+![Live Trades](/docs/screenshots/webbridge_live_trading.png)
 
-### 🔗 Multi-Asset Research — Correlation & Pair Analysis
-![Multi-Asset](/webbridge_tab_multiasset.png)
+**Research Lab — Statistical Diagnostics**
+![Research Lab](/docs/screenshots/webbridge_tab_research.png)
 
-### ⚡ Portfolio Risk — Monte Carlo Simulation
-![Portfolio Risk](/webbridge_tab_portfolio_risk.png)
+**Multi-Asset Research — Correlation & Pair Analysis**
+![Multi-Asset](/docs/screenshots/webbridge_tab_multiasset.png)
 
-### 🎯 Optimizer — Grid Search Parameter Sweeps
-![Optimizer](/webbridge_tab_optimizer.png)
+**Portfolio Risk — Monte Carlo Simulation**
+![Portfolio Risk](/docs/screenshots/webbridge_tab_portfolio_risk.png)
 
-### 🧹 System Cleanup — Disk & Database Maintenance
-![Cleanup](/webbridge_tab_cleanup.png)
+**Optimizer — Grid Search Parameter Sweeps**
+![Optimizer](/docs/screenshots/webbridge_tab_optimizer.png)
+
+**System Cleanup — Disk & Database Maintenance**
+![Cleanup](/docs/screenshots/webbridge_tab_cleanup.png)
+
+**Dashboard Tab**
+![Dashboard Tab](/docs/screenshots/webbridge_tab_dashboard.png)
+
+**Backtests Tab**
+![Backtests Tab](/docs/screenshots/webbridge_tab_backtests.png)
+
+**Datasets Tab**
+![Datasets Tab](/docs/screenshots/webbridge_tab_datasets.png)
+
+**Deployments Tab**
+![Deployments Tab](/docs/screenshots/webbridge_tab_deployments.png)
+
+**Strategies Tab**
+![Strategies Tab](/docs/screenshots/webbridge_tab_strategies.png)
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
@@ -99,7 +140,7 @@ graph TD
 
 ---
 
-## 📁 Folder Structure
+## Folder Structure
 
 ```
 quantp/
@@ -131,9 +172,11 @@ quantp/
 │   ├── catalog.json    # Dataset metadata index
 │   ├── groups.yaml     # Symbol grouping definitions
 │   └── symbol_tokens.json  # SmartAPI token mapping
-├── strategies/         # User strategy Python files and templates
+├── docs/               # Documentation and screenshots
+│   └── screenshots/    # UI screenshots captured via Kimi WebBridge
 ├── tests/              # Python unit tests and backtest verification scripts
-├── logs/               # Backtest replay logs (JSONL format)
+├── sample_strategy_legacy.py      # EMA crossover example — legacy_on_bar runtime
+├── sample_strategy_prosperity.py  # EMA crossover example — prosperity_trader runtime
 ├── .env                # Local secrets (ignored by Git)
 ├── .env.example.txt    # Environment variable template
 ├── requirements.txt    # Python dependencies
@@ -143,215 +186,167 @@ quantp/
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-Ensure your system has the following installed:
-
-- **Python 3.10+** (Virtual environment support recommended)
+- **Python 3.10+**
 - **Node.js v18.0.0+**
 - **NPM** (packaged with Node.js)
-- **Git** (optional, for code management)
+- **Git** (optional)
 
 ---
 
-## ⚙️ Installation & Setup
+## Installation & Setup
 
 ### 1. Environment Configuration
 
-To configure credentials for Angel One's SmartAPI:
+Create a copy of `.env.example.txt` and rename it to `.env`:
 
-1. Create a copy of `.env.example.txt` and rename it to `.env` in the root workspace directory:
-   ```bash
-   copy .env.example.txt .env
-   ```
-2. Edit `.env` and fill in your developer credentials from your Angel One developer dashboard:
-   ```env
-   SMARTAPI_CLIENT_CODE="YOUR_CLIENT_CODE"
-   SMARTAPI_PASSWORD="YOUR_PASSWORD"
-   SMARTAPI_API_KEY="YOUR_API_KEY"
-   ```
+```bash
+copy .env.example.txt .env
+```
 
-> [!TIP]
-> **Mock Mode Fallback:** If you do not have an Angel One developer account yet, the platform automatically boots into **Mock Mode**. It generates realistic Indian market price feeds (e.g., SBIN, NIFTY) and allows you to test the entire suite client-side or server-side without API keys.
+Fill in your Angel One SmartAPI credentials:
+
+```env
+SMARTAPI_CLIENT_CODE="YOUR_CLIENT_CODE"
+SMARTAPI_PASSWORD="YOUR_PASSWORD"
+SMARTAPI_API_KEY="YOUR_API_KEY"
+```
+
+> **Note:** Without credentials, the platform still boots in a basic mode. You can still write and edit strategies, but live data download and mock trading require SmartAPI authentication.
 
 ---
 
-### 2. Backend Setup & Execution
+### 2. Backend Setup
 
-#### Set Up the Virtual Environment
-
-Create and activate a virtual environment to isolate backend dependencies.
-
-**On Windows (PowerShell):**
+**Virtual environment (Windows):**
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 ```
 
-**On Windows (Command Prompt - CMD):**
-```cmd
-python -m venv .venv
-.venv\Scripts\activate.bat
-```
-
-**On Linux / macOS:**
+**Virtual environment (Linux / macOS):**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-#### Install Python Dependencies
-
-Upgrade `pip` and install all required modules listed in [requirements.txt](requirements.txt):
+**Install dependencies:**
 ```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### Run the Backend FastAPI Server
-
-Start the Uvicorn production-ready server from the workspace root directory using the virtual environment's Python (this resolves the dependencies and module path automatically):
-
-**On Windows (PowerShell or Command Prompt):**
-```powershell
+**Run the server:**
+```bash
 .venv\Scripts\python -m backend.main
 ```
 
-**On Linux / macOS:**
+The server starts on `http://0.0.0.0:8000` and auto-creates `quantlab.db`.
+
+> **Important:** Always run with `python -m backend.main`, not `python backend/main.py`. The module path matters for imports.
+
+---
+
+### 3. Frontend Setup
+
 ```bash
-.venv/bin/python -m backend.main
+cd frontend
+npm install
+npm run dev
 ```
 
-> [!NOTE]
-> Running the python file directly (e.g., `python backend/main.py`) will cause import errors because Python will not look for the root `backend` package. Running with `-m backend.main` using the virtual environment's Python executes it as a module and resolves this.
-
-The server starts by executing the initialization steps, building the tables inside the SQLite file `quantlab.db`, and listening on port `8000`:
-```text
-INFO: Initializing Database...
-INFO: Database Initialization Complete.
---- QuantLab Backend Starting on http://0.0.0.0:8000 ---
-INFO:     Started server process [2345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-```
-
-> [!IMPORTANT]
-> The backend server must remain running for the frontend dashboard to access databases, historical data, and run server-side backtesting.
+Open `http://localhost:3000`.
 
 ---
 
-### 3. Frontend Setup & Execution
+### 4. Running Tests
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install the frontend dependencies (Next.js, Tailwind, Lightweight Charts, ECharts, Monaco Editor, Lucide):
-   ```bash
-   npm install
-   ```
-3. Run the Next.js development server:
-   ```bash
-   npm run dev
-   ```
-4. Open your web browser and navigate to:
-   ```
-   http://localhost:3000
-   ```
+```bash
+pytest tests/
+```
 
----
-
-### 4. Running Automated Tests
-
-To ensure the execution calculations, sandboxing restrictions, and backtester matching systems are operating correctly:
-
-1. Ensure your virtual environment is active.
-2. Run the Python test suite from the root directory:
-   ```bash
-   pytest tests/
-   ```
-   Or run the test script directly:
-   ```bash
-   python tests/test_backtest.py
-   ```
-
-Expected output:
-```text
-All tests passed successfully!
+Or run the core test directly:
+```bash
+python tests/test_backtest.py
 ```
 
 ---
 
-## 🛠️ Step-by-Step Operations Walkthrough
+## Quickstart: Your First Backtest
 
-Once both servers are running, follow these steps to run your first backtest:
+### Step 1 — Download Data
 
-### 📥 Step 1: Download Historical Market Data
-1. Open the dashboard at `http://localhost:3000` and go to **Datasets** in the sidebar.
-2. Enter the symbol (e.g., `SBIN`), interval (e.g., `ONE_MINUTE` or `FIVE_MINUTE`), and a date range.
-3. Click **Download Dataset**.
-4. The backend downloads the candles, indexes them, and saves them locally in `/datasets/csv` and `/datasets/parquet`.
-5. Click **Preview** to view the interactive candlestick chart before using the data.
+1. Go to the **Datasets** tab in the sidebar
+2. Enter a symbol like `SBIN` and interval `FIVE_MINUTE`
+3. Pick a date range and click **Download**
+4. The backend fetches real candles from SmartAPI, indexes them, and stores them locally
 
-### ✍️ Step 2: Develop a Trading Strategy
-1. Click **Strategy Workspace** in the sidebar.
-2. You will see a fullscreen Monaco editor pre-loaded with an **EMA Crossover Template**.
-3. Customize the parameters (e.g., fast EMA period, slow EMA period) or rewrite the `on_bar` logic.
-4. Configure symbols, interval, capital, max position, and risk settings.
-5. Click **Save Strategy** to store the script in the database.
+> Symbols are auto-normalized. Type `SBIN` and it resolves to `NSE:SBIN-EQ` everywhere.
 
-### 🚀 Step 3: Run the Backtest Simulation
-1. Go to the **Backtests** tab.
-2. Select your saved strategy, set the date range, and configure slippage.
-3. Choose **Trade Type** (`INTRADAY` or `DELIVERY`) and position sizing.
-4. Click **Run Backtest**. The backend parses your script in a sandboxed runtime, steps candle-by-candle, executes orders while factoring in Indian Brokerage, STT, and Stamp Duty, and creates log files.
+### Step 2 — Create a Strategy
 
-### 📊 Step 4: Replay & Visual Analytics
-1. In the **Backtests** tab, select a completed run and open the **Replay Studio**.
-2. Use the controls to play, pause, step forward, or adjust speed (up to 10x). Watch the charts, indicators, and trade markers align.
-3. Open the **Research Lab** to view performance attribution maps showing how your strategy handles different market regimes (trending bullish vs. ranging volatile).
-4. Visit **Portfolio Risk** to view Monte Carlo simulations and stress-test your portfolio.
-5. Open the **Optimization Lab** to search parameter combinations and find the highest Sharpe ratios with walk-forward validation.
+1. Go to **Strategy Workspace**
+2. Copy one of the included samples into the Monaco editor:
+   - [`sample_strategy_legacy.py`](sample_strategy_legacy.py) — `legacy_on_bar` runtime
+   - [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) — `prosperity_trader` runtime
+3. Configure symbols, interval, capital, and max position size
+4. Click **Save**
 
----
+### Step 3 — Run Backtest
 
-## 📖 Documentation
+1. Go to the **Backtests** tab
+2. Select your strategy, set a date range, and configure slippage
+3. Choose **INTRADAY** or **DELIVERY** trade type
+4. Click **Run**
 
-- **[User Manual](USER_MANUAL.md)** — Complete feature guide, tab-by-tab walkthrough, and troubleshooting
-- **[Implementation Plan](implementation_plan.md)** — Technical architecture and development roadmap
-- **[Multi-Symbol Backtest Guide](strategies/MULTI_SYMBOL_BACKTEST_GUIDE.md)** — Guide for running multi-asset strategies
+The engine parses your strategy in a sandbox, steps through every candle, executes orders, applies real Indian market charges, and writes a replay log.
+
+### Step 4 — Analyze
+
+- **Replay Studio** — frame-by-frame playback with speed controls
+- **Research Lab** — regime attribution and performance maps
+- **Portfolio Risk** — Monte Carlo simulations and stress tests
+- **Optimization Lab** — parameter sweeps with walk-forward validation
 
 ---
 
-## ⚠️ Troubleshooting Guide
+## Documentation
 
-### 1. PowerShell Script Execution Policy
-- **Symptom**: Trying to run `.venv\Scripts\Activate.ps1` gives a script execution error.
-- **Solution**: Run the following command in PowerShell with administrator privileges to allow execution:
-  ```powershell
-  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-  ```
-
-### 2. CORS or Backend Offline Errors
-- **Symptom**: The frontend header shows "Backend Offline" and buttons are inactive.
-- **Solution**: Ensure that `python -m backend.main` is running in your terminal on `http://127.0.0.1:8000`. If you use custom ports, set the `BACKEND_PORT` environment variable or adjust `API_BASE` in `frontend/src/app/page.tsx`.
-
-### 3. Missing Dataset / Candle Errors
-- **Symptom**: Running a backtest displays a "Dataset not found" error.
-- **Solution**: Go to the **Datasets** tab and download data for the symbol first, or configure SmartAPI credentials if the mock data ranges do not cover your target backtest dates.
-
-### 4. Strategy Sandbox Error
-- **Symptom**: Backtest fails with "Sandbox execution error".
-- **Solution**: Check your Python syntax in the Monaco Editor. Ensure your `on_bar` function signature matches the template (`def on_bar(bar, state, context):`).
+| File | Description |
+|------|-------------|
+| [`sample_strategy_legacy.py`](sample_strategy_legacy.py) | EMA crossover — `legacy_on_bar` runtime |
+| [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) | EMA crossover — `prosperity_trader` runtime |
+| [`requirements.txt`](requirements.txt) | Python dependencies |
+| [`.env.example.txt`](.env.example.txt) | SmartAPI credentials template |
 
 ---
 
-## 🤝 Contributing
+## Troubleshooting
 
-Contributions are welcome! Please open an issue or submit a pull request for:
+**PowerShell execution policy error**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
-- New strategy templates
+**Backend offline on frontend**
+Ensure `python -m backend.main` is running on `http://127.0.0.1:8000`. Check `API_BASE` in `frontend/src/app/page.tsx` if you use a custom port.
+
+**Dataset not found**
+Download the symbol first in the **Datasets** tab. Bare symbols like `SBIN` are auto-resolved to `NSE:SBIN-EQ` — old records in the database are also canonicalized on read.
+
+**Strategy sandbox error**
+Check your Python syntax. Ensure your class matches the selected runtime:
+- **Legacy:** `class Strategy` with `def on_bar(self, state):` returning `list[dict]`
+- **Prosperity:** `class Trader` with `def run(self, state):` returning `(orders, conversions, trader_data)`
+
+---
+
+## Contributing
+
+Contributions are welcome. Good starting points:
+
+- New strategy templates for the built-in gallery
 - Additional chart types or visualizations
 - New research and analytics modules
 - Bug fixes and performance improvements
@@ -359,16 +354,12 @@ Contributions are welcome! Please open an issue or submit a pull request for:
 
 ---
 
-## 📜 License
+## License
 
-This project is open-source and available for personal and research use. Please check the repository for the full license text.
+This project is open-source and available for personal and research use. Check the repository for the full license text.
 
 ---
 
 <p align="center">
   <b>Built for Indian markets. Powered by real data. No shortcuts.</b>
-</p>
-
-<p align="center">
-  🚀 <b>Happy backtesting!</b> 🚀
 </p>

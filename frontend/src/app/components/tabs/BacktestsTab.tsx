@@ -30,7 +30,7 @@ export function BacktestsTab({
   const [activeResultsTab, setActiveResultsTab] = useState<"replay" | "trades" | "metrics" | "calendar">("replay");
 
   const selectedStrategy = strategies.find((s: any) => s.id === selectedStrategyId);
-  const symbols = selectedStrategy?.symbols || [selectedStrategy?.symbol || "SBIN"];
+  const symbols = selectedStrategy?.symbols || [selectedStrategy?.symbol || "NSE:SBIN-EQ"];
   const interval = selectedStrategy?.interval || "FIVE_MINUTE";
 
   const coverage = useMemo(() => {
@@ -38,7 +38,7 @@ export function BacktestsTab({
     return {
       missing: checkDataCoverage(symbols, interval, btStartDate, btEndDate),
       available: symbols.map((sym: string) => {
-        const symBase = sym.toUpperCase().trim();
+        const symBase = sym.toUpperCase().trim().includes(":") ? sym.toUpperCase().trim().split(":")[1].replace(/-EQ$|-BE$/i, "") : sym.toUpperCase().trim().replace(/-EQ$|-BE$/i, "");
         const ds = datasets.find((d: any) => {
           const dsSym = (d.symbol || "").toUpperCase().trim();
           const dsBase = dsSym.includes(":") ? dsSym.split(":")[1].replace(/-EQ$|-BE$/i, "") : dsSym.replace(/-EQ$|-BE$/i, "");

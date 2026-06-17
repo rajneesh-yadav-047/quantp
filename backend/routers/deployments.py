@@ -39,7 +39,7 @@ def list_deployments(strategy_id: Optional[str] = None, db: Session = Depends(ge
         "id": d.id,
         "strategy_id": d.strategy_id,
         "name": d.name,
-        "symbol": d.symbol,
+        "symbol": _canonicalize_sym(d.symbol) if d.symbol else d.symbol,
         "mode": d.mode,
         "status": d.status,
         "config_json": d.config_json,
@@ -57,13 +57,27 @@ def get_deployment(deployment_id: str, db: Session = Depends(get_db)):
         "id": d.id,
         "strategy_id": d.strategy_id,
         "name": d.name,
-        "symbol": d.symbol,
+        "symbol": _canonicalize_sym(d.symbol) if d.symbol else d.symbol,
         "mode": d.mode,
         "status": d.status,
         "config_json": d.config_json,
         "created_at": d.created_at,
         "updated_at": d.updated_at,
     }
+
+
+# --- lightweight canonicalization (no SmartAPI calls) ---
+
+def _canonicalize_sym(s: str) -> str:
+    s = s.upper().strip()
+    if not s:
+        return s
+    if ":" in s:
+        return s
+    for suffix in ("-EQ", "-BE", "-FUT", "FUT", "-ST", "-SM"):
+        if s.endswith(suffix):
+            return f"NSE:{s}"
+    return f"NSE:{s}-EQ"
 
 
 @router.post("")
@@ -76,7 +90,7 @@ def create_deployment(req: DeploymentCreateRequest, db: Session = Depends(get_db
     d = DeploymentDB(
         strategy_id=req.strategy_id,
         name=req.name,
-        symbol=req.symbol,
+        symbol=_canonicalize_sym(req.symbol) if req.symbol else None,
         mode=req.mode,
         config_json=req.config_json,
     )
@@ -94,7 +108,7 @@ def update_deployment(deployment_id: str, req: DeploymentUpdateRequest, db: Sess
     if req.name is not None:
         d.name = req.name
     if req.symbol is not None:
-        d.symbol = req.symbol
+        d.symbol = _canonicalize_sym(req.symbol)
     if req.mode is not None:
         d.mode = req.mode
     if req.status is not None:

@@ -86,15 +86,15 @@ if __name__ == "__main__":
     results = {}
     
     # AFC (already known winner)
-    r, m = run_symbol("AFC", "FIFTEEN_MINUTE", strategy_path)
+    r, m = run_symbol("NSE:AFC-EQ", "FIFTEEN_MINUTE", strategy_path)
     results['AFC'] = (r, m)
     
     # SBIN (5-min data available)
-    r, m = run_symbol("SBIN", "FIVE_MINUTE", strategy_path)
+    r, m = run_symbol("NSE:SBIN-EQ", "FIVE_MINUTE", strategy_path)
     results['SBIN'] = (r, m)
     
     # IDE (15-min data available)
-    r, m = run_symbol("IDE", "FIFTEEN_MINUTE", strategy_path)
+    r, m = run_symbol("NSE:IDE-EQ", "FIFTEEN_MINUTE", strategy_path)
     results['IDE'] = (r, m)
     
     # Summary

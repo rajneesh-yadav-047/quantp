@@ -15,7 +15,7 @@ def test_fee_calculator():
     sim = ExecutionSimulator()
     # Test intraday buy charges on 10 shares of RELIANCE at 2500
     brokerage, stt, exc, gst, sebi, stamp, total = sim.calculate_charges(
-        symbol="RELIANCE",
+        symbol="NSE:RELIANCE-EQ",
         direction="BUY",
         price=2500.0,
         qty=10,
@@ -29,7 +29,7 @@ def test_fee_calculator():
     
     # Sell side has STT, Buy side does not for intraday
     _, sell_stt, _, _, _, _, _ = sim.calculate_charges(
-        symbol="RELIANCE",
+        symbol="NSE:RELIANCE-EQ",
         direction="SELL",
         price=2500.0,
         qty=10,
@@ -89,16 +89,16 @@ class Strategy:
     def on_bar(self, state):
         # Buy on first bar, sell on 5th bar
         orders = []
-        hist = state.historical_candles.get("SBIN", [])
+        hist = state.historical_candles.get("NSE:SBIN-EQ", [])
         if len(hist) == 1:
-            orders.append({"symbol": "SBIN", "direction": "BUY", "type": "MARKET", "price": 0.0, "qty": 10})
+            orders.append({"symbol": "NSE:SBIN-EQ", "direction": "BUY", "type": "MARKET", "price": 0.0, "qty": 10})
         elif len(hist) == 5:
-            orders.append({"symbol": "SBIN", "direction": "SELL", "type": "MARKET", "price": 0.0, "qty": 10})
+            orders.append({"symbol": "NSE:SBIN-EQ", "direction": "SELL", "type": "MARKET", "price": 0.0, "qty": 10})
         return orders
 """
     
     engine = BacktestEngine(
-        df_dict={"SBIN": df},
+        df_dict={"NSE:SBIN-EQ": df},
         strategy_code=strategy_code,
         initial_capital=10000.0,
         log_dir="./test_logs"

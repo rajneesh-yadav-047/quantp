@@ -7,6 +7,18 @@ export type NotifType = "success" | "error" | "info";
 export interface Notif { type: NotifType; msg: string }
 export interface ApiErrorInfo { error: string; retry: () => void }
 
+// --- Symbol normalization helper ---
+const canonicalize = (s: string): string => {
+  const sym = s.trim().toUpperCase();
+  if (!sym) return sym;
+  if (sym.includes(":")) return sym;
+  const suffixes = ["-EQ", "-BE", "-FUT", "FUT", "-ST", "-SM"];
+  for (const suffix of suffixes) {
+    if (sym.endsWith(suffix)) return `NSE:${sym}`;
+  }
+  return `NSE:${sym}-EQ`;
+};
+
 export interface BacktestDetail {
   id: string;
   strategy_name: string;
@@ -77,7 +89,7 @@ export function useQuantLab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
   const [strategyName, setStrategyName] = useState<string>("");
-  const [strategySymbols, setStrategySymbols] = useState<string>("SBIN");
+  const [strategySymbols, setStrategySymbols] = useState<string>("NSE:SBIN-EQ");
   const [strategyInterval, setStrategyInterval] = useState<string>("FIVE_MINUTE");
   const [strategyCapital, setStrategyCapital] = useState<number>(100000);
   const [strategyMaxPos, setStrategyMaxPos] = useState<number>(0);
@@ -140,7 +152,7 @@ export function useQuantLab() {
   const [cleanupResult, setCleanupResult] = useState<any>(null);
 
   // ── Dataset download ──
-  const [dlSymbol, setDlSymbol] = useState<string>("SBIN");
+  const [dlSymbol, setDlSymbol] = useState<string>("NSE:SBIN-EQ");
   const [dlInterval, setDlInterval] = useState<string>("ONE_MINUTE");
   const [dlFromDate, setDlFromDate] = useState<string>(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
@@ -396,7 +408,7 @@ export function useQuantLab() {
       const s = result.data;
       setCode(s.code || "");
       setStrategyName(s.name || "");
-      setStrategySymbols((s.symbols || ["SBIN"]).join(", "));
+      setStrategySymbols((s.symbols || ["NSE:SBIN-EQ"]).join(", "));
       setStrategyInterval(s.interval || "FIVE_MINUTE");
       setStrategyCapital(s.initial_capital || 100000);
       setStrategyMaxPos(s.max_position_size || 0);
@@ -420,7 +432,7 @@ export function useQuantLab() {
       name: strategyName,
       description: "Strategy created in QuantLab",
       code,
-      symbols: strategySymbols.split(",").map(s => s.trim().toUpperCase()).filter(Boolean),
+      symbols: strategySymbols.split(",").map(s => canonicalize(s)).filter(Boolean),
       interval: strategyInterval,
       initial_capital: strategyCapital,
       max_position_size: strategyMaxPos || null,
@@ -456,7 +468,7 @@ export function useQuantLab() {
   const handleNewStrategy = useCallback(() => {
     setSelectedStrategyId("");
     setStrategyName("");
-    setStrategySymbols("SBIN");
+    setStrategySymbols("NSE:SBIN-EQ");
     setStrategyInterval("FIVE_MINUTE");
     setStrategyCapital(100000);
     setStrategyMaxPos(0);
@@ -633,7 +645,9 @@ export function useQuantLab() {
   const checkDataCoverage = useCallback((symbols: string[], interval: string, startDate: string, endDate: string) => {
     const missing: { symbol: string; interval: string; reason: string }[] = [];
     for (const sym of symbols) {
-      const symBase = sym.toUpperCase().trim();
+      const symRaw = sym.toUpperCase().trim();
+      // Normalize strategy symbol the same way as dataset symbols (strip exchange prefix and -EQ/-BE suffix)
+      const symBase = symRaw.includes(":") ? symRaw.split(":")[1].replace(/-EQ$|-BE$/i, "") : symRaw.replace(/-EQ$|-BE$/i, "");
       const ds = datasets.find((d: any) => {
         const dsSym = (d.symbol || "").toUpperCase().trim();
         // Match either bare "SBIN" or canonical "NSE:SBIN-EQ" by extracting the base symbol
@@ -663,7 +677,7 @@ export function useQuantLab() {
     const selectedStrategy = ref.strategies.find((s: any) => s.id === ref.selectedStrategyId);
     if (!selectedStrategy) { triggerNotif("error", "Selected strategy not found."); return; }
     if (!ref.backendOnline) { runFrontendSimulation(); return; }
-    const symbols = selectedStrategy.symbols || [selectedStrategy.symbol || "SBIN"];
+    const symbols = selectedStrategy.symbols || [selectedStrategy.symbol || "NSE:SBIN-EQ"];
     const interval = selectedStrategy.interval || "FIVE_MINUTE";
 
     const missing = checkDataCoverage(symbols, interval, ref.btStartDate, ref.btEndDate);
@@ -804,7 +818,8 @@ export function useQuantLab() {
 
   const finalizeDownload = useCallback(async (code: string) => {
     const ref = stateRef.current;
-    const sym = ref.dlSymbol;
+    const sym = canonicalize(ref.dlSymbol);
+    setDlSymbol(sym); // reflect normalized form in UI
     setDownloading(true);
     triggerNotif("info", `Downloading ${sym}…`);
     if (!ref.backendOnline) {
@@ -890,7 +905,7 @@ export function useQuantLab() {
     triggerNotif("info", "Starting Optimization sweep parameter sweep grid...");
     if (!ref.backendOnline) { triggerNotif("success", "Simulated parameter sweep complete!"); return; }
     const selectedStrategy = ref.strategies.find((s: any) => s.id === ref.selectedStrategyId);
-    const symbol = selectedStrategy?.symbols?.[0] || "SBIN";
+    const symbol = selectedStrategy?.symbols?.[0] || "NSE:SBIN-EQ";
     const interval = selectedStrategy?.interval || "FIVE_MINUTE";
     const parseVals = (str: string) => str.split(",").map(s => Number(s.trim()));
     const gridObj = { [optParamName1]: parseVals(optParamVals1), [optParamName2]: parseVals(optParamVals2) };
