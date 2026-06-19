@@ -313,11 +313,11 @@ export default function LiveTradingPage() {
     if (!autoRefresh || !selectedDeploymentId) return;
 
     refreshIntervalRef.current = setInterval(() => {
+      fetchStatus();
+      fetchCandles();
       if (!sseConnected) {
-        fetchStatus();
         fetchTrades();
         fetchPnl();
-        fetchCandles();
       }
       fetchMarketDataStatus();
     }, 3000);
@@ -396,6 +396,7 @@ export default function LiveTradingPage() {
     if (result.ok) {
       triggerNotif("info", "Deployment paused");
       fetchStatus();
+      fetchCandles();
     }
   };
 
@@ -405,6 +406,10 @@ export default function LiveTradingPage() {
     if (result.ok) {
       triggerNotif("success", "Deployment resumed");
       fetchStatus();
+      fetchCandles();
+      if (!sseConnected) {
+        connectSSE();
+      }
     }
   };
 

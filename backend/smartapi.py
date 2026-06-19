@@ -286,6 +286,13 @@ class SmartAPIClient:
             
         return None
 
+    @classmethod
+    def get_token_info(cls, token: str) -> Optional[Dict[str, Any]]:
+        """Look up symbol info by token ID. Requires token cache to be loaded first."""
+        if cls._tokens_cache is None:
+            return None
+        return cls._tokens_by_token.get(str(token))
+
     def fetch_historical_candles(
         self,
         symbol: str,

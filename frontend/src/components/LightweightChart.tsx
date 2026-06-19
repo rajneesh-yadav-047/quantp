@@ -179,13 +179,22 @@ export default function LightweightChart({
         .map(t => {
           let timeVal: any = t.time;
           if (typeof timeVal === "string") {
-            let cleanStr = timeVal;
-            if (timeVal.includes(" ") && !timeVal.includes("T")) {
-              cleanStr = timeVal.replace(" ", "T");
+            let cleanStr = timeVal.trim();
+            if (/^\d+$/.test(cleanStr)) {
+              const num = parseInt(cleanStr, 10);
+              timeVal = (cleanStr.length === 13 ? Math.floor(num / 1000) : num) as UTCTimestamp;
+            } else {
+              if (cleanStr.includes(" ") && !cleanStr.includes("T")) {
+                cleanStr = cleanStr.replace(" ", "T");
+              }
+              const dt = new Date(cleanStr);
+              if (!isNaN(dt.getTime())) {
+                timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
+              }
             }
-            const dt = new Date(cleanStr);
-            if (!isNaN(dt.getTime())) {
-              timeVal = (Math.floor(dt.getTime() / 1000)) as UTCTimestamp;
+          } else if (typeof timeVal === "number") {
+            if (String(timeVal).length === 13) {
+              timeVal = Math.floor(timeVal / 1000) as UTCTimestamp;
             }
           }
 

@@ -4,13 +4,13 @@ Market Data Service: Centralized real-time tick streaming via SmartWebSocketV2.
 Architecture:
     SmartWebSocketV2 (Angel One)
            ↓
-    Tick Parser (QUOTE mode)
+    Tick Parser (QUOTE mode) — handles actual SmartWebSocketV2 format
            ↓
     Redis Pub/Sub (market.tick.{symbol})
            ↓
     Redis Hash (market:latest_tick)
            ↓
-    Candle Aggregator (1m, 5m, 15m)
+    Candle Aggregator (1m, 5m, 15m) — thread-safe, no asyncio
            ↓
     Redis Hash (market:candle.{interval})
 
@@ -34,6 +34,7 @@ from backend.services.redis_client import (
     get_latest_tick, get_latest_candle
 )
 from backend.services.smartapi_manager import SmartAPIManager
+from backend.smartapi import SmartAPIClient
 
 # SmartAPI WebSocket V2 import
 try:
@@ -102,18 +103,20 @@ class CandleAggregator:
     """
     Aggregates raw ticks into candles for multiple intervals.
     Maintains in-memory state and publishes completed candles to Redis.
+    
+    SYNCHRONOUS — safe to call from WebSocket daemon thread.
     """
     
     INTERVALS = ["1m", "5m", "15m", "1h", "1d"]
     
     def __init__(self):
         self._candles: Dict[str, Dict[str, CandleState]] = {}
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
     
     def _key(self, symbol: str, interval: str) -> str:
         return f"{symbol}:{interval}"
     
-    async def process_tick(self, symbol: str, tick_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    def process_tick(self, symbol: str, tick_data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """
         Process a tick and update all interval candles.
         Returns dict of completed candles (if any interval finalized).
@@ -130,7 +133,7 @@ class CandleAggregator:
         
         completed_candles = {}
         
-        async with self._lock:
+        with self._lock:
             if symbol not in self._candles:
                 self._candles[symbol] = {}
             
@@ -145,7 +148,7 @@ class CandleAggregator:
                     # Finalize previous candle
                     if candle.start_time is not None:
                         completed_candles[interval] = candle.to_dict(
-                            tick_time - timedelta(minutes=1)
+                            candle.start_time
                         )
                     # Start new candle
                     candle.reset(tick_time, ltp, volume, oi)
@@ -160,7 +163,7 @@ class CandleAggregator:
         if symbol in self._candles and key in self._candles[symbol]:
             candle = self._candles[symbol][key]
             if candle.start_time:
-                return candle.to_dict(datetime.now(timezone.utc))
+                return candle.to_dict(candle.start_time)
         return None
     
     def reset_symbol(self, symbol: str):
@@ -191,6 +194,9 @@ class MarketDataService:
         "NCDEX": 5,
     }
     
+    # Reverse mapping: exchange_type -> exchange name
+    EXCHANGE_NAMES = {1: "NSE", 2: "NFO", 3: "BSE", 4: "MCX", 5: "NCDEX"}
+    
     def __init__(self):
         self._ws: Optional[SmartWebSocketV2] = None
         self._ws_thread: Optional[threading.Thread] = None
@@ -202,6 +208,8 @@ class MarketDataService:
         self._status = "idle"  # idle, connecting, connected, error
         self._last_tick_time: Optional[datetime] = None
         self._total_ticks = 0
+        # Token -> symbol cache for fast WebSocket tick resolution
+        self._token_to_symbol: Dict[str, str] = {}
         
     @classmethod
     def get_instance(cls) -> 'MarketDataService':
@@ -215,6 +223,36 @@ class MarketDataService:
         if not client:
             return None
         return client.resolve_symbol(symbol)
+    
+    def _resolve_token_to_symbol(self, token: str, exchange_type: int = 1) -> Optional[str]:
+        """Resolve a token ID to a normalized symbol like NSE:SBIN-EQ."""
+        # Check cache first
+        if token in self._token_to_symbol:
+            return self._token_to_symbol[token]
+        
+        # Try SmartAPIClient token lookup
+        client = SmartAPIManager.get_client()
+        if client:
+            token_info = SmartAPIClient.get_token_info(token)
+            if token_info:
+                symbol = token_info.get("symbol", "")
+                exch = token_info.get("exch_seg", self.EXCHANGE_NAMES.get(exchange_type, "NSE"))
+                if symbol:
+                    normalized = f"{exch}:{symbol}"
+                    self._token_to_symbol[token] = normalized
+                    return normalized
+        
+        # Fallback: try to build from known subscription mappings
+        exchange_name = self.EXCHANGE_NAMES.get(exchange_type, "NSE")
+        
+        # Try matching against our subscribed symbols
+        for sub_sym in self._subscribed_symbols:
+            token_info = self._resolve_token(sub_sym)
+            if token_info and str(token_info.get("token", "")) == str(token):
+                self._token_to_symbol[token] = sub_sym
+                return sub_sym
+        
+        return None
     
     def _build_subscription_list(self) -> List[Dict[str, Any]]:
         """Build token list for WebSocket subscription."""
@@ -230,6 +268,9 @@ class MarketDataService:
             exchange = token_info.get("exch_seg", "NSE")
             exchange_type = self.EXCHANGE_TYPES.get(exchange, 1)
             token = token_info.get("token", "")
+            
+            # Pre-populate token cache
+            self._token_to_symbol[str(token)] = symbol
             
             if exchange_type not in exchange_groups:
                 exchange_groups[exchange_type] = []
@@ -249,7 +290,7 @@ class MarketDataService:
             self._total_ticks += 1
             self._last_tick_time = datetime.now(timezone.utc)
             
-            # Parse tick data from SmartWebSocketV2 QUOTE mode
+            # Parse tick data from SmartWebSocketV2
             tick_data = self._parse_tick(message)
             if not tick_data:
                 return
@@ -258,37 +299,27 @@ class MarketDataService:
             if not symbol:
                 return
             
-            # Normalize symbol to EXCHANGE:SYMBOL format for consistency with runner
-            exchange = tick_data.get("exchange", "")
-            if exchange and ":" not in symbol:
-                normalized_symbol = f"{exchange}:{symbol}"
-            else:
-                normalized_symbol = symbol
+            # Store in Redis
+            store_latest_tick(symbol, tick_data)
+            publish_tick(symbol, tick_data)
             
-            # Store in Redis with normalized symbol
-            store_latest_tick(normalized_symbol, tick_data)
-            publish_tick(normalized_symbol, tick_data)
-            
-            # Update candles
-            completed = asyncio.run_coroutine_threadsafe(
-                self._aggregator.process_tick(normalized_symbol, tick_data),
-                asyncio.get_event_loop()
-            ).result()
+            # Update candles (synchronous, thread-safe)
+            completed = self._aggregator.process_tick(symbol, tick_data)
             
             # Store completed candles
             for interval, candle in completed.items():
-                store_candle(normalized_symbol, interval, candle)
+                store_candle(symbol, interval, candle)
             
             # Store current forming candle
             for interval in self._aggregator.INTERVALS:
-                current = self._aggregator.get_current_candle(normalized_symbol, interval)
+                current = self._aggregator.get_current_candle(symbol, interval)
                 if current:
-                    store_candle(normalized_symbol, interval, current)
+                    store_candle(symbol, interval, current)
             
             # Notify callbacks
             for cb in self._callbacks:
                 try:
-                    cb(normalized_symbol, tick_data)
+                    cb(symbol, tick_data)
                 except Exception as e:
                     print(f"[MarketDataService] Callback error: {e}")
                     
@@ -299,35 +330,54 @@ class MarketDataService:
         """
         Parse SmartWebSocketV2 tick message into standardized format.
         
-        SmartWebSocketV2 QUOTE mode returns:
+        Handles BOTH the old documented format (symbol/ltp) AND the actual
+        Angel One SmartWebSocketV2 format (token/last_traded_price in paisa).
+        
+        Actual SmartWebSocketV2 QUOTE mode (mode=2) returns:
         {
-            'token': '3045',
-            'symbol': 'SBIN-EQ',
-            'exchange': 'NSE',
-            'ltp': 823.45,
-            'ltq': 100,
-            'open': 820.0,
-            'high': 825.0,
-            'low': 818.0,
-            'close': 819.5,
-            'volume': 1234567,
-            'oi': 0,
-            'exchange_timestamp': '2024-01-15 10:30:00',
-            ...
+            "subscription_mode": 1,
+            "exchange_type": 1,
+            "token": "3045",
+            "sequence_number": 0,
+            "exchange_timestamp": 1643718000,
+            "last_traded_price": 82345,    # in paisa (multiply by 0.01)
+            "last_traded_qty": 100,
+            "total_buy_qty": 5000,
+            "total_sell_qty": 3000,
+            "open_price": 82000,
+            "high_price": 82500,
+            "low_price": 81800,
+            "close_price": 81950,
+            "volume": 1234567,
+            "open_interest": 0,
+            "bid_price": 82340,
+            "ask_price": 82350,
+            "bid_qty": 100,
+            "ask_qty": 100,
         }
         """
         try:
+            # Detect format: check for "subscription_mode" (actual format) vs "symbol" (old format)
+            if "subscription_mode" in message or "last_traded_price" in message:
+                return self._parse_actual_format(message)
+            
+            # Old documented format
             token = message.get("token", "")
             symbol = message.get("symbol", "")
             
             if not symbol:
-                # Try to resolve symbol from token
                 return None
+            
+            exchange = message.get("exchange", "")
+            if exchange and ":" not in symbol:
+                normalized_symbol = f"{exchange}:{symbol}"
+            else:
+                normalized_symbol = symbol
             
             return {
                 "token": token,
-                "symbol": symbol,
-                "exchange": message.get("exchange", ""),
+                "symbol": normalized_symbol,
+                "exchange": exchange,
                 "ltp": float(message.get("ltp", 0) or 0),
                 "ltq": int(message.get("ltq", 0) or 0),
                 "open": float(message.get("open", 0) or 0),
@@ -345,6 +395,77 @@ class MarketDataService:
             }
         except Exception as e:
             print(f"[MarketDataService] Parse error: {e}, message: {message}")
+            return None
+    
+    def _parse_actual_format(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Parse the actual Angel One SmartWebSocketV2 data format."""
+        try:
+            token = str(message.get("token", ""))
+            exchange_type = int(message.get("exchange_type", 1))
+            
+            if not token:
+                return None
+            
+            # Resolve token to symbol
+            symbol = self._resolve_token_to_symbol(token, exchange_type)
+            if not symbol:
+                # Fallback: try to use token directly as symbol identifier
+                exchange_name = self.EXCHANGE_NAMES.get(exchange_type, "NSE")
+                symbol = f"{exchange_name}:UNKNOWN-{token}"
+            
+            # Prices are in paisa (multiply by 0.01 to get rupees)
+            PAISA = 0.01
+            
+            ltp = (message.get("last_traded_price", 0) or 0) * PAISA
+            ltq = message.get("last_traded_qty", 0) or 0
+            open_p = (message.get("open_price", 0) or 0) * PAISA
+            high_p = (message.get("high_price", 0) or 0) * PAISA
+            low_p = (message.get("low_price", 0) or 0) * PAISA
+            close_p = (message.get("close_price", 0) or 0) * PAISA
+            volume = message.get("volume", 0) or 0
+            oi = message.get("open_interest", 0) or 0
+            
+            # Bid/ask prices also in paisa
+            bid_price = (message.get("bid_price", 0) or 0) * PAISA
+            ask_price = (message.get("ask_price", 0) or 0) * PAISA
+            bid_qty = message.get("bid_qty", 0) or 0
+            ask_qty = message.get("ask_qty", 0) or 0
+            
+            # Timestamp
+            exch_ts = message.get("exchange_timestamp", 0)
+            if isinstance(exch_ts, (int, float)) and exch_ts > 0:
+                # Convert from epoch seconds or milliseconds
+                if exch_ts > 1e12:  # milliseconds
+                    exch_ts = exch_ts / 1000
+                try:
+                    ts_dt = datetime.fromtimestamp(exch_ts, tz=timezone.utc)
+                    ts_str = ts_dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    ts_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                ts_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            
+            return {
+                "token": token,
+                "symbol": symbol,
+                "exchange": self.EXCHANGE_NAMES.get(exchange_type, "NSE"),
+                "ltp": round(ltp, 2),
+                "ltq": int(ltq),
+                "open": round(open_p, 2),
+                "high": round(high_p, 2),
+                "low": round(low_p, 2),
+                "close": round(close_p, 2),
+                "volume": int(volume),
+                "oi": int(oi),
+                "exchange_timestamp": ts_str,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "best_bid": round(bid_price, 2),
+                "best_ask": round(ask_price, 2),
+                "best_bid_qty": int(bid_qty),
+                "best_ask_qty": int(ask_qty),
+            }
+        except Exception as e:
+            print(f"[MarketDataService] Actual format parse error: {e}, message: {message}")
             return None
     
     def _on_open(self, wsapp):
@@ -503,16 +624,13 @@ class MarketDataService:
         tick = get_latest_tick(symbol)
         if tick:
             return tick
-        # Fallback to memory
         return None
     
     def get_latest_candle(self, symbol: str, interval: str) -> Optional[Dict[str, Any]]:
         """Get latest candle for a symbol+interval."""
-        # Try Redis first
         candle = get_latest_candle(symbol, interval)
         if candle:
             return candle
-        # Fallback to in-memory aggregator
         return self._aggregator.get_current_candle(symbol, interval)
 
 

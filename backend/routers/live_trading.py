@@ -1,6 +1,12 @@
 """
 Live Trading Router: Mock deployment endpoints with real-time SSE streaming.
 
+Uses the new service-oriented DeploymentEngine architecture:
+- DeploymentEngine manages DeploymentOrchestrator instances
+- EventBus handles real-time event distribution
+- PersistenceService handles async DB writes
+- MarketFeed provides unified market data access
+
 Provides:
 - POST /api/live/start       — Start a mock deployment
 - POST /api/live/stop/{id}   — Stop a mock deployment
@@ -11,6 +17,11 @@ Provides:
 - GET  /api/live/pnl/{id}    — Get recent PnL snapshots
 - GET  /api/live/stream/{id} — SSE real-time event stream
 - GET  /api/live/events/{id} — Get deployment event log
+- POST /api/live/order       — Place manual order
+- POST /api/live/reset-capital — Reset capital
+- GET  /api/live/candles/{id} — Get deployment candles
+- GET  /api/live/all         — Get all deployments
+- GET  /api/live/market-data/* — Market data endpoints
 
 IMPORTANT: All endpoints are PAPER/MOCK ONLY. No real orders are placed.
 """
@@ -25,9 +36,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from backend.database import get_db, DeploymentDB, StrategyDB, LiveTradeDB, LivePnLSnapshotDB, DeploymentEventDB
-from backend.services.mock_deployment_engine import MockDeploymentEngine
+from backend.services.deployment_engine import DeploymentEngine, ensure_deployment_engine
 
 router = APIRouter(prefix="/api/live", tags=["live_trading"])
+
 
 # --- lightweight canonicalization (no SmartAPI calls) ---
 
@@ -41,7 +53,6 @@ def _canonicalize_sym(s: str) -> str:
         if s.endswith(suffix):
             return f"NSE:{s}"
     return f"NSE:{s}-EQ"
-
 
 
 class StartMockDeploymentRequest(BaseModel):
@@ -59,14 +70,27 @@ class StartMockDeploymentResponse(BaseModel):
     initial_capital: Optional[float] = None
 
 
-# Global engine instance
-_engine: Optional[MockDeploymentEngine] = None
+class ManualOrderRequest(BaseModel):
+    deployment_id: str
+    direction: str
+    qty: int
+    price: Optional[float] = None
+    order_type: str = "MARKET"
 
-def get_engine() -> MockDeploymentEngine:
-    global _engine
-    if _engine is None:
-        _engine = MockDeploymentEngine.get_instance()
-    return _engine
+
+class ResetCapitalRequest(BaseModel):
+    deployment_id: str
+    amount: float
+
+
+async def get_engine() -> DeploymentEngine:
+    """Async accessor that ensures the engine is initialized."""
+    return await ensure_deployment_engine()
+
+
+def get_engine_sync() -> DeploymentEngine:
+    """Synchronous accessor — returns the singleton instance (initialized in lifespan)."""
+    return DeploymentEngine.get_instance()
 
 
 @router.post("/start", response_model=StartMockDeploymentResponse)
@@ -85,7 +109,7 @@ async def start_mock_deployment(req: StartMockDeploymentRequest, db: Session = D
             detail="SmartAPI not connected. Please authenticate with TOTP on the home page first."
         )
     
-    engine = get_engine()
+    engine = await get_engine()
     result = await engine.start_deployment(
         deployment_id=req.deployment_id,
         db=db,
@@ -109,7 +133,7 @@ async def start_mock_deployment(req: StartMockDeploymentRequest, db: Session = D
 @router.post("/stop/{deployment_id}")
 async def stop_mock_deployment(deployment_id: str, db: Session = Depends(get_db)):
     """Stop a running mock deployment. No real orders are cancelled — there were none."""
-    engine = get_engine()
+    engine = await get_engine()
     result = await engine.stop_deployment(deployment_id, db)
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Deployment not found or not running")
@@ -119,7 +143,7 @@ async def stop_mock_deployment(deployment_id: str, db: Session = Depends(get_db)
 @router.post("/pause/{deployment_id}")
 async def pause_mock_deployment(deployment_id: str):
     """Pause a running mock deployment (keeps state, stops processing ticks)."""
-    engine = get_engine()
+    engine = await get_engine()
     result = await engine.pause_deployment(deployment_id)
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Deployment not found or not running")
@@ -129,7 +153,7 @@ async def pause_mock_deployment(deployment_id: str):
 @router.post("/resume/{deployment_id}")
 async def resume_mock_deployment(deployment_id: str):
     """Resume a paused mock deployment."""
-    engine = get_engine()
+    engine = await get_engine()
     result = await engine.resume_deployment(deployment_id)
     if result.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Deployment not found or not running")
@@ -139,8 +163,8 @@ async def resume_mock_deployment(deployment_id: str):
 @router.get("/status/{deployment_id}")
 def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
     """Get the current status of a mock deployment, including live portfolio snapshot."""
-    engine = get_engine()
-    status = engine.get_runner_status(deployment_id)
+    engine = get_engine_sync()
+    status = engine.get_orchestrator_status(deployment_id)
     
     if not status:
         # Check if deployment exists in DB but not running
@@ -160,17 +184,16 @@ def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
         "deployment_id": deployment_id,
         "status": status["status"],
         "running": status["status"] in ("running", "paused"),
-        "symbol": _canonicalize_sym(status["symbol"]) if status.get("symbol") else status.get("symbol"),
-        "interval": status["interval"],
-        "step": status["step"],
-        "initial_capital": status["initial_capital"],
-        "current_price": status["current_price"],
-        "smartapi_connected": status["smartapi_connected"],
+        "symbol": _canonicalize_sym(status.get("symbol", "")) if status.get("symbol") else status.get("symbol"),
+        "interval": status.get("interval"),
+        "step": status.get("step", 0),
+        "initial_capital": status.get("initial_capital"),
+        "current_price": status.get("current_price"),
+        "smartapi_connected": status.get("smartapi_connected", False),
         "market_data_active": status.get("market_data_active", False),
-        "mds_subscribed": status.get("mds_subscribed", False),
-        "portfolio": status["portfolio"],
-        "active_orders": status["active_orders"],
-        "poll_interval": status["poll_interval"],
+        "portfolio": status.get("portfolio"),
+        "active_orders": status.get("active_orders", []),
+        "poll_interval": status.get("poll_interval"),
     }
 
 
@@ -259,15 +282,17 @@ async def stream_deployment(deployment_id: str):
     """
     SSE stream for real-time mock deployment updates.
     
+    Uses the EventBus for decoupled event streaming.
     Events:
     - tick: New candle + orders + fills + portfolio snapshot
     - fill: Individual trade fill notification
     - error: Error message
     - margin_call: Margin call liquidation event
+    - heartbeat: Keep-alive ping
     
     NO REAL MONEY. ALL TRADES ARE SIMULATED.
     """
-    engine = get_engine()
+    engine = await get_engine()
     
     async def event_generator():
         queue = asyncio.Queue()
@@ -312,7 +337,7 @@ async def stream_deployment(deployment_id: str):
 @router.get("/all")
 def get_all_live_deployments(db: Session = Depends(get_db)):
     """Get all deployments with their live status."""
-    engine = get_engine()
+    engine = get_engine_sync()
     all_status = engine.get_all_status()
     
     # Also include DB deployments that aren't running
@@ -326,8 +351,8 @@ def get_all_live_deployments(db: Session = Depends(get_db)):
             "status": s["status"],
             "running": True,
             "symbol": _canonicalize_sym(s.get("symbol", "")) if s.get("symbol") else s.get("symbol"),
-            "interval": s["interval"],
-            "portfolio": s["portfolio"],
+            "interval": s.get("interval"),
+            "portfolio": s.get("portfolio"),
         })
     
     for d in db_deployments:
@@ -400,23 +425,15 @@ def unsubscribe_from_symbol(symbol: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class ManualOrderRequest(BaseModel):
-    deployment_id: str
-    direction: str
-    qty: int
-    price: Optional[float] = None
-    order_type: str = "MARKET"
-
-
 @router.post("/order")
 async def place_manual_order(req: ManualOrderRequest, db: Session = Depends(get_db)):
     """Place a manual buy or sell order for a deployment."""
-    engine = get_engine()
-    runner = engine.runners.get(req.deployment_id)
-    if not runner:
-        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+    engine = await get_engine()
+    orchestrator = engine.get_orchestrator(req.deployment_id)
+    if not orchestrator:
+        raise HTTPException(status_code=404, detail="Deployment orchestrator not found or not active")
     
-    result = runner.place_manual_order(
+    result = orchestrator.place_manual_order(
         direction=req.direction,
         qty=req.qty,
         price=req.price,
@@ -425,39 +442,60 @@ async def place_manual_order(req: ManualOrderRequest, db: Session = Depends(get_
     return result
 
 
-class ResetCapitalRequest(BaseModel):
-    deployment_id: str
-    amount: float
-
-
 @router.post("/reset-capital")
 async def reset_capital(req: ResetCapitalRequest):
     """Reset the cash and equity of a running deployment to a starting amount."""
-    engine = get_engine()
-    runner = engine.runners.get(req.deployment_id)
-    if not runner:
-        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+    engine = await get_engine()
+    orchestrator = engine.get_orchestrator(req.deployment_id)
+    if not orchestrator:
+        raise HTTPException(status_code=404, detail="Deployment orchestrator not found or not active")
     
-    runner.reset_capital(req.amount)
-    return {"status": "success", "message": f"Starting capital reset to ₹{req.amount:.2f}"}
+    result = orchestrator.reset_capital(req.amount)
+    return result
 
 
 @router.get("/candles/{deployment_id}")
-def get_deployment_candles(deployment_id: str):
-    """Get the current list of formatted candles in the active deployment runner."""
-    engine = get_engine()
-    runner = engine.runners.get(deployment_id)
-    if not runner:
-        raise HTTPException(status_code=404, detail="Deployment runner not found or not active")
+async def get_deployment_candles(deployment_id: str):
+    """Get the current list of formatted candles in the active deployment."""
+    from backend.services.shared_cache import get_shared_cache
+    engine = await get_engine()
+    orchestrator = engine.get_orchestrator(deployment_id)
+    if not orchestrator:
+        raise HTTPException(status_code=404, detail="Deployment orchestrator not found or not active")
+    
+    # Get candles from shared cache instead of in-memory per-deployment storage
+    cache = get_shared_cache()
+    candles = await cache.get_candles(orchestrator.symbol, orchestrator.interval)
+    
+    def _parse_time(candle_dict):
+        t = candle_dict.get("time")
+        if t is None:
+            return 0
+        if isinstance(t, (int, float)):
+            return int(t)
+        if isinstance(t, str):
+            # Try parsing as integer/float string first
+            try:
+                return int(float(t))
+            except (ValueError, TypeError):
+                pass
+            # Try parsing as datetime string
+            try:
+                from datetime import datetime, timezone
+                dt = datetime.fromisoformat(t.replace("Z", "+00:00"))
+                return int(dt.timestamp())
+            except (ValueError, TypeError, AttributeError):
+                pass
+        return 0
     
     return [
         {
-            "time": int(float(c.time)),
-            "open": c.open,
-            "high": c.high,
-            "low": c.low,
-            "close": c.close,
-            "volume": c.volume
+            "time": _parse_time(c),
+            "open": c.get("open", 0),
+            "high": c.get("high", 0),
+            "low": c.get("low", 0),
+            "close": c.get("close", 0),
+            "volume": c.get("volume", 0)
         }
-        for c in runner.historical_candles
+        for c in candles
     ]

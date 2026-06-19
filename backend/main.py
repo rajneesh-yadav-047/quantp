@@ -27,6 +27,9 @@ from backend.routers import groups as groups_router
 from backend.cleanup_api import router as cleanup_router
 from backend.services.market_data_service import MarketDataService
 from backend.services.redis_client import get_redis_status
+from backend.services.event_bus import EventBus
+from backend.services.persistence_service import PersistenceService
+from backend.services.deployment_engine import DeploymentEngine
 
 
 @asynccontextmanager
@@ -37,22 +40,52 @@ async def lifespan(app: FastAPI):
     print("INFO: Loading symbol suggestions...")
     data._load_symbol_suggestions()
     
-    # Initialize Market Data Service if SmartAPI is configured
+    # Initialize new service-oriented architecture
+    print("INFO: Initializing EventBus...")
+    event_bus = EventBus.get_instance()
+    await event_bus.start()
+    print("INFO: EventBus started.")
+    
+    print("INFO: Initializing PersistenceService...")
+    persistence = PersistenceService.get_instance()
+    await persistence.start()
+    print("INFO: PersistenceService started.")
+    
+    print("INFO: Initializing DeploymentEngine...")
+    deployment_engine = DeploymentEngine.get_instance()
+    await deployment_engine.initialize()
+    print("INFO: DeploymentEngine initialized.")
+    
+    # Initialize Market Data Service if SmartAPI is configured AND connected
     print("INFO: Checking SmartAPI configuration for Market Data Service...")
     from backend.services.smartapi_manager import SmartAPIManager
-    if SmartAPIManager.is_configured():
+    if SmartAPIManager.is_configured() and SmartAPIManager.is_connected():
         mds = MarketDataService.get_instance()
         mds.start()
         print("INFO: Market Data Service started.")
     else:
-        print("INFO: SmartAPI not configured. Market Data Service will start on-demand.")
+        print("INFO: SmartAPI not authenticated. Market Data Service will start on-demand after login.")
     
     yield
     
     # Shutdown
-    print("INFO: Shutting down Market Data Service...")
+    print("INFO: Shutting down services...")
     mds = MarketDataService.get_instance()
     mds.stop()
+    
+    deployment_engine = DeploymentEngine.get_instance()
+    for orch_id in list(deployment_engine.orchestrators.keys()):
+        orch = deployment_engine.orchestrators.get(orch_id)
+        if orch:
+            orch.stop()
+    
+    persistence = PersistenceService.get_instance()
+    await persistence.stop()
+    
+    event_bus = EventBus.get_instance()
+    await event_bus.stop()
+    
+    print("INFO: All services stopped.")
 
 
 app = FastAPI(title="QuantLab Backend", version="2.0.0", lifespan=lifespan)
