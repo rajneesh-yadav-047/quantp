@@ -12,6 +12,7 @@ import pandas as pd
 from backend.smartapi import SmartAPIClient
 from backend.services.smartapi_manager import SmartAPIManager
 from backend.services.data_service import slice_dataframe_by_date
+from backend.services.data_aggregator import aggregate_data, get_interval_metadata
 from backend.services.sizing_service import calculate_suggested_position_size
 
 router = APIRouter(prefix="/api/data", tags=["data"])
@@ -105,32 +106,41 @@ def download_data(req: DownloadDataRequest):
             raise HTTPException(status_code=400, detail=f"SmartAPI login failed: {client.last_error}")
         SmartAPIManager.set_client(client)
 
-    # Normalize dates to SmartAPI-compatible format (YYYY-MM-DD HH:MM)
-    from_date = _normalize_download_date(req.from_date, "09:15")
-    to_date = _normalize_download_date(req.to_date, "15:30")
+    # Use the universal aggregator for large date ranges (chunks SmartAPI requests)
+    raw_from = req.from_date.strip()[:10]
+    raw_to = req.to_date.strip()[:10]
 
     # Canonicalize the symbol (e.g. NSE:SBIN-EQ or SBIN)
     from backend.services.data_service import normalize_symbol
     normalized_sym = normalize_symbol(req.symbol, req.interval, client)
 
-    df, is_mock = client.fetch_historical_candles(
+    df, status = aggregate_data(
         symbol=normalized_sym,
-        from_date=from_date,
-        to_date=to_date,
         interval=req.interval,
+        start_date=raw_from,
+        end_date=raw_to,
+        client=client,
     )
-    if df.empty:
+    if df is None or df.empty:
         raise HTTPException(status_code=400, detail="No historical data returned from SmartAPI.")
 
-    if is_mock:
+    if status == "mock":
         raise HTTPException(
             status_code=400,
             detail=f"Symbol '{req.symbol}' not found on SmartAPI. Check spelling and use exact exchange symbol (e.g. GODFRYPHLP, not GODFREYPHILLIPS). No mock data was saved.",
         )
 
-    file_path = client.save_dataset_csv(normalized_sym, req.interval, df, is_mock=is_mock)
+    file_path = client.save_dataset_csv(normalized_sym, req.interval, df, is_mock=False)
     catalog = client.load_catalog()
     key = f"{normalized_sym.upper()}_{req.interval.upper()}"
+
+    # Add interval metadata to catalog entry
+    meta = get_interval_metadata(df, req.interval)
+    catalog_entry = catalog.get(key, {})
+    catalog_entry.update(meta)
+    catalog[key] = catalog_entry
+    with open(client.catalog_path, "w") as f:
+        json.dump(catalog, f, indent=2)
 
     global _active_feed_key
     _active_feed_key = key
@@ -140,7 +150,7 @@ def download_data(req: DownloadDataRequest):
         "details": catalog.get(key, {}),
         "active_feed": key,
         "catalog": catalog,
-        "is_mock": is_mock,
+        "status": status,
     }
 
 

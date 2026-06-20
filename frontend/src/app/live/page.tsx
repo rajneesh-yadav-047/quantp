@@ -264,9 +264,9 @@ export default function LiveTradingPage() {
       } catch (e) {}
     });
 
-    es.addEventListener("error", (event) => {
+    es.addEventListener("error", (event: any) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = event.data ? JSON.parse(event.data) : {};
         if (data.message) {
           setLastTickError(data.message);
         }

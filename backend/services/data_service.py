@@ -10,6 +10,7 @@ from typing import Dict, Optional, Tuple
 import pandas as pd
 from backend.smartapi import SmartAPIClient
 from backend.services.smartapi_manager import SmartAPIManager
+from backend.services.data_aggregator import aggregate_data, aggregate_and_save
 
 
 def parse_date_range(start_date: str, end_date: str) -> Tuple[pd.Timestamp, pd.Timestamp]:
@@ -179,6 +180,10 @@ def load_or_download_symbol_data(
     """
     Load dataset from catalog, or download if missing and auto_download is True.
     
+    Uses the universal aggregator for large date-range downloads, which chunks
+    requests to stay within SmartAPI limits, merges results, validates gaps,
+    and fills missing intervals.
+    
     Args:
         symbol: instrument symbol
         interval: candle interval
@@ -189,7 +194,7 @@ def load_or_download_symbol_data(
         
     Returns:
         (DataFrame or None, status_message)
-        status_message: "loaded", "downloaded", "mock", or "failed"
+        status_message: "loaded", "downloaded", "partial" (downloaded with gaps filled), "mock", or "failed"
     """
     sym = symbol.upper().strip()
     # Normalize bare symbols (e.g. "AEGISLOG" -> "NSE:AEGISLOG-EQ")
@@ -197,33 +202,45 @@ def load_or_download_symbol_data(
     catalog_client = SmartAPIClient()
     df = catalog_client.load_dataset_csv(normalized_sym, interval)
     
-    # Auto-download if missing
-    if (df is None or df.empty) and auto_download and client is not None:
+    # Check if existing data covers the requested range
+    has_existing = df is not None and not df.empty
+    if has_existing:
+        df_time = pd.to_datetime(df["time"], errors="coerce")
+        if not df_time.empty:
+            existing_start = df_time.min().strftime("%Y-%m-%d")
+            existing_end = df_time.max().strftime("%Y-%m-%d")
+            # If existing data fully covers requested range, reuse it
+            if existing_start <= start_date and existing_end >= end_date:
+                return df, "loaded"
+    
+    # Auto-download using universal aggregator for large ranges
+    if auto_download and client is not None and client.jwt_token:
         try:
-            df, is_mock = client.fetch_historical_candles(
+            df, status = aggregate_data(
                 symbol=normalized_sym,
-                from_date=f"{start_date} 09:15",
-                to_date=f"{end_date} 15:30",
                 interval=interval,
+                start_date=start_date,
+                end_date=end_date,
+                client=client,
             )
-            if is_mock:
+            if status == "mock":
                 print(f"WARN: Symbol {normalized_sym} not found on SmartAPI. Skipping mock data save.")
                 return None, "failed"
-            if not df.empty:
-                client.save_dataset_csv(normalized_sym, interval, df)
+            if df is not None and not df.empty:
+                if status == "partial":
+                    print(f"INFO: {normalized_sym} aggregated with some gaps filled.")
+                catalog_client.save_dataset_csv(normalized_sym, interval, df)
                 time.sleep(0.5)  # rate limit padding
-                return df, "downloaded"
+                return df, status
         except Exception as e:
             print(f"WARN: Auto-download failed for {normalized_sym}: {e}")
     
+    # If we have existing data (even if not fully covering), return it as fallback
+    if has_existing:
+        return df, "loaded"
+    
     # Do NOT generate mock data as fallback - require real data only
-    if df is None or df.empty:
-        return None, "failed"
-    
-    if df is None or df.empty:
-        return None, "failed"
-    
-    return df, "loaded"
+    return None, "failed"
 
 
 def prepare_backtest_data(
@@ -235,6 +252,9 @@ def prepare_backtest_data(
 ) -> Tuple[Dict[str, pd.DataFrame], list, list]:
     """
     Prepare DataFrames for all symbols needed in a backtest.
+
+    Uses the universal aggregator to download large date ranges in chunks
+    and merge them into contiguous, validated datasets.
     
     Args:
         symbols: list of symbol strings
@@ -275,10 +295,8 @@ def prepare_backtest_data(
             client=dl_client,
         )
         
-        if status == "downloaded":
+        if status in ("downloaded", "partial"):
             downloaded_symbols.append(normalized_sym)
-        elif status == "mock":
-            downloaded_symbols.append(f"{normalized_sym}(mock)")
         elif status == "failed":
             failed_symbols.append(normalized_sym)
             continue

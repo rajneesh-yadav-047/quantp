@@ -42,6 +42,8 @@ class MultiAssetCorrelationRequest(BaseModel):
     interval: str
     window: Optional[int] = 60
     log_returns: bool = True
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class PairDiscoveryRequest(BaseModel):
@@ -49,12 +51,16 @@ class PairDiscoveryRequest(BaseModel):
     interval: str
     top_n: int = 10
     min_corr: float = 0.6
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CointegrationRequest(BaseModel):
     sym1: str
     sym2: str
     interval: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class SpreadAnalysisRequest(BaseModel):
@@ -63,12 +69,16 @@ class SpreadAnalysisRequest(BaseModel):
     interval: str
     hedge_ratio: float = 1.0
     zscore_window: int = 20
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class LeadLagRequest(BaseModel):
     symbols: List[str]
     interval: str
     max_lag: int = 5
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class CrossSectionalRankRequest(BaseModel):
@@ -76,6 +86,8 @@ class CrossSectionalRankRequest(BaseModel):
     interval: str
     factor: str = "momentum"   # 'momentum' | 'volatility' | 'sharpe'
     lookback: int = 20
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 class OptimizationRequest(BaseModel):
@@ -119,19 +131,24 @@ def _load_multi_symbol_data(
     symbols: List[str],
     interval: str,
     auto_download: bool = False,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Load dataframes for a list of symbols using SmartAPIClient.
 
     Normalizes bare symbols (e.g. SBIN -> NSE:SBIN-EQ) and attempts auto-download
     if a connected client is available and auto_download=True.
+
+    Uses the universal aggregator for large date ranges, ensuring chunked
+    downloads, gap validation, and interval continuity.
     """
-    from backend.services.data_service import normalize_symbol, load_or_download_symbol_data
+    from backend.services.data_service import normalize_symbol, load_or_download_symbol_data, slice_dataframe_by_date
     import pandas as pd
     data = {}
     # Default date range for research auto-download: last 60 days
     today = pd.Timestamp.now().normalize()
-    start_date = (today - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
-    end_date = today.strftime("%Y-%m-%d")
+    start_date = start_date or (today - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+    end_date = end_date or today.strftime("%Y-%m-%d")
 
     for sym in symbols:
         bare = sym.upper().strip()
@@ -146,18 +163,26 @@ def _load_multi_symbol_data(
             df = client.load_dataset_csv(bare, interval.upper())
         if (df is None or df.empty) and auto_download and client and client.jwt_token:
             try:
-                df_fetched, is_mock = client.fetch_historical_candles(
+                from backend.services.data_aggregator import aggregate_data
+                df, status = aggregate_data(
                     symbol=normalized,
-                    from_date=f"{start_date} 09:15",
-                    to_date=f"{end_date} 15:30",
                     interval=interval,
+                    start_date=start_date,
+                    end_date=end_date,
+                    client=client,
                 )
-                if not is_mock and df_fetched is not None and not df_fetched.empty:
-                    client.save_dataset_csv(normalized, interval, df_fetched, is_mock=False)
-                    df = df_fetched
+                if status not in ("mock", "failed") and df is not None and not df.empty:
+                    client.save_dataset_csv(normalized, interval, df, is_mock=False)
                     time.sleep(0.5)  # rate-limit padding
             except Exception as e:
                 print(f"WARN: Auto-download failed for {normalized}: {e}")
+        # Slice to the requested date range
+        if df is not None and not df.empty:
+            try:
+                df = slice_dataframe_by_date(df, start_date, end_date)
+            except Exception as e:
+                print(f"WARN: Date slicing failed for {normalized}: {e}")
+                continue
         if df is not None and not df.empty:
             data[normalized] = df
     return data
@@ -315,7 +340,10 @@ def run_optimization(req: OptimizationRequest, db: Session = Depends(get_db)):
 def multiasset_correlation(req: MultiAssetCorrelationRequest):
     """Compute correlation matrix and sector heatmap for a set of symbols."""
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     if not data:
         missing = [s for s in req.symbols if s.upper().strip() not in data]
         raise HTTPException(status_code=404, detail=f"No data found for requested symbols. Loaded: {list(data.keys())}. Missing: {missing}")
@@ -345,7 +373,10 @@ def rolling_correlation(req: MultiAssetCorrelationRequest):
     if len(req.symbols) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 symbols.")
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     prices = _prices_wide(data)
     if prices is None or prices.empty:
         raise HTTPException(status_code=400, detail="Could not build price matrix.")
@@ -366,7 +397,10 @@ def rolling_correlation(req: MultiAssetCorrelationRequest):
 def pair_discovery(req: PairDiscoveryRequest):
     """Discover statistically interesting pairs from a symbol universe."""
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     prices = _prices_wide(data)
     if prices is None or prices.empty:
         raise HTTPException(status_code=400, detail="Could not build price matrix.")
@@ -378,19 +412,47 @@ def pair_discovery(req: PairDiscoveryRequest):
 @router.post("/multiasset/cointegration")
 def cointegration(req: CointegrationRequest):
     """Test cointegration between two symbols."""
-    from backend.services.data_service import normalize_symbol
+    from backend.services.data_service import normalize_symbol, slice_dataframe_by_date
+    from backend.services.data_aggregator import aggregate_data
     client = SmartAPIClient()
     n1 = normalize_symbol(req.sym1.upper(), req.interval, client)
     n2 = normalize_symbol(req.sym2.upper(), req.interval, client)
+    
+    # Default date range if not provided
+    import pandas as pd
+    today = pd.Timestamp.now().normalize()
+    start_date = req.start_date or (today - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+    end_date = req.end_date or today.strftime("%Y-%m-%d")
+    
     df1 = client.load_dataset_csv(n1, req.interval.upper())
     if df1 is None or df1.empty:
         df1 = client.load_dataset_csv(req.sym1.upper(), req.interval.upper())
+    if (df1 is None or df1.empty) and client.jwt_token:
+        try:
+            df1, status = aggregate_data(n1, req.interval, start_date, end_date, client)
+            if status not in ("mock", "failed") and df1 is not None and not df1.empty:
+                client.save_dataset_csv(n1, req.interval, df1, is_mock=False)
+        except Exception as e:
+            print(f"WARN: Auto-download failed for {n1}: {e}")
+    
     df2 = client.load_dataset_csv(n2, req.interval.upper())
     if df2 is None or df2.empty:
         df2 = client.load_dataset_csv(req.sym2.upper(), req.interval.upper())
+    if (df2 is None or df2.empty) and client.jwt_token:
+        try:
+            df2, status = aggregate_data(n2, req.interval, start_date, end_date, client)
+            if status not in ("mock", "failed") and df2 is not None and not df2.empty:
+                client.save_dataset_csv(n2, req.interval, df2, is_mock=False)
+        except Exception as e:
+            print(f"WARN: Auto-download failed for {n2}: {e}")
+    
     if df1 is None or df2 is None:
         raise HTTPException(status_code=404, detail=f"One or both datasets not found. Looked for {n1} and {n2}.")
-
+    
+    # Slice to date range
+    df1 = slice_dataframe_by_date(df1, start_date, end_date)
+    df2 = slice_dataframe_by_date(df2, start_date, end_date)
+    
     s1 = df1.set_index("time")["close"].astype(float) if "time" in df1.columns else df1["close"].astype(float)
     s2 = df2.set_index("time")["close"].astype(float) if "time" in df2.columns else df2["close"].astype(float)
     s1, s2 = s1.align(s2, join="inner")
@@ -405,19 +467,46 @@ def cointegration(req: CointegrationRequest):
 def spread_analysis(req: SpreadAnalysisRequest):
     """Compute spread, half-life, and z-score for a symbol pair."""
     import pandas as pd
-    from backend.services.data_service import normalize_symbol
+    from backend.services.data_service import normalize_symbol, slice_dataframe_by_date
+    from backend.services.data_aggregator import aggregate_data
     client = SmartAPIClient()
     n1 = normalize_symbol(req.sym1.upper(), req.interval, client)
     n2 = normalize_symbol(req.sym2.upper(), req.interval, client)
+    
+    # Default date range if not provided
+    today = pd.Timestamp.now().normalize()
+    start_date = req.start_date or (today - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+    end_date = req.end_date or today.strftime("%Y-%m-%d")
+    
     df1 = client.load_dataset_csv(n1, req.interval.upper())
     if df1 is None or df1.empty:
         df1 = client.load_dataset_csv(req.sym1.upper(), req.interval.upper())
+    if (df1 is None or df1.empty) and client.jwt_token:
+        try:
+            df1, status = aggregate_data(n1, req.interval, start_date, end_date, client)
+            if status not in ("mock", "failed") and df1 is not None and not df1.empty:
+                client.save_dataset_csv(n1, req.interval, df1, is_mock=False)
+        except Exception as e:
+            print(f"WARN: Auto-download failed for {n1}: {e}")
+    
     df2 = client.load_dataset_csv(n2, req.interval.upper())
     if df2 is None or df2.empty:
         df2 = client.load_dataset_csv(req.sym2.upper(), req.interval.upper())
+    if (df2 is None or df2.empty) and client.jwt_token:
+        try:
+            df2, status = aggregate_data(n2, req.interval, start_date, end_date, client)
+            if status not in ("mock", "failed") and df2 is not None and not df2.empty:
+                client.save_dataset_csv(n2, req.interval, df2, is_mock=False)
+        except Exception as e:
+            print(f"WARN: Auto-download failed for {n2}: {e}")
+    
     if df1 is None or df2 is None:
         raise HTTPException(status_code=404, detail=f"One or both datasets not found. Looked for {n1} and {n2}.")
-
+    
+    # Slice to date range
+    df1 = slice_dataframe_by_date(df1, start_date, end_date)
+    df2 = slice_dataframe_by_date(df2, start_date, end_date)
+    
     s1 = df1.set_index("time")["close"].astype(float) if "time" in df1.columns else df1["close"].astype(float)
     s2 = df2.set_index("time")["close"].astype(float) if "time" in df2.columns else df2["close"].astype(float)
     s1, s2 = s1.align(s2, join="inner")
@@ -441,7 +530,10 @@ def spread_analysis(req: SpreadAnalysisRequest):
 def lead_lag(req: LeadLagRequest):
     """Detect lead-lag relationships between symbols."""
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     prices = _prices_wide(data)
     if prices is None or prices.empty:
         raise HTTPException(status_code=400, detail="Could not build price matrix.")
@@ -454,7 +546,10 @@ def lead_lag(req: LeadLagRequest):
 def sector_breadth_endpoint(req: MultiAssetCorrelationRequest):
     """Compute sector breadth indicators."""
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     prices = _prices_wide(data)
     if prices is None or prices.empty:
         raise HTTPException(status_code=400, detail="Could not build price matrix.")
@@ -468,7 +563,10 @@ def sector_breadth_endpoint(req: MultiAssetCorrelationRequest):
 def cross_sectional_ranking_endpoint(req: CrossSectionalRankRequest):
     """Cross-sectional factor ranking of symbols."""
     client = SmartAPIClient()
-    data = _load_multi_symbol_data(client, req.symbols, req.interval, auto_download=True)
+    data = _load_multi_symbol_data(
+        client, req.symbols, req.interval, auto_download=True,
+        start_date=req.start_date, end_date=req.end_date,
+    )
     prices = _prices_wide(data)
     if prices is None or prices.empty:
         raise HTTPException(status_code=400, detail="Could not build price matrix.")

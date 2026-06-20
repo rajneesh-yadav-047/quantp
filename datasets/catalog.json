@@ -1,102 +1,82 @@
 {
-  "NSE:SBIN-EQ_FIVE_MINUTE": {
+  "NSE:SBIN-EQ_ONE_DAY": {
     "symbol": "NSE:SBIN-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_SBIN-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_SBIN-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2020-04-22 00:00:00",
+    "end_date": "2026-06-19 00:00:00",
+    "records_count": 1608,
     "is_mock": false,
-    "updated_at": "2026-06-17 23:50:44"
+    "updated_at": "2026-06-21 03:57:13",
+    "records": 1608,
+    "start": "2020-04-22 00:00:00",
+    "end": "2026-06-19 00:00:00",
+    "gaps": 0,
+    "expected_bars": 1608,
+    "coverage_pct": 100.0
   },
-  "NSE:HDFCBANK-EQ_FIVE_MINUTE": {
+  "NSE:HDFCBANK-EQ_ONE_DAY": {
     "symbol": "NSE:HDFCBANK-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HDFCBANK-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HDFCBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2020-04-22 00:00:00",
+    "end_date": "2026-06-19 00:00:00",
+    "records_count": 1608,
     "is_mock": false,
-    "updated_at": "2026-06-17 23:50:47"
+    "updated_at": "2026-06-21 03:57:17",
+    "records": 1608,
+    "start": "2020-04-22 00:00:00",
+    "end": "2026-06-19 00:00:00",
+    "gaps": 0,
+    "expected_bars": 1608,
+    "coverage_pct": 100.0
   },
-  "NSE:ICICIBANK-EQ_FIVE_MINUTE": {
+  "NSE:ICICIBANK-EQ_ONE_DAY": {
     "symbol": "NSE:ICICIBANK-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_ICICIBANK-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_ICICIBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2020-04-22 00:00:00",
+    "end_date": "2026-06-19 00:00:00",
+    "records_count": 1608,
     "is_mock": false,
-    "updated_at": "2026-06-17 23:50:49"
+    "updated_at": "2026-06-21 03:57:21",
+    "records": 1608,
+    "start": "2020-04-22 00:00:00",
+    "end": "2026-06-19 00:00:00",
+    "gaps": 0,
+    "expected_bars": 1608,
+    "coverage_pct": 100.0
   },
-  "NSE:AXISBANK-EQ_FIVE_MINUTE": {
+  "NSE:AXISBANK-EQ_ONE_DAY": {
     "symbol": "NSE:AXISBANK-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AXISBANK-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_AXISBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2020-04-22 00:00:00",
+    "end_date": "2026-06-19 00:00:00",
+    "records_count": 1608,
     "is_mock": false,
-    "updated_at": "2026-06-17 23:50:52"
+    "updated_at": "2026-06-21 03:57:24",
+    "records": 1608,
+    "start": "2020-04-22 00:00:00",
+    "end": "2026-06-19 00:00:00",
+    "gaps": 0,
+    "expected_bars": 1608,
+    "coverage_pct": 100.0
   },
-  "NSE:KOTAKBANK-EQ_FIVE_MINUTE": {
+  "NSE:KOTAKBANK-EQ_ONE_DAY": {
     "symbol": "NSE:KOTAKBANK-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_KOTAKBANK-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
+    "interval": "ONE_DAY",
+    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_KOTAKBANK-EQ\\ONE_DAY\\data.csv",
+    "start_date": "2020-04-22 00:00:00",
+    "end_date": "2026-06-19 00:00:00",
+    "records_count": 1608,
     "is_mock": false,
-    "updated_at": "2026-06-17 23:50:54"
-  },
-  "NSE:INFY-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:INFY-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_INFY-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
-    "is_mock": false,
-    "updated_at": "2026-06-17 23:52:13"
-  },
-  "NSE:TCS-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:TCS-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_TCS-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
-    "is_mock": false,
-    "updated_at": "2026-06-17 23:52:15"
-  },
-  "NSE:WIPRO-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:WIPRO-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_WIPRO-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
-    "is_mock": false,
-    "updated_at": "2026-06-17 23:52:18"
-  },
-  "NSE:TECHM-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:TECHM-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_TECHM-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-04-20T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 3075,
-    "is_mock": false,
-    "updated_at": "2026-06-17 23:52:20"
-  },
-  "NSE:HCLTECH-EQ_FIVE_MINUTE": {
-    "symbol": "NSE:HCLTECH-EQ",
-    "interval": "FIVE_MINUTE",
-    "file_path": "C:\\Users\\rajy7\\quantp\\datasets\\csv\\NSE_HCLTECH-EQ\\FIVE_MINUTE\\data.csv",
-    "start_date": "2026-05-11T09:15:00+05:30",
-    "end_date": "2026-06-17T15:25:00+05:30",
-    "records_count": 2025,
-    "is_mock": false,
-    "updated_at": "2026-06-18 00:51:59"
+    "updated_at": "2026-06-21 03:57:28",
+    "records": 1608,
+    "start": "2020-04-22 00:00:00",
+    "end": "2026-06-19 00:00:00",
+    "gaps": 0,
+    "expected_bars": 1608,
+    "coverage_pct": 100.0
   }
 }

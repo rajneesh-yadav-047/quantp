@@ -221,6 +221,12 @@ export default function MultiAssetResearch({
   const [hedgeRatio, setHedgeRatio] = useState(1.0);
   const [factor, setFactor] = useState("momentum");
 
+  // Date range for analysis (from/to)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const past60Str = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [fromDate, setFromDate] = useState(past60Str);
+  const [toDate, setToDate] = useState(todayStr);
+
   const isDark = theme === "dark";
   const labelColor = isDark ? "#64748b" : "#475569";
   const gridLineColor = isDark ? "#0f172a" : "#f1f5f9";
@@ -244,7 +250,7 @@ export default function MultiAssetResearch({
   }, [checkExists]);
 
   /* Auto-retry after download */
-  const retryRef = useRef<{ symbols: string[]; interval: string; activeTab: string; params: any } | null>(null);
+  const retryRef = useRef<{ symbols: string[]; interval: string; activeTab: AnalysisTab; params: any; fromDate: string; toDate: string } | null>(null);
   useEffect(() => {
     if (!multiAssetRetrySignal || !retryRef.current) return;
     const r = retryRef.current;
@@ -254,7 +260,7 @@ export default function MultiAssetResearch({
       runWithParams(r.activeTab, r.symbols, r.interval, r.params);
     }
     retryRef.current = null;
-  }, [multiAssetRetrySignal]);
+  }, [multiAssetRetrySignal]); // runWithParams intentionally omitted to avoid stale closure / hoisting issues; it captures latest state at call time
 
   const runWithParams = async (
     tab: AnalysisTab,
@@ -272,31 +278,38 @@ export default function MultiAssetResearch({
       if (tab === "correlation") {
         res = await api.post("/research/multiasset/correlation", {
           symbols: syms, interval: intv, window: 60, log_returns: true,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "pairs") {
         res = await api.post("/research/multiasset/pair-discovery", {
           symbols: syms, interval: intv, top_n: 15, min_corr: 0.5,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "cointegration") {
         res = await api.post("/research/multiasset/cointegration", {
           sym1: extraParams?.sym1 || sym1, sym2: extraParams?.sym2 || sym2, interval: intv,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "spread") {
         res = await api.post("/research/multiasset/spread-analysis", {
           sym1: extraParams?.sym1 || sym1, sym2: extraParams?.sym2 || sym2, interval: intv,
           hedge_ratio: extraParams?.hedgeRatio ?? hedgeRatio, zscore_window: 20,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "leadlag") {
         res = await api.post("/research/multiasset/lead-lag", {
           symbols: syms, interval: intv, max_lag: 5,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "breadth") {
         res = await api.post("/research/multiasset/breadth", {
           symbols: syms, interval: intv, window: 20, log_returns: false,
+          start_date: fromDate, end_date: toDate,
         });
       } else if (tab === "ranking") {
         res = await api.post("/research/multiasset/ranking", {
           symbols: syms, interval: intv, factor: extraParams?.factor || factor, lookback: 20,
+          start_date: fromDate, end_date: toDate,
         });
       }
 
@@ -314,17 +327,15 @@ export default function MultiAssetResearch({
             setCoverageAvailable(available);
             setNotif({ type: "error", msg: `Missing data for ${missing.join(", ")}. Will auto-download.` });
             const first = missing[0];
-            const today = new Date().toISOString().slice(0, 10);
-            const past = new Date(); past.setDate(past.getDate() - 60);
             setDlSymbol?.(first);
             setDlInterval?.(intv);
-            setDlFromDate?.(past.toISOString().slice(0, 10));
-            setDlToDate?.(today);
+            setDlFromDate?.(fromDate);
+            setDlToDate?.(toDate);
             setDownloadQueue?.(missing);
             setPendingMultiAsset?.({ symbols: syms, interval: intv, activeTab: tab, params: extraParams });
             setPendingAction?.("DOWNLOAD");
             setIsTotpModalOpen?.(true);
-            retryRef.current = { symbols: syms, interval: intv, activeTab: tab, params: extraParams };
+            retryRef.current = { symbols: syms, interval: intv, activeTab: tab, params: extraParams, fromDate, toDate };
             setLoading(false);
             return;
           }
@@ -351,16 +362,14 @@ export default function MultiAssetResearch({
 
     if (missing.length > 0) {
       setDownloadQueue?.(missing);
-      const today = new Date().toISOString().slice(0, 10);
-      const past = new Date(); past.setDate(past.getDate() - 60);
       setDlSymbol?.(missing[0]);
       setDlInterval?.(interval);
-      setDlFromDate?.(past.toISOString().slice(0, 10));
-      setDlToDate?.(today);
+      setDlFromDate?.(fromDate);
+      setDlToDate?.(toDate);
       setPendingMultiAsset?.({ symbols: syms, interval, activeTab, params: extraParams });
       setPendingAction?.("DOWNLOAD");
       setIsTotpModalOpen?.(true);
-      retryRef.current = { symbols: syms, interval, activeTab, params: extraParams };
+      retryRef.current = { symbols: syms, interval, activeTab, params: extraParams, fromDate, toDate };
       setNotif({ type: "error", msg: `Missing data for ${missing.join(", ")}. Enter TOTP to auto-download all.` });
       return;
     }
@@ -624,6 +633,27 @@ export default function MultiAssetResearch({
                   </select>
                 </div>
               )}
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">From</label>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="t-input w-full rounded-lg px-3 py-2 text-xs font-mono"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">To</label>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="t-input w-full rounded-lg px-3 py-2 text-xs font-mono"
+                />
+              </div>
             </div>
 
             <button

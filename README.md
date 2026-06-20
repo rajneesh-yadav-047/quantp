@@ -178,7 +178,7 @@ quantp/
 ├── sample_strategy_legacy.py      # EMA crossover example — legacy_on_bar runtime
 ├── sample_strategy_prosperity.py  # EMA crossover example — prosperity_trader runtime
 ├── .env                # Local secrets (ignored by Git)
-├── .env.example.txt    # Environment variable template
+├── .env.example        # Environment variable template
 ├── requirements.txt    # Python dependencies
 ├── quantlab.db         # SQLite database (auto-created)
 └── README.md           # This file
@@ -199,10 +199,10 @@ quantp/
 
 ### 1. Environment Configuration
 
-Create a copy of `.env.example.txt` and rename it to `.env`:
+Create a copy of `.env.example` and rename it to `.env`:
 
 ```bash
-copy .env.example.txt .env
+copy .env.example .env
 ```
 
 Fill in your Angel One SmartAPI credentials:
@@ -318,7 +318,7 @@ The engine parses your strategy in a sandbox, steps through every candle, execut
 | [`sample_strategy_legacy.py`](sample_strategy_legacy.py) | EMA crossover — `legacy_on_bar` runtime |
 | [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) | EMA crossover — `prosperity_trader` runtime |
 | [`requirements.txt`](requirements.txt) | Python dependencies |
-| [`.env.example.txt`](.env.example.txt) | SmartAPI credentials template |
+| [`.env.example`](.env.example) | SmartAPI credentials template |
 
 ---
 
