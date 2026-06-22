@@ -215,7 +215,7 @@ export function DashboardTab({
 /* ---------- DatasetsTab ---------- */
 export function DatasetsTab({
   dlSymbol, setDlSymbol, dlInterval, setDlInterval, dlFromDate, setDlFromDate, dlToDate, setDlToDate,
-  downloading, triggerDownload, datasets, selectedDataset, setSelectedDataset, suggestions, showSuggestions, setShowSuggestions,
+  downloading, dlJobId, dlJobProgress, triggerDownload, datasets, selectedDataset, setSelectedDataset, suggestions, showSuggestions, setShowSuggestions,
   triggerNotif,
   // New props for preview:
   previewData, setPreviewData, previewLoading, previewError, handlePreviewDataset,
@@ -319,9 +319,21 @@ export function DatasetsTab({
               <input type="date" value={dlToDate} onChange={e => setDlToDate(e.target.value)} className="t-input w-full text-xs rounded px-2 py-1" />
             </div>
           </div>
-          <button type="submit" disabled={downloading} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2">
-            {downloading ? <><RefreshCw size={14} className="animate-spin" /> Fetching...</> : <><Database size={14} /> Fetch & Write CSV</>}
+          <button type="submit" disabled={downloading || !!dlJobId} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs py-2 transition-all flex items-center justify-center gap-2">
+            {downloading ? <><RefreshCw size={14} className="animate-spin" /> Fetching…</> : dlJobId ? <><RefreshCw size={14} className="animate-spin" /> Downloading…</> : <><Database size={14} /> Fetch & Write CSV</>}
           </button>
+          {dlJobId && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-slate-400 font-medium">Background download in progress</span>
+                <span className="text-[10px] text-blue-400 font-bold">{dlJobProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${dlJobProgress}%` }} />
+              </div>
+              <p className="text-[9px] text-slate-500 mt-1">You can navigate away. The download continues in the background.</p>
+            </div>
+          )}
         </form>
       </div>
 

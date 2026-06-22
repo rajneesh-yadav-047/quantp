@@ -158,6 +158,27 @@ class BacktestResultDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DownloadJobDB(Base):
+    """Tracks async historical data download jobs."""
+    __tablename__ = "download_jobs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    symbol = Column(String, nullable=False, index=True)
+    interval = Column(String, nullable=False)
+    start_date = Column(String, nullable=False)
+    end_date = Column(String, nullable=False)
+    status = Column(String, default="pending", nullable=False)  # pending, running, completed, failed, cancelled
+    progress = Column(Integer, default=0)  # 0-100
+    total_chunks = Column(Integer, default=0)
+    completed_chunks = Column(Integer, default=0)
+    records_downloaded = Column(Integer, default=0)
+    error_message = Column(Text, nullable=True)
+    file_path = Column(String, nullable=True)
+    catalog_key = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def init_db():
     """Initialize database tables and perform migrations."""
     Base.metadata.create_all(bind=engine)

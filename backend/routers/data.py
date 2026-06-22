@@ -4,6 +4,7 @@ Data router: dataset download, catalog, symbol search, active feed.
 
 import os
 import json
+from datetime import datetime as _dt
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException
 from starlette.responses import FileResponse
@@ -14,6 +15,7 @@ from backend.services.smartapi_manager import SmartAPIManager
 from backend.services.data_service import slice_dataframe_by_date
 from backend.services.data_aggregator import aggregate_data, get_interval_metadata
 from backend.services.sizing_service import calculate_suggested_position_size
+from backend.services import download_job_service as djs
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
@@ -22,6 +24,11 @@ _symbol_suggestions: List[Dict[str, str]] = []
 
 # Global active feed key
 _active_feed_key: Optional[str] = None
+
+
+# ── Async thresholds ──
+# If a request needs more chunks than this, we force async background processing.
+_ASYNC_CHUNK_THRESHOLD = 5
 
 
 def _load_symbol_suggestions():
@@ -80,6 +87,7 @@ class DownloadDataRequest(BaseModel):
     from_date: str
     to_date: str
     totp: Optional[str] = None
+    force_async: bool = False
 
 
 def _normalize_download_date(date_str: str, default_time: str) -> str:
@@ -110,17 +118,44 @@ def download_data(req: DownloadDataRequest):
     raw_from = req.from_date.strip()[:10]
     raw_to = req.to_date.strip()[:10]
 
-    # Canonicalize the symbol (e.g. NSE:SBIN-EQ or SBIN)
+    # Validate date format
+    try:
+        start_dt = _dt.strptime(raw_from, "%Y-%m-%d")
+        end_dt = _dt.strptime(raw_to, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    # Determine whether to run async (background) or sync (inline)
+    chunk_count = djs._count_chunks(req.interval, raw_from, raw_to)
+    use_async = req.force_async or chunk_count > _ASYNC_CHUNK_THRESHOLD
+
+    if use_async:
+        # Enqueue a background job and return immediately
+        job_id = djs.enqueue_download(req.symbol, req.interval, raw_from, raw_to)
+        return {
+            "message": "Download job queued. Poll /download/jobs/{job_id} for status.",
+            "job_id": job_id,
+            "status": "queued",
+            "chunks": chunk_count,
+        }
+
+    # ── Synchronous path (small ranges) ──
+    # Canonicalize the symbol
     from backend.services.data_service import normalize_symbol
     normalized_sym = normalize_symbol(req.symbol, req.interval, client)
 
-    df, status = aggregate_data(
-        symbol=normalized_sym,
-        interval=req.interval,
-        start_date=raw_from,
-        end_date=raw_to,
-        client=client,
-    )
+    try:
+        df, status = aggregate_data(
+            symbol=normalized_sym,
+            interval=req.interval,
+            start_date=raw_from,
+            end_date=raw_to,
+            client=client,
+        )
+    except Exception as e:
+        print(f"ERROR: aggregate_data failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
     if df is None or df.empty:
         raise HTTPException(status_code=400, detail="No historical data returned from SmartAPI.")
 
@@ -152,6 +187,30 @@ def download_data(req: DownloadDataRequest):
         "catalog": catalog,
         "status": status,
     }
+
+
+@router.get("/download/jobs")
+def list_download_jobs(limit: int = 50):
+    """Return recent download jobs, newest first."""
+    return {"jobs": djs.list_jobs(limit=limit)}
+
+
+@router.get("/download/jobs/{job_id}")
+def get_download_job(job_id: str):
+    """Get status of a single download job."""
+    job = djs.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job
+
+
+@router.post("/download/jobs/{job_id}/cancel")
+def cancel_download_job(job_id: str):
+    """Cancel a pending download job."""
+    ok = djs.cancel_job(job_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Job not found or already running/completed.")
+    return {"message": "Job cancelled.", "job_id": job_id}
 
 
 @router.get("/datasets")

@@ -159,6 +159,8 @@ export function useQuantLab() {
   });
   const [dlToDate, setDlToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [downloading, setDownloading] = useState<boolean>(false);
+  const [dlJobId, setDlJobId] = useState<string | null>(null);
+  const [dlJobProgress, setDlJobProgress] = useState<number>(0);
 
   // ── Dataset preview ──
   const [previewData, setPreviewData] = useState<any>(null);
@@ -232,7 +234,7 @@ export function useQuantLab() {
     dlFromDate, dlToDate, strategyCapital, strategyName,
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
-    pendingBacktest, pendingMultiAsset, backendOnlineRef: false,
+    pendingBacktest, pendingMultiAsset, backendOnlineRef: false, dlJobId,
   });
   stateRef.current = {
     strategies, datasets, backtestRuns, deployments,
@@ -240,7 +242,7 @@ export function useQuantLab() {
     dlFromDate, dlToDate, strategyCapital, strategyName,
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
-    pendingBacktest, pendingMultiAsset, backendOnlineRef: backendOnline,
+    pendingBacktest, pendingMultiAsset, backendOnlineRef: backendOnline, dlJobId,
   };
 
   // ── CONNECTIVITY ──
@@ -380,6 +382,43 @@ export function useQuantLab() {
     }, 250);
     return () => clearTimeout(delay);
   }, [strategySymbols, backendOnline]);
+
+  // ── ASYNC DOWNLOAD POLLING ──
+  const dlPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!dlJobId) {
+      if (dlPollIntervalRef.current) { clearInterval(dlPollIntervalRef.current); dlPollIntervalRef.current = null; }
+      return;
+    }
+    // Poll every 2 seconds
+    dlPollIntervalRef.current = setInterval(async () => {
+      const res = await api.get(`/data/download/jobs/${dlJobId}`, { timeout: 10000 });
+      if (res.ok && res.data) {
+        const job = res.data;
+        setDlJobProgress(job.progress || 0);
+        if (job.status === "completed") {
+          triggerNotif("success", `Downloaded ${job.symbol} (${job.interval}) — ${job.records_downloaded?.toLocaleString()} records.`);
+          setDlJobId(null);
+          setDlJobProgress(0);
+          fetchCoreData();
+        } else if (job.status === "failed") {
+          triggerNotif("error", job.error_message || `Download failed for ${job.symbol}.`);
+          setDlJobId(null);
+          setDlJobProgress(0);
+        } else if (job.status === "cancelled") {
+          triggerNotif("info", `Download cancelled for ${job.symbol}.`);
+          setDlJobId(null);
+          setDlJobProgress(0);
+        } else {
+          // Still running — update notification with progress
+          setNotif({ type: "info", msg: `Downloading ${job.symbol}… ${job.progress || 0}% (${job.completed_chunks || 0}/${job.total_chunks || 0} chunks)` });
+        }
+      }
+    }, 2000);
+
+    return () => { if (dlPollIntervalRef.current) { clearInterval(dlPollIntervalRef.current); dlPollIntervalRef.current = null; } };
+  }, [dlJobId, triggerNotif, fetchCoreData]);
 
   // ── FILE UPLOAD ──
 
@@ -833,13 +872,20 @@ export function useQuantLab() {
     // First download in a batch uses TOTP; chained downloads reuse the already-authenticated SmartAPI session
     batchDownloadCountRef.current += 1;
     const isFirst = batchDownloadCountRef.current === 1;
-    const result = await api.post("/data/download", { symbol: sym, interval: ref.dlInterval, from_date: fromDate, to_date: toDate, totp: isFirst ? code : undefined });
+    const result = await api.post("/data/download", { symbol: sym, interval: ref.dlInterval, from_date: fromDate, to_date: toDate, totp: isFirst ? code : undefined }, { timeout: 30000 });
     setDownloading(false);
     if (result.ok && result.data) {
+      const data = result.data;
+      // ── Async path: job queued ──
+      if (data.job_id) {
+        setDlJobId(data.job_id);
+        triggerNotif("info", `Download queued: ${sym} (${data.chunks} chunks). Polling progress…`);
+        return;
+      }
+      // ── Sync path: download completed immediately ──
       triggerNotif("success", `Downloaded ${sym} successfully!`);
       fetchCoreData();
       // ── Batch queue chaining ──
-      // Remove the just-downloaded symbol from the queue
       downloadQueueRef.current = downloadQueueRef.current.filter(s => s.toUpperCase() !== sym.toUpperCase());
       if (downloadQueueRef.current.length > 0) {
         const next = downloadQueueRef.current[0];
@@ -1023,6 +1069,7 @@ export function useQuantLab() {
     cleanupOlderThan, setCleanupOlderThan, cleanupStrategyId, setCleanupStrategyId, cleanupResult, setCleanupResult,
     // Dataset download
     dlSymbol, setDlSymbol, dlInterval, setDlInterval, dlFromDate, setDlFromDate, dlToDate, setDlToDate, downloading, setDownloading,
+    dlJobId, setDlJobId, dlJobProgress,
     // Dataset preview
     previewData, setPreviewData, previewLoading, previewError, handlePreviewDataset,
     // Data coverage

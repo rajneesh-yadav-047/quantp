@@ -336,7 +336,7 @@ class SmartAPIClient:
             }
             
             try:
-                response = requests.post(url, json=payload, headers=headers)
+                response = requests.post(url, json=payload, headers=headers, timeout=15)
                 res_json = response.json()
                 if res_json.get("status") is True:
                     data = res_json.get("data", [])

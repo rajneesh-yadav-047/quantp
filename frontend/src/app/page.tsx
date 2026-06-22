@@ -121,6 +121,8 @@ export default function Home() {
               dlToDate={q.dlToDate}
               setDlToDate={q.setDlToDate}
               downloading={q.downloading}
+              dlJobId={q.dlJobId}
+              dlJobProgress={q.dlJobProgress}
               triggerDownload={q.triggerDownload}
               datasets={q.datasets}
               selectedDataset={q.selectedDataset}
