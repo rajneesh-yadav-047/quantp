@@ -22,7 +22,9 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 from backend.database import init_db
-from backend.routers import auth, data, strategies, backtest, research, deployments, live_trading
+from backend.options_models import OptionStrategyDB, OptionLegDB  # Register option tables
+from backend.routers import auth, data, strategies, backtest, research, deployments, live_trading, options
+from backend.routers.options import router as options_router
 from backend.routers import groups as groups_router
 from backend.cleanup_api import router as cleanup_router
 from backend.services.market_data_service import MarketDataService
@@ -30,6 +32,8 @@ from backend.services.redis_client import get_redis_status
 from backend.services.event_bus import EventBus
 from backend.services.persistence_service import PersistenceService
 from backend.services.deployment_engine import DeploymentEngine
+
+import asyncio
 
 
 @asynccontextmanager
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("INFO: Shutting down services...")
+    
     mds = MarketDataService.get_instance()
     mds.stop()
     
@@ -145,6 +150,7 @@ app.include_router(deployments.router)
 app.include_router(live_trading.router)
 app.include_router(cleanup_router, prefix="/api/cleanup")
 app.include_router(groups_router.router)
+app.include_router(options_router)
 
 
 if __name__ == "__main__":

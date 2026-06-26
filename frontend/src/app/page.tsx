@@ -11,6 +11,8 @@ import { DeploymentsTab } from "./components/tabs/DeploymentsTab";
 import { OptimizerTab } from "./components/tabs/OptimizerTab";
 import { CleanupTab } from "./components/tabs/CleanupTab";
 
+import { OptionsTab } from "./components/tabs/OptionsTab";
+
 const ResearchLab = dynamic(() => import("../components/ResearchLab"), { ssr: false });
 const MultiAssetResearch = dynamic(() => import("../components/MultiAssetResearch"), { ssr: false });
 const PortfolioAnalytics = dynamic(() => import("../components/PortfolioAnalytics"), { ssr: false });
@@ -50,6 +52,7 @@ export default function Home() {
     "portfolio-risk": "Portfolio risk analytics: Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals.",
     optimizer: "Execute grid-search and random-search sweeps to find mathematically optimal strategy weights.",
     cleanup: "Manage disk space by deleting old backtest logs and downloaded CSV datasets.",
+    options: "Options Strategy Builder — build multi-leg option strategies (straddles, strangles, spreads) with live option chain, payoff chart, and backtest support.",
   };
 
   return (
@@ -325,6 +328,14 @@ export default function Home() {
               fetchCleanupStatus={q.fetchCleanupStatus}
               handleRunCleanup={q.handleRunCleanup}
               handleVacuumDB={q.handleVacuumDB}
+            />
+          )}
+
+          {q.activeTab === "options" && (
+            <OptionsTab
+              triggerNotif={q.triggerNotif}
+              smartapiConnected={q.smartapiConnected}
+              backendOnline={q.backendOnline}
             />
           )}
         </div>

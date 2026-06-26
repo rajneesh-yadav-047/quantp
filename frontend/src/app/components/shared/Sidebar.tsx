@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, LayoutDashboard, Database, Code, PlayCircle, Rocket, Radio, FlaskConical, Settings, Trash2, CheckCircle2, AlertCircle, Sun, Moon, Network, BarChart3 } from "lucide-react";
+import { Cpu, LayoutDashboard, Database, Code, PlayCircle, Rocket, Radio, FlaskConical, Settings, Trash2, CheckCircle2, AlertCircle, Sun, Moon, Network, BarChart3, TrendingUp } from "lucide-react";
 import type { Notif } from "../../hooks/useQuantLab";
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ const navItems = [
   { id: "research",       label: "Research Lab",    icon: FlaskConical },
   { id: "multi-asset",    label: "Multi-Asset",     icon: Network },
   { id: "portfolio-risk", label: "Portfolio Risk",  icon: BarChart3 },
+  { id: "options",        label: "Options",         icon: TrendingUp },
   { id: "optimizer",      label: "Optimizer",       icon: Settings },
   { id: "cleanup",        label: "Cleanup",         icon: Trash2 },
 ];

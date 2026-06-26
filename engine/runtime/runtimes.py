@@ -121,6 +121,31 @@ class LegacyRuntime:
             strategy_code=strategy_code,
             parameters=parameters,
         )
+        # Cache the strategy instance so state (bar_count, ema trackers, etc.)
+        # persists across ticks.  A new LegacyRuntime is created per deployment,
+        # so the instance lives for the whole run.
+        self._strategy_instance: Optional[Any] = None
+        self._strategy_instance_type: Optional[str] = None  # 'class' or 'function'
+        self._strategy_signature: Optional[inspect.Signature] = None
+        self._init_strategy_instance()
+
+    def _init_strategy_instance(self):
+        """Detect strategy type and cache the instance / function."""
+        strategy_class = self.sandbox.get('Strategy')
+        on_bar_func = self.sandbox.get('on_bar')
+
+        if strategy_class and hasattr(strategy_class, 'on_bar'):
+            self._strategy_instance = strategy_class()
+            self._strategy_instance_type = 'class'
+            self._strategy_signature = inspect.signature(
+                getattr(self._strategy_instance, 'on_bar')
+            )
+        elif on_bar_func:
+            self._strategy_instance = on_bar_func
+            self._strategy_instance_type = 'function'
+            self._strategy_signature = inspect.signature(on_bar_func)
+        else:
+            raise RuntimeError("on_bar function not found in strategy code")
 
     def _build_df_from_state(self, state: Any, symbol: str) -> pd.DataFrame:
         """Build a pandas DataFrame from MarketState for old on_bar(df, i) strategies."""
@@ -141,7 +166,7 @@ class LegacyRuntime:
     def on_tick(self, state: Any) -> Tuple[List[Order], str]:
         """
         Adapter that wraps on_bar for compatibility with BacktestEngine.
-        Auto-detects whether the strategy uses old (df, i) or new (state) signature.
+        Uses the cached strategy instance so state persists across ticks.
 
         Returns:
             (orders_list, trader_data_json)
@@ -149,14 +174,9 @@ class LegacyRuntime:
         self.logger.clear()
 
         try:
-            strategy_class = self.sandbox.get('Strategy')
-            on_bar_func = self.sandbox.get('on_bar')
-
-            if strategy_class and hasattr(strategy_class, 'on_bar'):
-                instance = strategy_class()
-                method = getattr(instance, 'on_bar')
-                sig = inspect.signature(method)
-                # Count non-self parameters
+            if self._strategy_instance_type == 'class':
+                instance = self._strategy_instance
+                sig = self._strategy_signature
                 param_names = [p.name for p in sig.parameters.values() if p.name != 'self']
                 param_count = len(param_names)
 
@@ -171,8 +191,9 @@ class LegacyRuntime:
                         result = instance.on_bar(state)
                 else:
                     result = instance.on_bar(state)
-            elif on_bar_func:
-                sig = inspect.signature(on_bar_func)
+            elif self._strategy_instance_type == 'function':
+                func = self._strategy_instance
+                sig = self._strategy_signature
                 param_count = len(list(sig.parameters.values()))
 
                 if param_count == 2:
@@ -181,11 +202,11 @@ class LegacyRuntime:
                     if primary_symbol:
                         df = self._build_df_from_state(state, primary_symbol)
                         i = len(state.historical_candles.get(primary_symbol, []))
-                        result = on_bar_func(df, i)
+                        result = func(df, i)
                     else:
-                        result = on_bar_func(state)
+                        result = func(state)
                 else:
-                    result = on_bar_func(state)
+                    result = func(state)
             else:
                 raise RuntimeError("on_bar function not found in strategy code")
 

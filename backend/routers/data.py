@@ -309,7 +309,7 @@ def get_dataset(symbol: str, interval: str):
         "total_records": len(df),
         "suggested_max_position": suggested,
         "is_mock": is_mock,
-        "candles": data[:2000],
+        "candles": data[-2000:],
     }
 
 

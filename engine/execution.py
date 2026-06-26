@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 from datetime import datetime
 from engine.datamodels import Order, Trade, Candle
 
@@ -8,21 +8,11 @@ class ExecutionSimulator:
         self,
         slippage_pct: float = 0.0005,  # 0.05% default slippage
         latency_ms: int = 0,
-        default_trade_type: str = "INTRADAY"  # INTRADAY or DELIVERY or FUTURES
+        default_trade_type: str = "INTRADAY"  # INTRADAY, DELIVERY, FUTURES, or OPTIONS
     ):
         self.slippage_pct = slippage_pct
         self.latency_ms = latency_ms
         self.default_trade_type = default_trade_type
-
-    def determine_trade_type(self, symbol: str) -> str:
-        """Helper to classify symbol into Equities or F&O."""
-        symbol_upper = symbol.upper()
-        if symbol_upper.endswith("-FUT") or symbol_upper.endswith("-CE") or symbol_upper.endswith("-PE") or "FUT" in symbol_upper:
-            return "FUTURES"
-        # If it contains -DEL or user configured, delivery.
-        if "DELIVERY" in self.default_trade_type.upper():
-            return "DELIVERY"
-        return "INTRADAY"
 
     def calculate_charges(
         self,
@@ -33,13 +23,15 @@ class ExecutionSimulator:
         trade_type: Optional[str] = None
     ) -> Tuple[float, float, float, float, float, float, float]:
         """
-        Calculates Indian market charges.
+        Calculates Indian market charges (NSE/BSE).
+        
+        Note on Options: turnover = premium * qty. STT is 0.05% on sell-side premium.
         Returns:
             (brokerage, stt, exchange_charges, gst, sebi_charges, stamp_duty, total_charges)
         """
         direction = direction.upper()
         if not trade_type:
-            trade_type = self.determine_trade_type(symbol)
+            trade_type = self.default_trade_type
         
         turnover = price * qty
         brokerage = 0.0
@@ -49,10 +41,11 @@ class ExecutionSimulator:
         sebi_charges = 0.0
         stamp_duty = 0.0
 
-        # 1. Brokerage: Flat Rs 20 or 0.03% (whichever is lower) for Intraday and Futures. Free for Delivery.
+        # 1. Brokerage: Flat Rs 20 or 0.03% (whichever is lower) for Intraday, Futures, Options.
+        # Free for Delivery.
         if trade_type == "DELIVERY":
             brokerage = 0.0
-        elif trade_type in ("INTRADAY", "FUTURES"):
+        elif trade_type in ("INTRADAY", "FUTURES", "OPTIONS"):
             calc_brokerage = turnover * 0.0003  # 0.03%
             brokerage = min(20.0, calc_brokerage)
 
@@ -64,11 +57,16 @@ class ExecutionSimulator:
                 stt = turnover * 0.00025  # 0.025% on sell only
         elif trade_type == "FUTURES":
             if direction == "SELL":
-                stt = turnover * 0.000125  # 0.0125% on sell only
+                stt = turnover * 0.0001  # 0.01% CTT on sell only (futures)
+        elif trade_type == "OPTIONS":
+            if direction == "SELL":
+                stt = turnover * 0.0005  # 0.05% on sell-side premium (options)
 
         # 3. Exchange Transaction Charges (NSE standard)
         if trade_type == "FUTURES":
             exchange_charges = turnover * 0.000019  # 0.0019%
+        elif trade_type == "OPTIONS":
+            exchange_charges = turnover * 0.00053  # 0.053% on premium
         else:
             exchange_charges = turnover * 0.0000343  # 0.00343% for equities
 
@@ -86,17 +84,33 @@ class ExecutionSimulator:
                 stamp_duty = turnover * 0.00003  # 0.003%
             elif trade_type == "FUTURES":
                 stamp_duty = turnover * 0.00002  # 0.002%
+            elif trade_type == "OPTIONS":
+                stamp_duty = turnover * 0.00003  # 0.003% (equity index options)
 
         total_charges = brokerage + stt + exchange_charges + gst + sebi_charges + stamp_duty
         return brokerage, stt, exchange_charges, gst, sebi_charges, stamp_duty, total_charges
 
-    def match_order(self, order: Order, candle: Candle, timestamp: str) -> Optional[Trade]:
+    def match_order(self, order: Order, candle: Any, timestamp: str) -> Optional[Trade]:
         """
         Attempts to match an order against a candle.
+        Accepts Candle objects, pandas Series, or plain dicts (live path).
         Returns a Trade object if filled, otherwise None.
         """
         if order.status != "PENDING":
             return None
+
+        # Helper: extract OHLCV field regardless of input type (Candle, Series, dict)
+        def _get(field: str, default=0.0):
+            if isinstance(candle, dict):
+                return candle.get(field, default)
+            if hasattr(candle, field):
+                return getattr(candle, field)
+            if hasattr(candle, '__getitem__'):
+                try:
+                    return candle[field]
+                except Exception:
+                    return default
+            return default
 
         is_filled = False
         fill_price = 0.0
@@ -105,9 +119,13 @@ class ExecutionSimulator:
         # slippage calculation: BUY price goes up, SELL price goes down.
         sign = 1 if order.direction == "BUY" else -1
 
+        open_p = float(_get("open", 0.0))
+        high_p = float(_get("high", 0.0))
+        low_p = float(_get("low", 0.0))
+
         if order.type == "MARKET":
             # Market orders fill at the candle's open price
-            fill_price = candle.open
+            fill_price = open_p
             slippage_value = fill_price * self.slippage_pct * sign
             fill_price += slippage_value
             is_filled = True
@@ -115,7 +133,7 @@ class ExecutionSimulator:
         elif order.type == "LIMIT":
             # For Limit Buy, price must be high enough to match low (candle low <= order price)
             if order.direction == "BUY":
-                if candle.low <= order.price:
+                if low_p <= order.price:
                     fill_price = order.price  # Limit orders fill at limit price or better
                     slippage_value = fill_price * self.slippage_pct
                     # Limit buys get filled at limit price + slippage (pessimistic modeling)
@@ -123,7 +141,7 @@ class ExecutionSimulator:
                     is_filled = True
             # For Limit Sell, price must be low enough to match high (candle high >= order price)
             elif order.direction == "SELL":
-                if candle.high >= order.price:
+                if high_p >= order.price:
                     fill_price = order.price
                     slippage_value = -fill_price * self.slippage_pct
                     fill_price += slippage_value
@@ -136,7 +154,7 @@ class ExecutionSimulator:
             order.avg_fill_price = fill_price
 
             # Calculate charges
-            trade_type = self.determine_trade_type(order.symbol)
+            trade_type = self.default_trade_type
             brokerage, stt, exc, gst, sebi, stamp, total = self.calculate_charges(
                 order.symbol, order.direction, fill_price, order.qty, trade_type
             )

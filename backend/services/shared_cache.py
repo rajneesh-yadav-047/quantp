@@ -54,7 +54,11 @@ class SharedCacheService:
         return f"{self._redis_prefix}:{symbol}:{interval}"
     
     async def append_candle(self, symbol: str, interval: str, candle: Dict[str, Any]):
-        """Append a candle to the shared cache for a symbol+interval."""
+        """Append a candle to the shared cache for a symbol+interval.
+        
+        If the last cached candle has the same time, it is replaced (deduplication)
+        so incomplete forming candles don't create duplicates when finalized.
+        """
         key = self._make_key(symbol, interval)
         
         async with self._lock:
@@ -63,7 +67,15 @@ class SharedCacheService:
             if interval not in self._cache[symbol]:
                 self._cache[symbol][interval] = deque(maxlen=self._max_candles)
             
-            self._cache[symbol][interval].append(candle)
+            existing = self._cache[symbol][interval]
+            candle_time = candle.get("time")
+            if candle_time is not None and existing:
+                last = existing[-1]
+                if last.get("time") == candle_time:
+                    # Replace the last candle (same time = updated/finalized)
+                    existing.pop()
+            
+            existing.append(candle)
         
         # Also store latest in Redis for cross-process access
         try:
@@ -124,6 +136,19 @@ class SharedCacheService:
             # Simple approach: try common intervals
             for interval in ["1m", "5m", "15m", "1h", "1d"]:
                 redis.delete(f"{self._redis_prefix}:{symbol}:{interval}")
+        except Exception:
+            pass
+    
+    async def clear_interval(self, symbol: str, interval: str):
+        """Clear a specific symbol+interval from the cache."""
+        async with self._lock:
+            if symbol in self._cache and interval in self._cache[symbol]:
+                del self._cache[symbol][interval]
+        
+        try:
+            redis = get_redis()
+            redis_key = self._make_redis_key(symbol, interval)
+            redis.delete(redis_key)
         except Exception:
             pass
     

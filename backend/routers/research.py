@@ -6,13 +6,16 @@ independent dataset deep analysis, AND multi-asset research analytics.
 import time
 import json
 import math
+import pandas as pd
 from typing import Any, cast, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.database import get_db, BacktestResultDB, StrategyDB
+import os
+import uuid
+from backend.database import get_db, BacktestResultDB, StrategyDB, ResearchJobDB, WalkForwardFoldDB, OptimizationTrialDB
 from backend.smartapi import SmartAPIClient
 from backend.services.data_service import slice_dataframe_by_date
 from engine.research import attribute_performance_by_regime
@@ -766,3 +769,191 @@ def sr_endpoint(req: ExtrasRequest):
     if df is None or df.empty:
         raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
     return detect_support_resistance(df)
+
+
+# ---------------------------------------------------------------------------
+# Quantitative Analysis Endpoints
+# ---------------------------------------------------------------------------
+
+class QuantAnalysisRequest(BaseModel):
+    symbol: str
+    interval: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+
+class MultiTimeframeRequest(BaseModel):
+    symbol: str
+    intervals: Optional[List[str]] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class FactorExposureRequest(BaseModel):
+    symbol: str
+    interval: str
+    benchmarks: List[str]  # list of benchmark symbols
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+def _load_symbol_df(req: QuantAnalysisRequest, client: Optional[SmartAPIClient] = None) -> pd.DataFrame:
+    """Helper to load and slice a symbol DataFrame."""
+    from backend.services.data_service import normalize_symbol, slice_dataframe_by_date
+    if client is None:
+        client = SmartAPIClient()
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
+    if req.start_date and req.end_date:
+        try:
+            df = slice_dataframe_by_date(df, req.start_date, req.end_date)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Date slicing error: {e}")
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Dataset empty after date filtering.")
+    return df
+
+
+@router.post("/quant/mean-reversion")
+def mean_reversion_endpoint(req: QuantAnalysisRequest):
+    """Hurst exponent, OU half-life, and mean reversion strength."""
+    from engine.quant_analysis import mean_reversion_analysis
+    df = _load_symbol_df(req)
+    result = mean_reversion_analysis(df["close"].astype(float))
+    return result
+
+
+@router.post("/quant/regime-advanced")
+def regime_advanced_endpoint(req: QuantAnalysisRequest):
+    """HMM regimes, rolling detection, and transition probabilities."""
+    from engine.quant_analysis import hmm_regimes, rolling_regime_detection
+    df = _load_symbol_df(req)
+    hmm = hmm_regimes(df)
+    rolling = rolling_regime_detection(df)
+    return {
+        "hmm": hmm,
+        "rolling": rolling,
+    }
+
+
+@router.post("/quant/volume-profile-enhanced")
+def volume_profile_enhanced_endpoint(req: QuantAnalysisRequest):
+    """Enhanced volume profile with POC, VAH, VAL, HVN, LVN."""
+    from engine.quant_analysis import volume_profile_enhanced
+    df = _load_symbol_df(req)
+    return volume_profile_enhanced(df)
+
+
+@router.post("/quant/gap-analysis")
+def gap_analysis_endpoint(req: QuantAnalysisRequest):
+    """Gap fill rate, continuation probability, average fill time."""
+    from engine.quant_analysis import gap_analysis
+    df = _load_symbol_df(req)
+    return gap_analysis(df)
+
+
+@router.post("/quant/intraday")
+def intraday_endpoint(req: QuantAnalysisRequest):
+    """Intraday behavior: volatility, range, win-rate, volume by hour."""
+    from engine.quant_analysis import intraday_behavior_analysis
+    df = _load_symbol_df(req)
+    return intraday_behavior_analysis(df)
+
+
+@router.post("/quant/trend-persistence")
+def trend_persistence_endpoint(req: QuantAnalysisRequest):
+    """Trend persistence: bullish/bearish run lengths, directional persistence."""
+    from engine.quant_analysis import trend_persistence_analysis
+    df = _load_symbol_df(req)
+    return trend_persistence_analysis(df)
+
+
+@router.post("/quant/volatility-structure")
+def volatility_structure_endpoint(req: QuantAnalysisRequest):
+    """Volatility structure: ATR percentiles, clustering, regime transitions, forecast."""
+    from engine.quant_analysis import volatility_structure_analysis
+    df = _load_symbol_df(req)
+    return volatility_structure_analysis(df)
+
+
+@router.post("/quant/tail-risk")
+def tail_risk_endpoint(req: QuantAnalysisRequest):
+    """Tail risk: 3σ/5σ events, flash crashes, extreme move probability."""
+    from engine.quant_analysis import tail_risk_analysis
+    df = _load_symbol_df(req)
+    return tail_risk_analysis(df)
+
+
+@router.post("/quant/order-flow")
+def order_flow_endpoint(req: QuantAnalysisRequest):
+    """Order flow proxies: buy/sell volume, delta, cumulative delta."""
+    from engine.quant_analysis import order_flow_proxies
+    df = _load_symbol_df(req)
+    return order_flow_proxies(df)
+
+
+@router.post("/quant/multi-timeframe")
+def multi_timeframe_endpoint(req: MultiTimeframeRequest):
+    """Multi-timeframe analysis: classify 1m, 5m, 15m, 1h, daily."""
+    from engine.quant_analysis import multi_timeframe_analysis
+    client = SmartAPIClient()
+    intervals = req.intervals or ["ONE_MINUTE", "FIVE_MINUTE", "FIFTEEN_MINUTE", "THIRTY_MINUTE", "ONE_HOUR", "ONE_DAY"]
+    return multi_timeframe_analysis(
+        symbol=req.symbol,
+        client=client,
+        intervals=intervals,
+        start_date=req.start_date,
+        end_date=req.end_date,
+    )
+
+
+@router.post("/quant/factor-exposure")
+def factor_exposure_endpoint(req: FactorExposureRequest):
+    """Factor exposure: beta, alpha, R² to benchmarks."""
+    from backend.services.data_service import normalize_symbol, slice_dataframe_by_date
+    from engine.quant_analysis import factor_exposure_analysis
+
+    client = SmartAPIClient()
+    normalized = normalize_symbol(req.symbol.upper(), req.interval, client)
+    df = client.load_dataset_csv(normalized, req.interval.upper())
+    if df is None or df.empty:
+        df = client.load_dataset_csv(req.symbol.upper(), req.interval.upper())
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"Dataset not found for {normalized}.")
+    if req.start_date and req.end_date:
+        df = slice_dataframe_by_date(df, req.start_date, req.end_date)
+
+    benchmark_dfs = {}
+    for bench in req.benchmarks:
+        b_norm = normalize_symbol(bench.upper(), req.interval, client)
+        b_df = client.load_dataset_csv(b_norm, req.interval.upper())
+        if b_df is None or b_df.empty:
+            b_df = client.load_dataset_csv(bench.upper(), req.interval.upper())
+        if b_df is not None and not b_df.empty:
+            if req.start_date and req.end_date:
+                b_df = slice_dataframe_by_date(b_df, req.start_date, req.end_date)
+            benchmark_dfs[bench.upper()] = b_df
+
+    return factor_exposure_analysis(df, benchmark_dfs)
+
+
+@router.post("/quant/walk-forward-stability")
+def walk_forward_stability_endpoint(req: QuantAnalysisRequest):
+    """Walk-forward stability: analyze 1M, 3M, 6M windows."""
+    from engine.quant_analysis import walk_forward_stability_analysis
+    df = _load_symbol_df(req)
+    return walk_forward_stability_analysis(df)
+
+
+@router.post("/quant/feature-importance")
+def feature_importance_endpoint(req: QuantAnalysisRequest):
+    """Feature importance: predictive power of RSI, ATR, ADX, VWAP, volume, Bollinger."""
+    from engine.quant_analysis import feature_importance_engine
+    df = _load_symbol_df(req)
+    return feature_importance_engine(df)
+

@@ -137,8 +137,8 @@ export function BacktestsTab({
           {/* Trade Type Selection */}
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5">Trade Execution Mode</label>
-            <div className="grid grid-cols-3 gap-1">
-              {["INTRADAY", "DELIVERY", "FUTURES"].map(t => (
+            <div className="grid grid-cols-2 gap-1">
+              {["INTRADAY", "DELIVERY", "FUTURES", "OPTIONS"].map(t => (
                 <button
                   key={t}
                   onClick={() => setBtTradeType(t)}

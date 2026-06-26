@@ -9,7 +9,7 @@
  * - Content-Type validation
  */
 
-const API_BASE = "/api";
+const API_BASE = process.env.NODE_ENV === "development" ? "http://localhost:8000/api" : "/api";
 const DEFAULT_TIMEOUT = 120000; // 2 minutes (forge endpoints can take 60-120s)
 
 export interface ApiResult<T = any> {

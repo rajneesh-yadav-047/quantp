@@ -171,13 +171,26 @@ def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
         deployment = db.query(DeploymentDB).filter(DeploymentDB.id == deployment_id).first()
         if not deployment:
             raise HTTPException(status_code=404, detail="Deployment not found")
+        # Return a safe portfolio with defaults so the frontend never crashes
         return {
             "deployment_id": deployment_id,
             "status": deployment.status,
             "mode": deployment.mode,
             "symbol": _canonicalize_sym(deployment.symbol) if deployment.symbol else deployment.symbol,
             "running": False,
-            "portfolio": None,
+            "portfolio": {
+                "cash": 0.0,
+                "margin_used": 0.0,
+                "margin_free": 0.0,
+                "equity": 0.0,
+                "unrealized_pnl": 0.0,
+                "total_fees": 0.0,
+                "total_pnl": 0.0,
+                "positions": {},
+            },
+            "active_orders": [],
+            "step": 0,
+            "initial_capital": 0.0,
         }
     
     return {
@@ -187,11 +200,11 @@ def get_deployment_status(deployment_id: str, db: Session = Depends(get_db)):
         "symbol": _canonicalize_sym(status.get("symbol", "")) if status.get("symbol") else status.get("symbol"),
         "interval": status.get("interval"),
         "step": status.get("step", 0),
-        "initial_capital": status.get("initial_capital"),
+        "initial_capital": status.get("initial_capital", 0.0),
         "current_price": status.get("current_price"),
         "smartapi_connected": status.get("smartapi_connected", False),
         "market_data_active": status.get("market_data_active", False),
-        "portfolio": status.get("portfolio"),
+        "portfolio": status.get("portfolio", {}),
         "active_orders": status.get("active_orders", []),
         "poll_interval": status.get("poll_interval"),
     }
@@ -401,12 +414,12 @@ def get_latest_candle(symbol: str, interval: str = "5m"):
 def subscribe_to_symbol(symbol: str):
     """Subscribe a symbol to the Market Data Service."""
     from backend.services.market_data_service import MarketDataService, ensure_market_data_service
-    import asyncio
+    import time
     try:
         mds = MarketDataService.get_instance()
         if not mds._running:
             mds.start()
-            asyncio.run(asyncio.sleep(2))
+            time.sleep(2)
         mds.subscribe_symbol(symbol)
         return {"status": "subscribed", "symbol": symbol}
     except Exception as e:

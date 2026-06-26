@@ -111,6 +111,9 @@ def analyze_dataset(
         "ema_slow": trend_analysis["ema_slow_series"],
     }
 
+    # Downsample plot series for browser performance (charts can't render 100k+ points)
+    plot_series = _downsample_plot_series(plot_series, max_points=5000)
+
     return {
         "valid": True,
         "symbol": symbol,
@@ -665,3 +668,37 @@ def _score_strategy_suitability(
         "recommended": best,
         "recommended_score": best_score,
     }
+
+
+def _downsample_plot_series(plot_series: Dict[str, Any], max_points: int = 5000) -> Dict[str, Any]:
+    """
+    Downsample all series in plot_series to max_points using uniform stride.
+    Preserves first and last points so chart edges remain accurate.
+    Handles series that may have slightly different lengths (e.g. returns is n-1).
+    """
+    n = len(plot_series.get("time", []))
+    if n == 0 or n <= max_points:
+        return plot_series
+
+    stride = max(1, n // max_points)
+    time_indices = list(range(0, n, stride))
+    if not time_indices or time_indices[-1] != n - 1:
+        time_indices.append(n - 1)
+
+    result = {}
+    for k, v in plot_series.items():
+        if k == "time":
+            result[k] = [v[i] for i in time_indices]
+        else:
+            m = len(v)
+            if m == n:
+                result[k] = [v[i] for i in time_indices]
+            else:
+                # For series with different lengths (e.g. returns is n-1),
+                # sample proportionally so the distribution is preserved.
+                if m == 0:
+                    result[k] = []
+                else:
+                    prop_indices = [min(int(i * m / n), m - 1) for i in time_indices]
+                    result[k] = [v[i] for i in prop_indices]
+    return result

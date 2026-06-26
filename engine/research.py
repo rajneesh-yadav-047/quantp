@@ -37,29 +37,21 @@ def classify_market_regimes(df: pd.DataFrame, fast_period: int = 20, slow_period
     # Simple Gap detection: (open - prev_close) / prev_close
     df['gap_pct'] = ((df['open'] - df['prev_close']) / df['prev_close']).fillna(0)
     
-    # Classification
-    regimes = []
-    for idx, row in df.iterrows():
-        # Check gap
-        if abs(row['gap_pct']) >= 0.005:  # 0.5% or more open gap
-            regimes.append("GAP_DAY")
-            continue
-            
-        is_trending = abs(row['ema_fast'] - row['ema_slow']) / row['ema_slow'] > 0.0025  # 0.25% spread
-        
-        if is_trending:
-            if row['ema_fast'] > row['ema_slow']:
-                regimes.append("TRENDING_BULLISH")
-            else:
-                regimes.append("TRENDING_BEARISH")
-        else:
-            # Ranging - check volatility relative to average ATR
-            if row['atr'] > row['atr_ma']:
-                regimes.append("VOLATILE_RANGING")
-            else:
-                regimes.append("QUIET_RANGING")
-                
-    df['regime'] = regimes
+    # Classification (vectorized)
+    gap_mask = df['gap_pct'].abs() >= 0.005
+    ema_spread = (df['ema_fast'] - df['ema_slow']).abs() / df['ema_slow']
+    is_trending = ema_spread > 0.0025
+    
+    bullish = is_trending & (df['ema_fast'] > df['ema_slow'])
+    bearish = is_trending & (df['ema_fast'] <= df['ema_slow'])
+    volatile_ranging = (~is_trending) & (df['atr'] > df['atr_ma'])
+    quiet_ranging = (~is_trending) & (df['atr'] <= df['atr_ma'])
+    
+    df['regime'] = np.select(
+        [gap_mask, bullish, bearish, volatile_ranging, quiet_ranging],
+        ['GAP_DAY', 'TRENDING_BULLISH', 'TRENDING_BEARISH', 'VOLATILE_RANGING', 'QUIET_RANGING'],
+        default='QUIET_RANGING'
+    )
     return df
 
 def attribute_performance_by_regime(

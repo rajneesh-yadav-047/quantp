@@ -62,6 +62,7 @@ class BacktestEngine:
         self.initial_capital = initial_capital
         self.log_dir = log_dir
         self.runtime_type = runtime_type
+        self.default_trade_type = default_trade_type
 
         # Components
         self.execution_sim = ExecutionSimulator(
@@ -285,6 +286,36 @@ class BacktestEngine:
 
                 # ===== PHASE 7: Finalize =====
                 self.portfolio_mgr.mark_to_market(current_prices)
+
+                # ===== PHASE 7.5: EOD intraday squaring =====
+                # In Indian markets, intraday positions must be squared off by end of trading day.
+                is_last_candle_of_day = False
+                if step + 1 < len(self.all_timestamps):
+                    next_ts = self.all_timestamps[step + 1]
+                    current_date = str(ts)[:10]
+                    next_date = str(next_ts)[:10]
+                    is_last_candle_of_day = current_date != next_date
+                else:
+                    is_last_candle_of_day = True
+
+                if is_last_candle_of_day and self.default_trade_type == "INTRADAY":
+                    if self.portfolio_mgr.portfolio.positions:
+                        eod_liq_trades = self.portfolio_mgr.liquidate_all(
+                            current_prices=current_prices,
+                            timestamp=ts,
+                            execution_sim=self.execution_sim,
+                        )
+                        for trade in eod_liq_trades:
+                            all_trades.append(trade)
+                            filled_trades.append(trade)
+                            own_trades_by_symbol[trade.symbol].append(RTrade(
+                                symbol=trade.symbol,
+                                price=trade.price,
+                                quantity=trade.qty,
+                                timestamp=ts,
+                                direction=trade.direction,
+                                trade_id=trade.id,
+                            ))
 
                 # Take snapshot BEFORE pruning zero positions so realized_pnl is preserved in the log
                 portfolio_snapshot = self.portfolio_mgr.get_snapshot()

@@ -8,7 +8,7 @@ import {
   Clock, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
   ChevronDown, ChevronUp, Bell, PlusCircle, RotateCcw
 } from "lucide-react";
-import { api, formatApiError } from "../../lib/api-client";
+import { api, formatApiError } from "@/lib/api-client";
 import LightweightChart from "../../components/LightweightChart";
 
 // Types
@@ -482,12 +482,12 @@ export default function LiveTradingPage() {
   const getTradeUtcClockTimeSeconds = (timestampStr: string) => {
     if (!timestampStr) return 0;
     
-    // Check if it's already a string representation of a number
+    // Check if it's already a string representation of a number (Unix epoch)
     if (/^\d+$/.test(timestampStr)) {
       return parseInt(timestampStr);
     }
 
-    // Attempt direct regex extraction for local time parts to avoid time offsets
+    // ISO format with T: "2026-06-24T11:50:00" or "2026-06-24T11:50:00+00:00"
     const match = timestampStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
     if (match) {
       const y = parseInt(match[1]);
@@ -496,6 +496,19 @@ export default function LiveTradingPage() {
       const h = parseInt(match[4]);
       const min = parseInt(match[5]);
       const s = parseInt(match[6]);
+      const utcDate = new Date(Date.UTC(y, m, d, h, min, s));
+      return Math.floor(utcDate.getTime() / 1000);
+    }
+
+    // Space-separated format: "2026-06-24 11:50:00" — treat as UTC to align with chart
+    const spaceMatch = timestampStr.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+    if (spaceMatch) {
+      const y = parseInt(spaceMatch[1]);
+      const m = parseInt(spaceMatch[2]) - 1;
+      const d = parseInt(spaceMatch[3]);
+      const h = parseInt(spaceMatch[4]);
+      const min = parseInt(spaceMatch[5]);
+      const s = parseInt(spaceMatch[6]);
       const utcDate = new Date(Date.UTC(y, m, d, h, min, s));
       return Math.floor(utcDate.getTime() / 1000);
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { api, formatApiError, type ApiResult } from "../../lib/api-client";
+import { api, formatApiError, type ApiResult } from "@/lib/api-client";
 
 export type NotifType = "success" | "error" | "info";
 export interface Notif { type: NotifType; msg: string }

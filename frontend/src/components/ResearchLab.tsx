@@ -148,7 +148,7 @@ interface ResearchLabProps {
   theme: "dark" | "light";
 }
 
-type TabType = "overview" | "returns" | "volatility" | "trend" | "seasonality" | "verdict";
+type TabType = "overview" | "returns" | "volatility" | "trend" | "seasonality" | "verdict" | "quant";
 
 export default function ResearchLab({
   datasets,
@@ -166,6 +166,9 @@ export default function ResearchLab({
   const [logFilter, setLogFilter] = useState<"all" | "info" | "warn" | "recommend">("all");
   const [copied, setCopied] = useState(false);
 
+  const [quantResults, setQuantResults] = useState<Record<string, any>>({});
+  const [quantLoading, setQuantLoading] = useState(false);
+
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const datasetOptions = useMemo(() => {
@@ -173,7 +176,7 @@ export default function ResearchLab({
       const key = val.symbol && val.interval ? `${val.symbol}_${val.interval}` : String(val.id || val.key || "");
       return {
         key,
-        label: `${val.symbol || key.split("_")[0]} (${val.interval || key.split("_")[1]})`,
+        label: `${val.symbol || key.split("_")[0]} (${val.interval || key.substring(key.indexOf("_") + 1)})`,
         bars: val.records || val.total_records || "?",
       };
     });
@@ -221,36 +224,61 @@ export default function ResearchLab({
     setAnalysisLoading(false);
   };
 
+  /* ─── Quant Analysis Pipeline ─── */
+  const runQuantAnalysis = async () => {
+    if (!selectedDataset) {
+      setNotif({ type: "error", msg: "Select a dataset first" });
+      return;
+    }
+    const firstUnderscore = selectedDataset.indexOf("_");
+    const symbol = selectedDataset.substring(0, firstUnderscore);
+    const interval = selectedDataset.substring(firstUnderscore + 1);
+    if (!symbol || !interval) {
+      setNotif({ type: "error", msg: "Invalid dataset key" });
+      return;
+    }
+
+    setQuantLoading(true);
+    setQuantResults({});
+    clearEndpointError("research/quant");
+
+    const reqBody = { symbol, interval };
+    const endpoints = [
+      { key: "mean_reversion", endpoint: "/research/quant/mean-reversion", body: reqBody },
+      { key: "volume_profile", endpoint: "/research/quant/volume-profile-enhanced", body: reqBody },
+      { key: "gap", endpoint: "/research/quant/gap-analysis", body: reqBody },
+      { key: "intraday", endpoint: "/research/quant/intraday", body: reqBody },
+      { key: "trend_persistence", endpoint: "/research/quant/trend-persistence", body: reqBody },
+      { key: "volatility", endpoint: "/research/quant/volatility-structure", body: reqBody },
+      { key: "tail_risk", endpoint: "/research/quant/tail-risk", body: reqBody },
+      { key: "order_flow", endpoint: "/research/quant/order-flow", body: reqBody },
+      { key: "feature_importance", endpoint: "/research/quant/feature-importance", body: reqBody },
+      { key: "regime", endpoint: "/research/quant/regime-advanced", body: reqBody },
+    ];
+
+    // Run all quant endpoints in parallel
+    const results: Record<string, any> = {};
+    await Promise.all(
+      endpoints.map(async ({ key, endpoint, body }) => {
+        const res = await api.post(endpoint, body);
+        if (res.ok && res.data) {
+          results[key] = res.data;
+        } else {
+          results[key] = { error: res.error || "Failed" };
+        }
+      })
+    );
+
+    setQuantResults(results);
+    setQuantLoading(false);
+    setNotif({ type: "success", msg: "Quantitative analysis complete" });
+  };
+
   const handleCopyJSON = () => {
-    if (!analysisResult) return;
-    const tuning = {
-      symbol: analysisResult.symbol,
-      interval: analysisResult.interval,
-      bars: analysisResult.bars,
-      recommended_strategy: analysisResult.suitability?.recommended,
-      recommended_score: analysisResult.suitability?.recommended_score,
-      trend_direction: analysisResult.trend?.trend_direction,
-      vol_regime: analysisResult.volatility?.current_vol_regime,
-      avg_range: analysisResult.price_stats?.avg_range,
-      body_to_range_ratio: analysisResult.price_stats?.body_to_range_ratio,
-      annualized_vol_pct: analysisResult.returns?.annualized_vol_pct,
-      sharpe_approx: analysisResult.returns?.sharpe_approx,
-      skewness: analysisResult.returns?.skewness,
-      max_drawdown_pct: analysisResult.drawdown?.max_drawdown_pct,
-      var_95_pct: analysisResult.returns?.var_95_pct,
-      cvar_95_pct: analysisResult.returns?.cvar_95_pct,
-      autocorr_lag1: analysisResult.autocorrelation?.lags?.[0]?.autocorr,
-      positive_bars_pct: analysisResult.returns?.positive_bars_pct,
-      adx_proxy: analysisResult.trend?.adx_proxy,
-      r_squared: analysisResult.trend?.r_squared,
-      nearest_support: analysisResult.levels?.nearest_support?.price,
-      nearest_resistance: analysisResult.levels?.nearest_resistance?.price,
-      best_hour: analysisResult.seasonality?.hourly?.best_hour,
-      regime_distribution: analysisResult.regimes,
-    };
-    navigator.clipboard.writeText(JSON.stringify(tuning, null, 2));
+    if (!tuningConfig) return;
+    navigator.clipboard.writeText(JSON.stringify(tuningConfig, null, 2));
     setCopied(true);
-    setNotif({ type: "success", msg: "Tuning JSON copied to clipboard" });
+    setNotif({ type: "success", msg: "Detailed tuning JSON copied to clipboard" });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -268,6 +296,174 @@ export default function ResearchLab({
       return true;
     });
   }, [analysisResult?.logs, logSearch, logFilter]);
+
+  const tuningConfig = useMemo(() => {
+    if (!analysisResult) return null;
+    const r = analysisResult;
+    const ret = r.returns || {};
+    const vol = r.volatility || {};
+    const trend = r.trend || {};
+    const dd = r.drawdown || {};
+    const price = r.price_stats || {};
+    const levels = r.levels || {};
+    const volume = r.volume || {};
+    const regimes = r.regimes || {};
+    const season = r.seasonality || {};
+    const patterns = r.patterns || {};
+    const ac = r.autocorrelation || {};
+    const suit = r.suitability || {};
+
+    const bodyRatio = price.body_to_range_ratio || 0;
+    const annVol = ret.annualized_vol_pct || 0;
+    const adx = trend.adx_proxy || 0;
+    const skew = ret.skewness || 0;
+    const ac1 = ac.lags?.[0]?.autocorr ?? 0;
+    const posPct = ret.positive_bars_pct || 50;
+    const maxDD = dd.max_drawdown_pct || 0;
+
+    const stopSuggestion = annVol > 35 ? "Wide stops (2.5x–3x ATR)" : adx > 25 ? "Moderate stops (1.5x–2x ATR)" : "Tight stops (1x–1.5x ATR)";
+    const targetSuggestion = bodyRatio > 0.6 ? "Trailing targets for trend continuation" : "Fixed targets at resistance levels";
+    const sizingNote = annVol > 35 ? "Reduce size 25–50%" : maxDD < -15 ? "Conservative sizing mandatory" : "Standard sizing";
+    const bias = ac1 > 0.1 ? "Trend-following bias" : ac1 < -0.1 ? "Mean-reversion bias" : "Neutral / adaptive";
+    const riskLevel = maxDD < -20 ? "HIGH" : maxDD < -10 ? "MEDIUM" : "LOW";
+
+    return {
+      metadata: {
+        symbol: r.symbol,
+        interval: r.interval,
+        bars: r.bars,
+        date_range: r.date_range,
+      },
+      recommendation: {
+        recommended_strategy: suit.recommended,
+        recommended_score: suit.recommended_score,
+        all_strategy_scores: suit.scores,
+      },
+      price_characteristics: {
+        open_mean: price.open_mean,
+        high_max: price.high_max,
+        low_min: price.low_min,
+        close_mean: price.close_mean,
+        close_std: price.close_std,
+        avg_body: price.avg_body,
+        avg_range: price.avg_range,
+        avg_upper_wick: price.avg_upper_wick,
+        avg_lower_wick: price.avg_lower_wick,
+        body_to_range_ratio: price.body_to_range_ratio,
+      },
+      return_profile: {
+        mean_return_pct: ret.mean_return_pct,
+        std_return_pct: ret.std_return_pct,
+        annualized_return_pct: ret.annualized_return_pct,
+        annualized_vol_pct: ret.annualized_vol_pct,
+        sharpe_approx: ret.sharpe_approx,
+        skewness: ret.skewness,
+        kurtosis: ret.kurtosis,
+        jarque_bera_p: ret.jarque_bera_p,
+        is_normal: ret.is_normal,
+        var_95_pct: ret.var_95_pct,
+        var_99_pct: ret.var_99_pct,
+        cvar_95_pct: ret.cvar_95_pct,
+        positive_bars_pct: ret.positive_bars_pct,
+        negative_bars_pct: ret.negative_bars_pct,
+        max_single_gain_pct: ret.max_single_gain_pct,
+        max_single_loss_pct: ret.max_single_loss_pct,
+      },
+      volatility_profile: {
+        realized_vol_annual_pct: vol.realized_vol_annual_pct,
+        ewma_vol_annual_pct: vol.ewma_vol_annual_pct,
+        vol_of_vol: vol.vol_of_vol,
+        current_vol_regime: vol.current_vol_regime,
+        current_vol_pct: vol.current_vol_pct,
+        vol_median_pct: vol.vol_median_pct,
+        vol_max_pct: vol.vol_max_pct,
+        vol_min_pct: vol.vol_min_pct,
+      },
+      trend_momentum: {
+        linear_slope: trend.linear_slope,
+        r_squared: trend.r_squared,
+        trend_p_value: trend.trend_p_value,
+        is_trending: trend.is_trending,
+        trend_direction: trend.trend_direction,
+        ema20: trend.ema20,
+        ema50: trend.ema50,
+        price_vs_ema20_pct: trend.price_vs_ema20_pct,
+        price_vs_ema50_pct: trend.price_vs_ema50_pct,
+        adx_proxy: trend.adx_proxy,
+        strong_trend: trend.strong_trend,
+      },
+      drawdown_risk: {
+        max_drawdown_pct: dd.max_drawdown_pct,
+        max_dd_date: dd.max_dd_date,
+        avg_drawdown_duration_bars: dd.avg_drawdown_duration_bars,
+        max_drawdown_duration_bars: dd.max_drawdown_duration_bars,
+        current_drawdown_pct: dd.current_drawdown_pct,
+        underwater_pct: dd.underwater_pct,
+      },
+      support_resistance: {
+        rolling_high: levels.rolling_high,
+        rolling_low: levels.rolling_low,
+        nearest_support_price: levels.nearest_support?.price,
+        nearest_support_strength: levels.nearest_support?.strength,
+        nearest_resistance_price: levels.nearest_resistance?.price,
+        nearest_resistance_strength: levels.nearest_resistance?.strength,
+        distance_to_support_pct: levels.distance_to_support_pct,
+        distance_to_resistance_pct: levels.distance_to_resistance_pct,
+        all_pivots: levels.pivots,
+      },
+      volume_profile: {
+        available: volume.available,
+        avg_volume: volume.avg_volume,
+        max_volume: volume.max_volume,
+        min_volume: volume.min_volume,
+        volume_price_corr: volume.volume_price_corr,
+        relative_volume: volume.relative_volume,
+        volume_trend: volume.volume_trend,
+      },
+      market_regimes: regimes,
+      seasonality: {
+        hourly: season.hourly ? {
+          best_hour: season.hourly.best_hour,
+          best_hour_return_pct: season.hourly.best_hour_return_pct,
+          worst_hour: season.hourly.worst_hour,
+          worst_hour_return_pct: season.hourly.worst_hour_return_pct,
+          hourly_data: season.hourly.hourly_data,
+        } : null,
+        day_of_week: season.dow ? {
+          best_day: season.dow.best_day,
+          best_day_return_pct: season.dow.best_day_return_pct,
+          worst_day: season.dow.worst_day,
+          worst_day_return_pct: season.dow.worst_day_return_pct,
+          dow_data: season.dow.dow_data,
+        } : null,
+      },
+      candlestick_patterns: {
+        doji_count: patterns.doji_count,
+        doji_pct: patterns.doji_pct,
+        hammer_count: patterns.hammer_count,
+        shooting_star_count: patterns.shooting_star_count,
+        bullish_engulfing_count: patterns.bullish_engulfing_count,
+        bearish_engulfing_count: patterns.bearish_engulfing_count,
+      },
+      autocorrelation: {
+        lags: ac.lags,
+      },
+      tuning_guidance: {
+        stop_loss_suggestion: stopSuggestion,
+        profit_target_suggestion: targetSuggestion,
+        position_sizing_note: sizingNote,
+        strategy_bias: bias,
+        risk_level: riskLevel,
+        volatility_regime: vol.current_vol_regime,
+        trend_regime: trend.trend_direction,
+        best_execution_hour: season.hourly?.best_hour ?? null,
+        best_execution_day: season.dow?.best_day ?? null,
+        skewness_interpretation: skew < -0.5 ? "Heavy negative skew — enforce strict stop-loss caps" : skew > 0.5 ? "Positive skew — trail profit targets" : "Near-symmetric returns",
+        autocorr_interpretation: ac1 > 0.1 ? "Momentum persistence detected — prioritize trend-riding" : ac1 < -0.1 ? "Mean-reversion tendency — favor fading oscillators" : "No strong autocorr — avoid lagging indicators",
+        bar_bias_interpretation: posPct > 55 ? "Positive bar bias — long scaling holds higher edge" : posPct < 45 ? "Negative bar bias — avoid excessive long-only" : "Neutral bar bias",
+      },
+    };
+  }, [analysisResult]);
 
   const isDark = theme === "dark";
   const labelColor = isDark ? "#64748b" : "#475569";
@@ -633,6 +829,16 @@ export default function ResearchLab({
               {analysisLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
               {analysisLoading ? "Running Diagnostics..." : "Analyze Dataset"}
             </button>
+
+            <button
+              onClick={runQuantAnalysis}
+              disabled={quantLoading || !selectedDataset}
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent text-white py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
+            >
+              {quantLoading ? <Loader2 size={13} className="animate-spin" /> : <BarChart3 size={13} />}
+              {quantLoading ? "Running Quant..." : "Run Quant Analysis"}
+            </button>
+
           </div>
 
           {apiErrors["research/analyze"] && (
@@ -793,7 +999,8 @@ export default function ResearchLab({
                   { id: "volatility", label: "Volatility & Regimes", icon: Zap },
                   { id: "trend", label: "Trend & Levels", icon: Target },
                   { id: "seasonality", label: "Seasonality & Volume", icon: Calendar },
-                  { id: "verdict", label: "Verdict & Tuning", icon: Shield }
+                  { id: "verdict", label: "Verdict & Tuning", icon: Shield },
+                  { id: "quant", label: "Quant Analysis", icon: BarChart3 },
                 ] as const
               ).map((tab) => {
                 const Icon = tab.icon;
@@ -1495,40 +1702,185 @@ export default function ResearchLab({
                         {copied ? "Copied" : "Copy JSON"}
                       </button>
                     </div>
-                    <pre className="p-4 overflow-x-auto text-[10px] font-mono text-slate-400 bg-slate-950/80 leading-relaxed max-h-56">
-                      {JSON.stringify(
-                        {
-                          symbol: analysisResult.symbol,
-                          interval: analysisResult.interval,
-                          bars: analysisResult.bars,
-                          recommended_strategy: analysisResult.suitability?.recommended,
-                          recommended_score: analysisResult.suitability?.recommended_score,
-                          trend_direction: analysisResult.trend?.trend_direction,
-                          vol_regime: analysisResult.volatility?.current_vol_regime,
-                          avg_range: analysisResult.price_stats?.avg_range,
-                          body_to_range_ratio: analysisResult.price_stats?.body_to_range_ratio,
-                          annualized_vol_pct: analysisResult.returns?.annualized_vol_pct,
-                          sharpe_approx: analysisResult.returns?.sharpe_approx,
-                          skewness: analysisResult.returns?.skewness,
-                          max_drawdown_pct: analysisResult.drawdown?.max_drawdown_pct,
-                          var_95_pct: analysisResult.returns?.var_95_pct,
-                          cvar_95_pct: analysisResult.returns?.cvar_95_pct,
-                          autocorr_lag1: analysisResult.autocorrelation?.lags?.[0]?.autocorr,
-                          positive_bars_pct: analysisResult.returns?.positive_bars_pct,
-                          adx_proxy: analysisResult.trend?.adx_proxy,
-                          r_squared: analysisResult.trend?.r_squared,
-                          nearest_support: analysisResult.levels?.nearest_support?.price,
-                          nearest_resistance: analysisResult.levels?.nearest_resistance?.price,
-                          best_hour: analysisResult.seasonality?.hourly?.best_hour,
-                          regime_distribution: analysisResult.regimes,
-                        },
-                        null,
-                        2
-                      )}
+                    <pre className="p-4 overflow-x-auto text-[10px] font-mono text-slate-400 bg-slate-950/80 leading-relaxed max-h-96">
+                      {tuningConfig ? JSON.stringify(tuningConfig, null, 2) : "No analysis result available."}
                     </pre>
                   </div>
                 </div>
               )}
+
+              {/* ─── TAB 7: QUANT ANALYSIS ─── */}
+              {activeTab === "quant" && (
+                <div className="space-y-6">
+                  {quantLoading && (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 size={24} className="animate-spin text-blue-400 mr-3" />
+                      <span className="text-sm text-slate-400">Running deep quantitative analysis on full dataset...</span>
+                    </div>
+                  )}
+
+                  {!quantLoading && Object.keys(quantResults).length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <BarChart3 size={32} className="text-slate-600 mb-3" />
+                      <p className="text-sm text-slate-400">Click "Run Quant Analysis" to compute Hurst, Half-Life, Volume Profile, Gap stats, Tail Risk, and more.</p>
+                    </div>
+                  )}
+
+                  {!quantLoading && Object.keys(quantResults).length > 0 && (
+                    <>
+                      {/* Mean Reversion */}
+                      {quantResults.mean_reversion && !quantResults.mean_reversion.error && (
+                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
+                          <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
+                              <Activity size={12} className="text-violet-400" />
+                              Mean Reversion Analysis
+                            </h4>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${quantResults.mean_reversion.mean_reversion_strength > 50 ? "bg-violet-500/10 text-violet-400" : "bg-slate-800 text-slate-400"}`}>
+                              Strength: {quantResults.mean_reversion.mean_reversion_strength}/100
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <StatCard label="Hurst Exponent" value={quantResults.mean_reversion.hurst} desc={quantResults.mean_reversion.hurst < 0.5 ? "Mean-reverting" : "Trending"} color={quantResults.mean_reversion.hurst < 0.5 ? "text-violet-400" : "text-emerald-400"} />
+                            <StatCard label="Half-Life (bars)" value={quantResults.mean_reversion.half_life_bars || "—"} desc="Time to revert to mean" />
+                            <StatCard label="OU Speed (theta)" value={quantResults.mean_reversion.mean_reversion_speed || "—"} desc="Ornstein-Uhlenbeck reversion rate" />
+                            <StatCard label="Interpretation" value={quantResults.mean_reversion.hurst_detail?.interpretation?.replace(/_/g, " ")} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Volume Profile */}
+                      {quantResults.volume_profile && !quantResults.volume_profile.error && (
+                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
+                          <div className="border-b border-slate-800 pb-3">
+                            <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
+                              <Layers size={12} className="text-blue-400" />
+                              Volume Profile (POC, VAH, VAL, HVN, LVN)
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <StatCard label="POC (Point of Control)" value={`₹${quantResults.volume_profile.POC}`} color="text-blue-400" />
+                            <StatCard label="VAH (Value Area High)" value={`₹${quantResults.volume_profile.VAH}`} color="text-emerald-400" />
+                            <StatCard label="VAL (Value Area Low)" value={`₹${quantResults.volume_profile.VAL}`} color="text-rose-400" />
+                            <StatCard label="Value Area %" value={`${quantResults.volume_profile.value_area_pct * 100}%`} />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">High Volume Nodes (HVN)</h5>
+                              <div className="space-y-1">
+                                {quantResults.volume_profile.HVN?.map((h: any, i: number) => (
+                                  <div key={i} className="flex justify-between text-xs font-mono bg-slate-950/30 px-3 py-1.5 rounded">
+                                    <span className="text-slate-300">₹{h.price}</span>
+                                    <span className="text-slate-500">{h.volume.toLocaleString()}</span>
+                                  </div>
+                                )) || <span className="text-xs text-slate-600">No HVN data</span>}
+                              </div>
+                            </div>
+                            <div>
+                              <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Low Volume Nodes (LVN)</h5>
+                              <div className="space-y-1">
+                                {quantResults.volume_profile.LVN?.map((l: any, i: number) => (
+                                  <div key={i} className="flex justify-between text-xs font-mono bg-slate-950/30 px-3 py-1.5 rounded">
+                                    <span className="text-slate-300">₹{l.price}</span>
+                                    <span className="text-slate-500">{l.volume.toLocaleString()}</span>
+                                  </div>
+                                )) || <span className="text-xs text-slate-600">No LVN data</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Gap Analysis */}
+                      {quantResults.gap && !quantResults.gap.error && (
+                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
+                          <div className="border-b border-slate-800 pb-3">
+                            <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
+                              <ArrowUpRight size={12} className="text-amber-400" />
+                              Gap Analysis
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <StatCard label="Gap Fill Rate" value={`${quantResults.gap.gap_fill_rate}%`} color="text-emerald-400" desc="Probability gap fills" />
+                            <StatCard label="Avg Fill Time" value={`${quantResults.gap.avg_fill_time_bars} bars`} desc="Average bars to fill" />
+                            <StatCard label="Gap Up Freq" value={`${quantResults.gap.gap_up_freq}%`} />
+                            <StatCard label="Gap Down Freq" value={`${quantResults.gap.gap_down_freq}%`} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tail Risk */}
+                      {quantResults.tail_risk && !quantResults.tail_risk.error && (
+                        <div className="glass-panel p-5 rounded-xl border-rose-900/20 bg-rose-955/5 shadow-lg space-y-4">
+                          <div className="border-b border-rose-900/20 pb-3">
+                            <h4 className="text-xs font-bold text-rose-400 uppercase flex items-center gap-1.5">
+                              <Shield size={12} className="text-rose-400" />
+                              Tail Risk (Full Dataset)
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <StatCard label="3-Sigma Events" value={quantResults.tail_risk.three_sigma_events} color="text-rose-400" />
+                            <StatCard label="5-Sigma Events" value={quantResults.tail_risk.five_sigma_events} color="text-rose-400" />
+                            <StatCard label="Flash Crashes" value={quantResults.tail_risk.flash_crash_count} color="text-rose-400" />
+                            <StatCard label="Kurtosis" value={quantResults.tail_risk.kurtosis} desc={quantResults.tail_risk.kurtosis > 3 ? "Fat tails" : "Normal tails"} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <StatCard label="Skewness" value={quantResults.tail_risk.skewness} desc={quantResults.tail_risk.skewness < 0 ? "Negative skew" : "Positive skew"} />
+                            <StatCard label="Extreme Move Prob" value={`${quantResults.tail_risk.extreme_move_probability}%`} desc="Probability of >3-sigma move" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Order Flow */}
+                      {quantResults.order_flow && !quantResults.order_flow.error && (
+                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
+                          <div className="border-b border-slate-800 pb-3">
+                            <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
+                              <TrendingUp size={12} className="text-emerald-400" />
+                              Order Flow Proxies
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <StatCard label="Buy Volume" value={quantResults.order_flow.buy_volume_total?.toLocaleString()} color="text-emerald-400" />
+                            <StatCard label="Sell Volume" value={quantResults.order_flow.sell_volume_total?.toLocaleString()} color="text-rose-400" />
+                            <StatCard label="Net Delta" value={quantResults.order_flow.net_delta?.toLocaleString()} color={quantResults.order_flow.net_delta > 0 ? "text-emerald-400" : "text-rose-400"} />
+                            <StatCard label="Buy/Sell Ratio" value={quantResults.order_flow.buy_sell_ratio} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Feature Importance */}
+                      {quantResults.feature_importance && !quantResults.feature_importance.error && (
+                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
+                          <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
+                              <Target size={12} className="text-amber-400" />
+                              Feature Importance Engine
+                            </h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold uppercase">
+                              Best: {quantResults.feature_importance.best_feature}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {quantResults.feature_importance.ranked_features?.map((feat: any, i: number) => (
+                              <div key={i} className="flex items-center gap-3 bg-slate-950/20 px-3 py-2 rounded">
+                                <span className="text-[10px] font-bold text-slate-500 w-5">{i + 1}</span>
+                                <span className="text-xs font-bold text-slate-300 w-28 uppercase">{feat.feature.replace(/_/g, " ")}</span>
+                                <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${Math.min(feat.predictive_power, 100)}%` }} />
+                                </div>
+                                <span className="text-xs font-mono font-bold text-amber-400 w-10 text-right">{feat.predictive_power}</span>
+                                <span className="text-[10px] font-mono text-slate-500 w-16">r={feat.correlation}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
 
             </div>
           </div>

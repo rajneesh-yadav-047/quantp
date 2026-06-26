@@ -135,7 +135,7 @@ class Listing:
     symbol: str
     name: Optional[str] = None
     exchange: Optional[str] = None
-    segment: Optional[str] = None  # "EQUITY", "FUTURES", etc.
+    segment: Optional[str] = None  # "EQUITY", "FUTURES", "OPTIONS", etc.
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

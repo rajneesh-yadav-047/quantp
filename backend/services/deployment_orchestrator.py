@@ -103,6 +103,9 @@ class DeploymentOrchestrator:
         # 2. Shared Cache
         self.shared_cache = get_shared_cache()
         
+        # 2b. Warm historical cache with today's data from market open (9:15 AM IST)
+        await self._warm_historical_cache()
+        
         # 3. Event Bus
         self.event_bus = await ensure_event_bus()
         
@@ -146,6 +149,101 @@ class DeploymentOrchestrator:
                 pnl_change_threshold_pct=0.5,
             ),
         )
+    
+    async def _warm_historical_cache(self):
+        """Pre-download today's historical candles from market open (9:15 AM IST) up to the last COMPLETED interval."""
+        if not SmartAPIManager.is_connected():
+            print(f"[DeploymentOrchestrator] SmartAPI not connected. Skipping historical warm-up.")
+            return
+        
+        try:
+            from backend.services.data_aggregator import aggregate_data
+            from backend.services.data_service import normalize_symbol
+            import pytz
+            import pandas as pd
+            
+            client = SmartAPIManager.get_client()
+            if not client:
+                return
+            
+            # Resolve symbol to canonical form for SmartAPI
+            normalized_symbol = normalize_symbol(self.symbol, self.interval, client)
+            
+            # Market opens at 9:15 AM IST
+            kolkata = pytz.timezone('Asia/Kolkata')
+            now = datetime.now(kolkata)
+            market_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+            
+            # If market hasn't opened yet, skip
+            if now < market_open:
+                print(f"[DeploymentOrchestrator] Market not open yet. Skipping warm-up.")
+                return
+            
+            # Round down to the last completed interval so we don't overlap
+            # with the candle the MDS is currently forming
+            interval_map = {
+                "ONE_MINUTE": 1,
+                "FIVE_MINUTE": 5,
+                "FIFTEEN_MINUTE": 15,
+                "THIRTY_MINUTE": 30,
+                "ONE_HOUR": 60,
+                "ONE_DAY": 375,
+            }
+            interval_min = interval_map.get(self.interval.upper(), 1)
+            
+            # Round down to the last completed minute boundary
+            completed_minute = (now.minute // interval_min) * interval_min
+            completed_time = now.replace(minute=completed_minute, second=0, microsecond=0)
+            
+            # If the completed time is before market open, skip (e.g. market just opened)
+            if completed_time < market_open:
+                print(f"[DeploymentOrchestrator] Not enough history yet. Skipping warm-up.")
+                return
+            
+            start_date = market_open.strftime("%Y-%m-%d %H:%M")
+            end_date = completed_time.strftime("%Y-%m-%d %H:%M")
+            
+            print(f"[DeploymentOrchestrator] Warming cache for {normalized_symbol} from {start_date} to {end_date} ({self.interval})")
+            
+            df, status = aggregate_data(
+                symbol=normalized_symbol,
+                interval=self.interval,
+                start_date=start_date,
+                end_date=end_date,
+                client=client,
+            )
+            
+            if df is None or df.empty:
+                print(f"[DeploymentOrchestrator] No historical data available for warm-up.")
+                return
+            
+            if status == "mock":
+                print(f"[DeploymentOrchestrator] Mock data returned. Skipping warm-up.")
+                return
+            
+            # Clear existing stale data for this symbol+interval to avoid duplicates
+            await self.shared_cache.clear_interval(self.symbol, self.interval)
+            
+            # Convert to shared cache format (time as Unix seconds)
+            candles = []
+            for _, row in df.iterrows():
+                ts_dt = pd.to_datetime(row["time"])
+                ts_seconds = int(ts_dt.timestamp())
+                candles.append({
+                    "time": ts_seconds,
+                    "open": float(row.get("open", 0)),
+                    "high": float(row.get("high", 0)),
+                    "low": float(row.get("low", 0)),
+                    "close": float(row.get("close", 0)),
+                    "volume": int(row.get("volume", 0)) if pd.notna(row.get("volume")) else 0,
+                    "open_interest": int(row.get("open_interest", 0)) if pd.notna(row.get("open_interest")) else 0,
+                })
+            
+            await self.shared_cache.warm_cache(self.symbol, self.interval, candles)
+            print(f"[DeploymentOrchestrator] Warmed cache with {len(candles)} candles for {self.symbol} {self.interval}")
+            
+        except Exception as e:
+            print(f"[DeploymentOrchestrator] Historical warm-up failed: {e}")
     
     async def _run_tick(self):
         """Execute one tick of the deployment workflow."""
@@ -215,7 +313,7 @@ class DeploymentOrchestrator:
         
         filled_events, _ = self.execution_engine.match_pending_orders(
             current_candles=current_candles,
-            timestamp=ts,
+            timestamp=str(ts_seconds),
         )
         for event in filled_events:
             self._handle_trade_event(event, ts_seconds, "pending_fill")
@@ -226,14 +324,17 @@ class DeploymentOrchestrator:
         # Check margin call
         liq_events = self.execution_engine.check_margin_and_liquidate(
             current_prices=self.current_prices,
-            timestamp=ts,
+            timestamp=str(ts_seconds),
         )
         for event in liq_events:
             self._handle_trade_event(event, ts_seconds, "margin_call")
+            
+        # Check dynamic risk limits
+        self._check_risk_limits(ts_seconds)
         
         # ---- PHASE 4: Execute Strategy ----
         submitted_orders, trader_data, strategy_logs = self.strategy_executor.execute(
-            timestamp=ts,
+            timestamp=str(ts_seconds),
             candle=candle,
             candle_data=candle_data_formatted,
             historical_candles=historical_candles,
@@ -249,7 +350,7 @@ class DeploymentOrchestrator:
         order_events, trade_events, _ = self.execution_engine.process_new_orders(
             submitted_orders=submitted_orders,
             current_candles=current_candles,
-            timestamp=ts,
+            timestamp=str(ts_seconds),
         )
         for event in order_events:
             self._publish_event(EventType.ORDER_SUBMITTED, {
@@ -326,6 +427,48 @@ class DeploymentOrchestrator:
         
         return None
     
+    def _check_risk_limits(self, ts_seconds: int):
+        """Check dynamic risk limits (e.g. daily drawdown limit) and trigger systematic liquidation on breach."""
+        if not self.execution_engine or not self.strategy:
+            return
+        
+        risk_settings = {}
+        if self.strategy.risk_settings_json:
+            try:
+                risk_settings = json.loads(self.strategy.risk_settings_json)
+            except Exception:
+                pass
+        
+        if not risk_settings:
+            return
+            
+        portfolio = self.execution_engine.portfolio_mgr.portfolio
+        
+        # 1. Daily Drawdown Limit Check
+        # Check if loss exceeds the configured percentage of initial capital
+        max_drawdown_pct = risk_settings.get("max_drawdown_pct") or risk_settings.get("max_daily_loss_pct")
+        if max_drawdown_pct:
+            limit_amount = self.initial_capital * (float(max_drawdown_pct) / 100.0)
+            current_loss = self.initial_capital - portfolio.equity
+            if current_loss >= limit_amount:
+                msg = f"RISK BREACH: Drawdown limit of {max_drawdown_pct}% breached (Loss: Rs. {current_loss:.2f} >= Limit: Rs. {limit_amount:.2f}). Triggering auto-liquidation."
+                print(f"[DeploymentOrchestrator] {msg}")
+                
+                # Publish error / breach events
+                self._publish_event(EventType.DEPLOYMENT_ERROR, {"message": msg})
+                self._enqueue_event("risk_breach", msg, {"loss": current_loss, "limit": limit_amount})
+                
+                # Liquidate all positions immediately
+                liq_events = self.execution_engine.liquidate_all_positions(
+                    current_prices=self.current_prices,
+                    timestamp=str(ts_seconds)
+                )
+                for event in liq_events:
+                    self._handle_trade_event(event, ts_seconds, "risk_liquidation")
+                
+                # Pause deployment to prevent further trading
+                self.pause()
+    
     def _handle_trade_event(self, event: TradeEvent, ts_seconds: int, fill_reason: str):
         """Process a trade fill event: portfolio, persistence, event bus."""
         # Record trade for strategy state
@@ -341,9 +484,9 @@ class DeploymentOrchestrator:
         self.strategy_executor.record_own_trade(rtrade)
         
         # Enqueue persistence
-        self._enqueue_trade(event)
+        self._enqueue_trade(event, ts_seconds)
         
-        # Publish event
+        # Publish event — use ts_seconds (integer Unix) for consistent chart alignment
         self._publish_event(EventType.TRADE_FILL, {
             "trade_id": event.trade_id,
             "order_id": event.order_id,
@@ -353,7 +496,7 @@ class DeploymentOrchestrator:
             "qty": event.qty,
             "total_charges": event.total_charges,
             "charges_source": event.charges_source,
-            "timestamp": event.timestamp,
+            "timestamp": str(ts_seconds),
             "fill_reason": fill_reason,
         })
         
@@ -371,7 +514,7 @@ class DeploymentOrchestrator:
         if fill_reason == "margin_call":
             self._enqueue_event("margin_call", f"Liquidated {event.symbol}", {"trade_id": event.trade_id})
     
-    def _enqueue_trade(self, event: TradeEvent):
+    def _enqueue_trade(self, event: TradeEvent, ts_seconds: Optional[int] = None):
         """Enqueue a trade for async persistence."""
         if self.persistence:
             self.persistence.enqueue_trade(
@@ -478,20 +621,46 @@ class DeploymentOrchestrator:
             self.task.cancel()
     
     def get_status(self) -> Dict[str, Any]:
-        """Get current deployment status."""
-        snapshot = self.execution_engine.get_portfolio_snapshot() if self.execution_engine else {}
+        """Get current deployment status. Always returns a valid portfolio snapshot."""
+        # Safe default portfolio (used when engine isn't ready yet)
+        default_portfolio = {
+            "cash": self.initial_capital,
+            "margin_used": 0.0,
+            "margin_free": self.initial_capital,
+            "equity": self.initial_capital,
+            "unrealized_pnl": 0.0,
+            "total_fees": 0.0,
+            "total_pnl": 0.0,
+            "positions": {},
+        }
+        
+        snapshot = default_portfolio
+        if self.execution_engine:
+            try:
+                snap = self.execution_engine.get_portfolio_snapshot()
+                if snap and isinstance(snap, dict) and "equity" in snap:
+                    snapshot = snap
+            except Exception:
+                pass
+        
         active_orders = []
         if self.execution_engine:
-            active_orders = [
-                {"symbol": o.symbol, "direction": o.direction, "type": o.type,
-                 "price": o.price, "qty": o.qty, "status": o.status}
-                for o in self.execution_engine.get_active_orders()
-            ]
+            try:
+                active_orders = [
+                    {"symbol": o.symbol, "direction": o.direction, "type": o.type,
+                     "price": o.price, "qty": o.qty, "status": o.status}
+                    for o in self.execution_engine.get_active_orders()
+                ]
+            except Exception:
+                pass
         
         mds_active = False
         if self.market_feed:
-            tick = self.market_feed.get_latest_tick(self.symbol)
-            mds_active = tick is not None
+            try:
+                tick = self.market_feed.get_latest_tick(self.symbol)
+                mds_active = tick is not None
+            except Exception:
+                pass
         
         return {
             "deployment_id": self.deployment_id,
@@ -572,7 +741,7 @@ class DeploymentOrchestrator:
         
         return {
             "status": "success",
-            "message": f"Manual {direction.upper()} order for {qty} shares filled at ₹{trade_event.price:.2f}",
+            "message": f"Manual {direction.upper()} order for {qty} shares filled at Rs. {trade_event.price:.2f}",
             "trade_id": trade_event.trade_id,
             "portfolio": snapshot,
         }
@@ -591,11 +760,11 @@ class DeploymentOrchestrator:
         
         snapshot = self.execution_engine.get_portfolio_snapshot() if self.execution_engine else {}
         self._enqueue_pnl_snapshot(snapshot)
-        self._enqueue_event("reset_capital", f"Reset starting capital to ₹{amount:.2f}")
+        self._enqueue_event("reset_capital", f"Reset starting capital to Rs. {amount:.2f}")
         self._publish_event(EventType.PORTFOLIO_UPDATE, snapshot)
         
         return {
             "status": "success",
-            "message": f"Starting capital reset to ₹{amount:.2f}",
+            "message": f"Starting capital reset to Rs. {amount:.2f}",
             "portfolio": snapshot,
         }

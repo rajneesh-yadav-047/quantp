@@ -748,3 +748,124 @@ class SmartAPIClient:
                 print(f"[SmartAPI] Failed to read dataset {file_path}: {e}")
                 return None
         return None
+
+
+    def fetch_option_chain(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch option chain data. Angel One SmartAPI does not expose a direct 
+        REST option chain endpoint, so we always return realistic mock data
+        calibrated for the underlying symbol (NIFTY, BANKNIFTY, etc.).
+        
+        Returns dict with strikes, expiry dates, CE/PE data, greeks, and LTP.
+        """
+        # Always return mock data since Angel One doesn't have a REST option chain endpoint
+        return self._generate_mock_option_chain(symbol)
+        
+    def _generate_mock_option_chain(self, symbol: str) -> Dict[str, Any]:
+        """Generate a realistic mock option chain for testing purposes."""
+        import numpy as np
+        
+        sym_upper = symbol.upper()
+        if ":" in sym_upper:
+            sym_upper = sym_upper.split(":", 1)[1]
+        
+        # Determine base price and lot size based on symbol
+        if "NIFTY" in sym_upper and "BANK" not in sym_upper:
+            base_price = 23500.0
+            lot_size = 75
+            step = 50
+        elif "BANK" in sym_upper or "BNF" in sym_upper or "BANKNIFTY" in sym_upper:
+            base_price = 49000.0
+            lot_size = 15
+            step = 100
+        elif "FIN" in sym_upper or "FINNIFTY" in sym_upper:
+            base_price = 24000.0
+            lot_size = 25
+            step = 50
+        else:
+            base_price = 2500.0
+            lot_size = 1
+            step = 10
+        
+        np.random.seed(42)
+        
+        # Generate strikes around base price (±10 strikes)
+        strikes = [base_price + (i * step) for i in range(-10, 11)]
+        
+        # Generate expiry dates (weekly for next 4 weeks)
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        # Find next Thursday (expiry day for NIFTY/BANKNIFTY)
+        days_to_thursday = (3 - today.weekday()) % 7
+        if days_to_thursday == 0:
+            days_to_thursday = 7
+        next_thursday = today + timedelta(days=days_to_thursday)
+        expiry_dates = [
+            next_thursday.strftime("%Y-%m-%d"),
+            (next_thursday + timedelta(days=7)).strftime("%Y-%m-%d"),
+            (next_thursday + timedelta(days=14)).strftime("%Y-%m-%d"),
+            (next_thursday + timedelta(days=21)).strftime("%Y-%m-%d"),
+        ]
+        
+        chain_data = {}
+        for strike in strikes:
+            # CE price: decreases as strike increases
+            distance_from_atm = (strike - base_price) / base_price
+            ce_base = max(1, base_price * 0.03 * max(0, -distance_from_atm + 0.02))
+            ce_ltp = ce_base + np.random.normal(0, ce_base * 0.05)
+            ce_ltp = max(1, ce_ltp)
+            
+            # PE price: decreases as strike decreases
+            pe_base = max(1, base_price * 0.03 * max(0, distance_from_atm + 0.02))
+            pe_ltp = pe_base + np.random.normal(0, pe_base * 0.05)
+            pe_ltp = max(1, pe_ltp)
+            
+            # Greeks
+            ce_delta = max(0, min(1, 0.5 - distance_from_atm * 10))
+            pe_delta = min(0, max(-1, -0.5 - distance_from_atm * 10))
+            
+            chain_data[strike] = {
+                "CE": {
+                    "ltp": round(ce_ltp, 2),
+                    "open": round(ce_ltp * 0.98, 2),
+                    "high": round(ce_ltp * 1.05, 2),
+                    "low": round(ce_ltp * 0.95, 2),
+                    "close": round(ce_ltp, 2),
+                    "volume": int(np.random.randint(1000, 50000)),
+                    "open_interest": int(np.random.randint(10000, 500000)),
+                    "delta": round(ce_delta, 3),
+                    "gamma": round(0.001 + abs(distance_from_atm) * 0.01, 4),
+                    "theta": round(-ce_ltp * 0.05, 2),
+                    "vega": round(1.0 + abs(distance_from_atm) * 5, 2),
+                    "iv": round(15 + abs(distance_from_atm) * 50, 2),
+                    "symbol": f"{sym_upper}-{expiry_dates[0]}-{int(strike)}-CE",
+                    "token": f"{int(strike)}CE",
+                },
+                "PE": {
+                    "ltp": round(pe_ltp, 2),
+                    "open": round(pe_ltp * 0.98, 2),
+                    "high": round(pe_ltp * 1.05, 2),
+                    "low": round(pe_ltp * 0.95, 2),
+                    "close": round(pe_ltp, 2),
+                    "volume": int(np.random.randint(1000, 50000)),
+                    "open_interest": int(np.random.randint(10000, 500000)),
+                    "delta": round(pe_delta, 3),
+                    "gamma": round(0.001 + abs(distance_from_atm) * 0.01, 4),
+                    "theta": round(-pe_ltp * 0.05, 2),
+                    "vega": round(1.0 + abs(distance_from_atm) * 5, 2),
+                    "iv": round(15 + abs(distance_from_atm) * 50, 2),
+                    "symbol": f"{sym_upper}-{expiry_dates[0]}-{int(strike)}-PE",
+                    "token": f"{int(strike)}PE",
+                }
+            }
+        
+        return {
+            "underlying": sym_upper,
+            "symbol": symbol,
+            "ltp": base_price,
+            "expiry_dates": expiry_dates,
+            "strikes": strikes,
+            "chain": chain_data,
+            "lot_size": lot_size,
+            "is_mock": True,
+        }

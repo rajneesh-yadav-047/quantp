@@ -18,6 +18,12 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./quantlab.db")
 # Setup engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL;"))
+            conn.commit()
+    except Exception as e:
+        print(f"WARNING: Failed to set SQLite journal_mode to WAL: {e}")
 else:
     engine = create_engine(DATABASE_URL)
 
@@ -179,6 +185,81 @@ class DownloadJobDB(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ResearchJobDB(Base):
+    """Stores quantitative research jobs and validation runs."""
+    __tablename__ = "research_jobs"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    strategy_name = Column(String, nullable=False, index=True)
+    symbol = Column(String, nullable=False)
+    interval = Column(String, nullable=False)
+    start_date = Column(String, nullable=False)
+    end_date = Column(String, nullable=False)
+    initial_capital = Column(Float, default=100000.0)
+    trade_type = Column(String, default="INTRADAY")
+    
+    status = Column(String, default="pending", nullable=False)  # pending, running, completed, failed, cancelled
+    stage = Column(String, default="data_loading", nullable=False)  # data_loading, feature_engineering, market_suitability, optimization_trials, walk_forward, robustness, reporting, completed
+    progress = Column(Float, default=0.0)  # 0.0 - 100.0
+    best_score = Column(Float, nullable=True)
+    best_params_json = Column(Text, nullable=True)
+    robustness_score = Column(Float, nullable=True)
+    grade = Column(String, nullable=True)  # Passed, Failed, Needs Review
+    grading_profile = Column(String, default="Balanced", nullable=True)
+    
+    param_grid_json = Column(Text, nullable=True)
+    optimization_method = Column(String, default="grid")  # grid, random, bayesian
+    n_trials = Column(Integer, default=30)
+    completed_trials = Column(Integer, default=0)
+    eta_seconds = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+    report_path = Column(String, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WalkForwardFoldDB(Base):
+    """Tracks individual walk-forward folds for a research job."""
+    __tablename__ = "research_walk_forward_folds"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    job_id = Column(String, nullable=False, index=True)
+    fold_index = Column(Integer, nullable=False)
+    train_start = Column(String, nullable=False)
+    train_end = Column(String, nullable=False)
+    val_start = Column(String, nullable=False)
+    val_end = Column(String, nullable=False)
+    test_start = Column(String, nullable=False)
+    test_end = Column(String, nullable=False)
+    
+    status = Column(String, default="pending", nullable=False)  # pending, running, completed, failed
+    train_metrics_json = Column(Text, nullable=True)
+    val_metrics_json = Column(Text, nullable=True)
+    test_metrics_json = Column(Text, nullable=True)
+    best_params_json = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OptimizationTrialDB(Base):
+    """Tracks individual trials run during research parameter optimization."""
+    __tablename__ = "research_optimization_trials"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    job_id = Column(String, nullable=False, index=True)
+    trial_number = Column(Integer, nullable=False)
+    parameters_json = Column(Text, nullable=False)
+    score = Column(Float, nullable=True)
+    metrics_json = Column(Text, nullable=True)
+    status = Column(String, default="completed", nullable=False)  # completed, pruned, failed
+    error_message = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     """Initialize database tables and perform migrations."""
     Base.metadata.create_all(bind=engine)
@@ -206,6 +287,9 @@ def init_db():
     add_column("strategies", "max_position_size", "INTEGER")
     add_column("strategies", "parameters_json", "TEXT")
     add_column("strategies", "risk_settings_json", "TEXT")
+    
+    # research_jobs migrations
+    add_column("research_jobs", "grading_profile", 'TEXT DEFAULT "Balanced"')
 
     # deployments table is created by Base.metadata.create_all above
 

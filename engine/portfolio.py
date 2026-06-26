@@ -33,11 +33,16 @@ class PortfolioManager:
         self.execution_sim = execution_sim or ExecutionSimulator()
 
         # Margin multiplier based on trade type
+        # NOTE: Options margin is simplified. Short options require SPAN+Exposure margin
+        # which is ~15-20% of underlying notional, not the premium. For realistic short
+        # options backtests, ensure initial capital is high enough.
         self.margin_multiplier = 0.20  # 5x leverage for INTRADAY
         if default_trade_type == "DELIVERY":
             self.margin_multiplier = 1.0
         elif default_trade_type == "FUTURES":
             self.margin_multiplier = 0.15  # ~6.6x leverage
+        elif default_trade_type == "OPTIONS":
+            self.margin_multiplier = 0.15  # Approximate (SPAN+Exposure is ~15-20% of underlying)
 
         self.portfolio = Portfolio(
             cash=initial_capital,

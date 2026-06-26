@@ -17,15 +17,16 @@
 | Feature | Description |
 |---------|-------------|
 | **Dashboard** | System health, connection status, quick backtest launch, and live notifications |
-| **Datasets** | Download real historical candles from SmartAPI, preview with interactive charts, manage CSV/Parquet/Excel storage |
-| **Strategy Workspace** | Monaco Editor with Python templates, dual runtime support, symbol/interval/capital configuration, risk settings, and parameter JSON |
-| **Backtests & Replay** | Event-driven engine with Indian charge simulation, equity/drawdown charts, per-symbol analytics, and frame-by-frame replay studio |
-| **Live Trading (Mock)** | Real-time market data, manual order placement, live PnL tracking, full charge breakdown, and SSE event streaming |
-| **Deployments** | Paper and live deployment management with status monitoring and event history |
-| **Research Lab** | Deep statistical analysis — returns, volatility, regime detection, seasonality, and strategy suitability scoring |
-| **Multi-Asset Research** | Correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, and sector breadth |
-| **Portfolio Risk** | Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals |
-| **Optimization Lab** | Grid/random search with Sharpe/Sortino/Calmar objectives, walk-forward validation, and 3D surface plots |
+| **Datasets** | Download real historical candles from SmartAPI with From/To date range filtering, async background jobs with progress tracking, universal data aggregator (chunking, merge, dedup, forward-fill), preview with interactive charts, file export (CSV/Excel), and symbol group / basket management |
+| **Strategy Workspace** | Monaco Editor with Python templates, dual runtime support (`legacy_on_bar` / `prosperity_trader`), symbol/interval/capital configuration, auto max-position sizing from volatility, risk settings, and parameter JSON |
+| **Backtests & Replay** | Event-driven engine with Indian charge simulation, equity/drawdown charts, per-symbol analytics, auto max-position sizing, data coverage validation, and frame-by-frame replay studio with speed controls |
+| **Live Trading (Mock)** | Dedicated `/live` trading page with real-time market data, manual order placement, live PnL tracking, full charge breakdown, SSE event streaming, pause/resume deployments, reset capital, and deployment event logs |
+| **Deployments** | Paper and live deployment management with status monitoring, pause/resume, capital reset, and full event history |
+| **Research Lab** | Deep statistical analysis — returns, volatility, regime detection (HMM), seasonality, strategy-suitability scoring, mean-reversion diagnostics (Hurst, half-life), gap analysis, intraday behavior, volatility structure, tail risk, order-flow proxies, multi-timeframe analysis, factor exposure, walk-forward stability, feature-importance engine, and AI strategy generator |
+| **Multi-Asset Research** | Correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, sector breadth, rolling correlation, and cross-sectional factor ranking with From/To date range filtering |
+| **Portfolio Risk** | Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, confidence intervals, and daily PnL heatmaps |
+| **Optimization Lab** | Grid/random search with Sharpe/Sortino/Calmar objectives, walk-forward validation, sensitivity analysis, and 3D surface plots |
+| **Strategy Registry** | Market analysis, auto-ranking of registered strategies, walk-forward optimization with robustness scoring, overfit detection, and one-click deployment of the best configuration |
 | **System Cleanup** | Log and dataset cleanup, database vacuum, and disk usage analytics |
 
 > **Real Data Only.** The platform enforces real downloaded candles for all production backtests. No simulated or mock data is injected into the backtest engine.
@@ -41,7 +42,7 @@ QuantLab supports two strategy execution models side by side. You pick one per s
 | **legacy_on_bar** | `def on_bar(self, state)` | `list[dict]` | Quick backtests, single/multi-symbol, candle-based signals |
 | **prosperity_trader** | `def run(self, state)` | `(orders, conversions, trader_data)` | Order-book-aware strategies, live trading, state persistence |
 
-Both runtimes are sandboxed, charge-aware, and replay-compatible. See the sample files for a working EMA crossover in each style.
+Both runtimes are sandboxed, charge-aware, and replay-compatible. The engine auto-detects your runtime from the strategy class and selects the correct adapter. See the sample files for a working EMA crossover in each style.
 
 ---
 
@@ -133,10 +134,10 @@ graph TD
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | Next.js 15, React, Tailwind CSS, TypeScript, Monaco Editor, TradingView Lightweight Charts, ECharts, Lucide Icons |
-| **Backend** | FastAPI, Uvicorn, SQLAlchemy, SQLite, Pydantic, WebSockets, SSE |
-| **Engine** | Python 3.10+, NumPy, Pandas, Parquet, sandboxed exec, event-driven loop |
-| **Data** | Angel One SmartAPI, TOTP 2FA, CSV/Parquet/Excel storage, Redis (optional) |
-| **AI/LLM** | Ollama integration for strategy assistance and research summarization |
+| **Backend** | FastAPI, Uvicorn, SQLAlchemy, SQLite, Pydantic, WebSockets, SSE, async background jobs |
+| **Engine** | Python 3.10+, NumPy, Pandas, Parquet, sandboxed exec, event-driven loop, universal data aggregator |
+| **Data** | Angel One SmartAPI, TOTP 2FA, CSV/Parquet/Excel storage, Redis-backed tick/candle cache |
+| **AI/LLM** | Ollama integration for strategy assistance, research summarization, and AI strategy generation |
 
 ---
 
@@ -146,24 +147,37 @@ graph TD
 quantp/
 ├── backend/            # FastAPI application (main.py, database.py, smartapi.py, routers/)
 │   ├── routers/        # API endpoints: auth, backtest, data, deployments, groups, live_trading, research, strategies
-│   └── services/       # Data service, market data service, SmartAPI manager, Redis, Ollama
+│   └── services/       # Data service, market data service, SmartAPI manager, Redis, Ollama, download jobs
 ├── engine/             # Core backtest, execution, analytics, and optimization modules
 │   ├── runtime/        # Sandboxed strategy execution, adapters, datamodels
 │   ├── analytics.py    # Risk metrics and performance attribution
 │   ├── backtester.py   # Event-driven backtesting loop
+│   ├── capital.py      # Capital requirements analysis
+│   ├── data_analyzer.py# Deep independent dataset statistical analysis
+│   ├── datamodels.py   # Core data models
 │   ├── execution.py    # Order matching and charge calculation
+│   ├── execution_engine.py # Order execution engine
 │   ├── market.py       # Market data interface and regime detection
+│   ├── market_interface.py # Unified market data interface
 │   ├── monte_carlo.py  # Portfolio simulation
 │   ├── optimization.py # Parameter search and walk-forward analysis
+│   ├── order_manager.py# Order lifecycle management
 │   ├── portfolio.py    # Portfolio tracking and sizing
+│   ├── quant_analysis.py # Full quantitative analysis engine
 │   ├── regime.py       # Market regime classification
 │   ├── research.py     # Statistical research tools
+│   ├── research_extras.py  # Seasonality, volume profile, S/R detection
 │   ├── research_multiasset.py  # Multi-asset correlation and cointegration
 │   ├── replay_logger.py        # Replay log generation
+│   ├── sizing.py             # Position sizing logic
+│   ├── strategy_codegen.py   # Auto-generated strategy code builder
+│   ├── strategy_executor.py# Strategy execution wrapper
+│   ├── strategy_generator.py # Strategy fitness scoring and config generator
+│   ├── strategy_registry/    # Registry package: market analyzer, auto optimizer, performance metrics, reports
 │   └── walk_forward.py       # Walk-forward optimization
 ├── frontend/           # Next.js 15 client app
 │   ├── src/app/        # Pages, hooks, and layout
-│   ├── src/components/ # React components: ResearchLab, MultiAssetResearch, PortfolioAnalytics, charts
+│   ├── src/components/ # React components: ResearchLab, MultiAssetResearch, PortfolioAnalytics, charts, StrategyRegistryTab
 │   └── public/         # Static assets
 ├── datasets/           # Parquet/CSV/Excel historical candle storage
 │   ├── csv/            # Symbol-named CSV files
@@ -279,35 +293,100 @@ python tests/test_backtest.py
 
 1. Go to the **Datasets** tab in the sidebar
 2. Enter a symbol like `SBIN` and interval `FIVE_MINUTE`
-3. Pick a date range and click **Download**
-4. The backend fetches real candles from SmartAPI, indexes them, and stores them locally
+3. Use the **From** and **To** date pickers to select your exact range
+4. Click **Download**
+5. The backend runs the **universal data aggregator** — it chunks large requests into SmartAPI-safe ranges, merges results, deduplicates, validates coverage, and forward-fills any gaps
+6. Track progress in real-time; large jobs run in the background and can be cancelled at any time
 
 > Symbols are auto-normalized. Type `SBIN` and it resolves to `NSE:SBIN-EQ` everywhere.
 
-### Step 2 — Create a Strategy
+### Step 2 — Create Symbol Groups (Optional)
+
+1. Go to **Datasets** → **Groups**
+2. Create a named basket like `BankNifty` with symbols `SBIN`, `ICICIBANK`, `HDFCBANK`
+3. Use the group in multi-symbol backtests or multi-asset research
+
+### Step 3 — Create a Strategy
 
 1. Go to **Strategy Workspace**
 2. Copy one of the included samples into the Monaco editor:
    - [`sample_strategy_legacy.py`](sample_strategy_legacy.py) — `legacy_on_bar` runtime
    - [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) — `prosperity_trader` runtime
 3. Configure symbols, interval, capital, and max position size
-4. Click **Save**
+4. Enable **Auto Max Position** to let the engine calculate size from recent volatility
+5. Click **Save**
 
-### Step 3 — Run Backtest
+### Step 4 — Run Backtest
 
 1. Go to the **Backtests** tab
-2. Select your strategy, set a date range, and configure slippage
+2. Select your strategy, use the **From/To** date range, and configure slippage
 3. Choose **INTRADAY** or **DELIVERY** trade type
-4. Click **Run**
+4. The engine validates data coverage before running — if gaps exist, you get a clear warning
+5. Click **Run**
 
 The engine parses your strategy in a sandbox, steps through every candle, executes orders, applies real Indian market charges, and writes a replay log.
 
-### Step 4 — Analyze
+### Step 5 — Analyze
 
 - **Replay Studio** — frame-by-frame playback with speed controls
-- **Research Lab** — regime attribution and performance maps
+- **Research Lab** — regime attribution, performance maps, mean-reversion diagnostics, and AI strategy generation
 - **Portfolio Risk** — Monte Carlo simulations and stress tests
-- **Optimization Lab** — parameter sweeps with walk-forward validation
+- **Optimization Lab** — parameter sweeps with walk-forward validation and sensitivity analysis
+- **Strategy Registry** — market analysis, auto-ranking, walk-forward tuning, and one-click deployment of the best configuration
+
+### Step 6 — Live Mock Trading
+
+1. Go to the **Live Trading** page (`/live`) or the **Deployments** tab
+2. Create a paper deployment with your strategy
+3. Pause, resume, or reset capital at any time without restarting
+4. View the full deployment event log for audit trails
+
+---
+
+## Advanced Capabilities
+
+### Universal Data Aggregator
+
+The download engine automatically handles large date ranges by:
+- **Chunking** requests into SmartAPI-safe intervals
+- **Merging** and **deduplicating** overlapping candles
+- **Validating** coverage and warning about gaps before backtests
+- **Forward-filling** missing candles so the engine never sees null data
+
+> **Real Data Only.** The platform enforces real downloaded candles for all production backtests. No simulated or mock data is injected into the backtest engine.
+
+### Async Download Jobs
+
+Large downloads run as cancellable background jobs. The UI shows real-time progress, and you can cancel pending jobs without restarting the server.
+
+### Symbol Groups & Baskets
+
+Create named groups (e.g., `BankNifty`, `ITPack`) in `datasets/groups.yaml` via the Groups API. Use them for multi-symbol backtests, multi-asset correlation studies, and sector-breadth analysis.
+
+### Auto Max Position Sizing
+
+When enabled, the engine calculates a suggested max position from recent price volatility and your configured capital. You can override it manually or let the system size every backtest and deployment automatically.
+
+### Strategy Registry & Auto Optimization
+
+A full market-analysis pipeline that:
+1. Analyzes current market conditions across all datasets
+2. Ranks every registered strategy by suitability score
+3. Runs walk-forward optimization with train/validation/test splits
+4. Detects overfitting via robustness scoring and sensitivity analysis
+5. Enables **one-click deployment** of the best configuration
+
+### Live Trading Controls
+
+Deployments support a full lifecycle:
+- **Pause / Resume** — freeze a running paper deployment without losing state
+- **Reset Capital** — adjust starting cash/equity mid-run
+- **Event Log** — full audit trail of fills, errors, margin calls, and state transitions
+- **Market Data Service** — centralized Redis-backed tick and candle cache shared across all deployments
+
+### AI Strategy Generator
+
+The Research Lab can auto-generate a complete strategy from quantitative analysis: entry/exit rules, position sizing, holding period, and expected win rate. Generated strategies can be saved to the StrategyDB and backtested in one click.
 
 ---
 
@@ -318,7 +397,9 @@ The engine parses your strategy in a sandbox, steps through every candle, execut
 | [`sample_strategy_legacy.py`](sample_strategy_legacy.py) | EMA crossover — `legacy_on_bar` runtime |
 | [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) | EMA crossover — `prosperity_trader` runtime |
 | [`requirements.txt`](requirements.txt) | Python dependencies |
-| [`.env.example`](.env.example) | SmartAPI credentials template |
+| [`.env.example`](.env.example) | SmartAPI, Redis, and Ollama credentials template |
+| [`datasets/groups.yaml`](datasets/groups.yaml) | Symbol basket definitions |
+| [`datasets/catalog.json`](datasets/catalog.json) | Dataset metadata index |
 
 ---
 
@@ -335,10 +416,19 @@ Ensure `python -m backend.main` is running on `http://127.0.0.1:8000`. Check `AP
 **Dataset not found**
 Download the symbol first in the **Datasets** tab. Bare symbols like `SBIN` are auto-resolved to `NSE:SBIN-EQ` — old records in the database are also canonicalized on read.
 
+**Data coverage warning before backtest**
+The engine validates that the requested date range has sufficient downloaded candles. If gaps exist, download the missing range in the **Datasets** tab, or the backtest will error out rather than use mock data.
+
+**Async download job stuck**
+Check the download status in the Datasets tab. Jobs can be cancelled and restarted. Large ranges may take a few minutes due to SmartAPI rate limits.
+
 **Strategy sandbox error**
 Check your Python syntax. Ensure your class matches the selected runtime:
 - **Legacy:** `class Strategy` with `def on_bar(self, state):` returning `list[dict]`
 - **Prosperity:** `class Trader` with `def run(self, state):` returning `(orders, conversions, trader_data)`
+
+**Redis not available**
+Redis is optional. Without it, the market data service falls back to in-memory caching. For production live-trading loads, start Redis and set `REDIS_URL` in `.env`.
 
 ---
 

@@ -267,6 +267,29 @@ class ExecutionEngine:
         
         return trade_events
     
+    def liquidate_all_positions(
+        self,
+        current_prices: Dict[str, float],
+        timestamp: str,
+    ) -> List[TradeEvent]:
+        """
+        Liquidate all open positions in the portfolio immediately.
+        
+        Returns:
+            List of liquidation trade events
+        """
+        liq_trades = self.portfolio_mgr.liquidate_all(
+            current_prices=current_prices,
+            timestamp=timestamp,
+            execution_sim=self.execution_sim,
+        )
+        
+        trade_events = []
+        for trade in liq_trades:
+            trade_events.append(self._to_trade_event(trade))
+            
+        return trade_events
+    
     def mark_to_market(self, current_prices: Dict[str, float]):
         """Mark portfolio to market using current prices."""
         self.portfolio_mgr.mark_to_market(current_prices)
