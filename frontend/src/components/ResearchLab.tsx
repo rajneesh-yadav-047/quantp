@@ -24,10 +24,10 @@ interface StatCardProps {
   badgeColor?: string;
 }
 
-const StatCard = ({ label, value, suffix = "", desc, color = "text-slate-850 dark:text-slate-100", badge, badgeColor = "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30" }: StatCardProps) => (
-  <div className="glass-panel rounded-xl p-4 flex flex-col justify-between shadow-xs hover:border-slate-350 dark:hover:border-slate-700/60 transition-all duration-300">
+const StatCard = ({ label, value, suffix = "", desc, color = "text-[#f0f0f0]", badge, badgeColor = "bg-[#222] text-[#93b4ff] border border-[#2a3a5a]" }: StatCardProps) => (
+  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 flex flex-col justify-between">
     <div className="flex items-start justify-between mb-2">
-      <span className="text-[10px] tracking-wider uppercase font-bold text-slate-500">{label}</span>
+      <span className="text-[11px] font-medium text-[#606060] uppercase tracking-wider">{label}</span>
       {badge && (
         <span className={`text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider ${badgeColor}`}>
           {badge}
@@ -35,10 +35,10 @@ const StatCard = ({ label, value, suffix = "", desc, color = "text-slate-850 dar
       )}
     </div>
     <div>
-      <div className={`text-xl font-mono font-bold tracking-tight ${color}`}>
+      <div className={`text-[22px] font-semibold leading-none ${color}`}>
         {value}{suffix}
       </div>
-      {desc && <p className="text-[10px] text-slate-500 mt-1 leading-normal">{desc}</p>}
+      {desc && <p className="text-[11px] text-[#a0a0a0] mt-1.5 leading-normal">{desc}</p>}
     </div>
   </div>
 );
@@ -52,9 +52,9 @@ interface PatternBadgeProps {
 
 const PatternBadge = ({ name, count, pct, type = "neutral" }: PatternBadgeProps) => {
   const colorMap = {
-    bullish: "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-450 hover:bg-emerald-100 dark:hover:bg-emerald-950/30",
-    bearish: "border-rose-200 dark:border-rose-805/50 bg-rose-50 dark:bg-rose-955/20 text-rose-600 dark:text-rose-450 hover:bg-rose-100 dark:hover:bg-rose-955/30",
-    neutral: "border-slate-200 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-950/30 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-950/40"
+    bullish: "border-emerald-200 border-emerald-800/50 bg-emerald-50 bg-[#0d1a10]/20 text-emerald-600 text-emerald-400 hover:bg-[#0d1a10]",
+    bearish: "border-rose-200 border-[#3a1515] bg-rose-50 bg-[#1a0d0d] text-rose-600 text-rose-400 hover:bg-[#1a0d0d]",
+    neutral: "border-[var(--ax-border)] border-[var(--ax-border)]/50 bg-[#fafafa] bg-[#111]/30 text-[#606060] text-[#a0a0a0] hover:bg-[#111]/40"
   };
 
   return (
@@ -78,18 +78,18 @@ interface RegimeProgressProps {
 }
 
 const RegimeProgress = ({ name, pct, color, desc }: RegimeProgressProps) => (
-  <div className="space-y-1.5 p-3 rounded-lg border border-slate-200 dark:border-slate-800/40 bg-slate-50 dark:bg-slate-950/25">
+  <div className="space-y-1.5 p-3 rounded-lg border border-[var(--ax-border)] border-[var(--ax-border)]/40 bg-[#fafafa] bg-[#111]/25">
     <div className="flex items-center justify-between text-xs font-medium">
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-        <span className="text-slate-750 dark:text-slate-300 font-bold">{name.replace(/_/g, " ")}</span>
+        <span className="text-[#a0a0a0] font-bold">{name.replace(/_/g, " ")}</span>
       </div>
-      <span className="font-mono text-slate-800 dark:text-slate-200 font-bold">{pct}%</span>
+      <span className="font-mono text-[#c0c0c0] text-[#c0c0c0] font-bold">{pct}%</span>
     </div>
-    <div className="w-full bg-slate-200 dark:bg-slate-900 rounded-full h-1.5 overflow-hidden">
+    <div className="w-full bg-[#161616] rounded-full h-1.5 overflow-hidden">
       <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
     </div>
-    <p className="text-[10px] text-slate-500 leading-normal">{desc}</p>
+    <p className="text-[10px] text-[#606060] leading-normal">{desc}</p>
   </div>
 );
 
@@ -101,8 +101,8 @@ interface SuitabilityProgressProps {
 
 const SuitabilityProgress = ({ name, score, isRecommended }: SuitabilityProgressProps) => {
   const getSuitabilityColor = (val: number) => {
-    if (val >= 65) return { bar: "bg-emerald-500", glow: "dark:shadow-[0_0_12px_rgba(16,185,129,0.4)]", text: "text-emerald-600 dark:text-emerald-400" };
-    if (val >= 40) return { bar: "bg-amber-500", glow: "dark:shadow-[0_0_12px_rgba(245,158,11,0.4)]", text: "text-amber-600 dark:text-amber-400" };
+    if (val >= 65) return { bar: "bg-emerald-500", glow: "dark:shadow-[0_0_12px_rgba(16,185,129,0.4)]", text: "text-emerald-600 text-emerald-400" };
+    if (val >= 40) return { bar: "bg-amber-500", glow: "dark:shadow-[0_0_12px_rgba(245,158,11,0.4)]", text: "text-amber-600 text-amber-400" };
     return { bar: "bg-rose-500", glow: "dark:shadow-[0_0_12px_rgba(244,63,94,0.4)]", text: "text-rose-600 dark:text-rose-455" };
   };
 
@@ -112,22 +112,22 @@ const SuitabilityProgress = ({ name, score, isRecommended }: SuitabilityProgress
     <div className={`p-4 rounded-xl border transition-all duration-300 ${
       isRecommended 
         ? "border-emerald-300 dark:border-emerald-800 bg-emerald-500/5 dark:bg-emerald-950/10 shadow-sm" 
-        : "border-slate-200 dark:border-slate-800/60 bg-slate-100/30 dark:bg-slate-900/30"
+        : "border-[var(--ax-border)] border-[var(--ax-border)]/60 bg-[#f4f4f5]/30 bg-[#161616]/30"
     }`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold ${isRecommended ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-350"}`}>
+          <span className={`text-xs font-bold ${isRecommended ? "text-emerald-600 text-emerald-400" : "text-[#606060] text-[#a0a0a0]"}`}>
             {name.replace(/_/g, " ").toUpperCase()}
           </span>
           {isRecommended && (
-            <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-850 px-2 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
+            <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-750 text-emerald-400 border border-emerald-200 dark:border-emerald-850 px-2 py-0.5 rounded font-bold uppercase tracking-wider animate-pulse">
               Best Fit
             </span>
           )}
         </div>
         <span className={`text-sm font-mono font-black ${style.text}`}>{score}/100</span>
       </div>
-      <div className="w-full bg-slate-200 dark:bg-slate-955/60 border border-slate-300/40 dark:border-slate-800/40 rounded-full h-2.5 overflow-hidden">
+      <div className="w-full dark:bg-slate-955/60 border border-[var(--ax-border)]/40 border-[var(--ax-border)]/40 rounded-full h-2.5 overflow-hidden">
         <div 
           className={`h-full rounded-full transition-all duration-1000 ${style.bar} ${style.glow}`}
           style={{ width: `${score}%` }} 
@@ -798,9 +798,9 @@ export default function ResearchLab({
       <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
         
         {/* Controls Card */}
-        <div className="glass-panel p-5 rounded-xl shadow-xl space-y-4" style={{ borderColor: 'var(--border-color)' }}>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl shadow-xl space-y-4" style={{ borderColor: 'var(--border-color)' }}>
           <div className="pb-3 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
-            <BarChart2 size={16} className="text-blue-400" />
+            <BarChart2 size={16} className="text-[#93b4ff]" />
             <h4 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Target Dataset</h4>
           </div>
 
@@ -824,7 +824,7 @@ export default function ResearchLab({
             <button
               onClick={runAnalysis}
               disabled={analysisLoading || !selectedDataset}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent text-white py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-[#4a7fcc] hover:bg-[#4a7fcc] disabled:opacity-50 disabled:cursor-not-allowed border border-transparent text-[#f0f0f0] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
             >
               {analysisLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
               {analysisLoading ? "Running Diagnostics..." : "Analyze Dataset"}
@@ -833,7 +833,7 @@ export default function ResearchLab({
             <button
               onClick={runQuantAnalysis}
               disabled={quantLoading || !selectedDataset}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent text-white py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent text-[#f0f0f0] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
             >
               {quantLoading ? <Loader2 size={13} className="animate-spin" /> : <BarChart3 size={13} />}
               {quantLoading ? "Running Quant..." : "Run Quant Analysis"}
@@ -855,24 +855,24 @@ export default function ResearchLab({
         </div>
 
         {/* Glowing Logs Terminal Console */}
-        <div className="glass-panel rounded-xl overflow-hidden border-slate-800/60 shadow-xl flex-1 flex flex-col min-h-[300px]">
-          <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-950/40 flex items-center justify-between">
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl overflow-hidden border-[var(--ax-border)]/60 shadow-xl flex-1 flex flex-col min-h-[300px]">
+          <div className="px-4 py-3 border-b border-[var(--ax-border)]/80 bg-[#111]/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Terminal size={13} className="text-emerald-450" />
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lab Console</span>
+              <span className="text-[10px] font-bold text-[#a0a0a0] uppercase tracking-wider">Lab Console</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-              <span className="text-[9px] font-mono text-slate-500">online</span>
+              <span className="text-[9px] font-mono text-[#606060]">online</span>
             </div>
           </div>
 
           {/* Terminal Search and Filter */}
-          <div className="p-2 border-b border-slate-800/60 bg-slate-950/20 flex flex-col gap-1.5">
+          <div className="p-2 border-b border-[var(--ax-border)]/60 bg-[#111]/20 flex flex-col gap-1.5">
             <input
               type="text"
               placeholder="Search logs..."
-              className="bg-slate-950/80 border border-slate-700/60 rounded px-2.5 py-1 text-[10px] text-slate-300 focus:outline-none focus:border-slate-500 placeholder:text-slate-600"
+              className="bg-[#111]/80 border border-[var(--ax-border)]/60 rounded px-2.5 py-1 text-[10px] text-[#a0a0a0] focus:outline-none focus:border-[var(--ax-border)] placeholder:text-[#a0a0a0]"
               value={logSearch}
               onChange={(e) => setLogSearch(e.target.value)}
             />
@@ -883,8 +883,8 @@ export default function ResearchLab({
                   onClick={() => setLogFilter(filter)}
                   className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase transition-colors ${
                     logFilter === filter
-                      ? "bg-slate-800 text-slate-200"
-                      : "text-slate-500 hover:text-slate-400 hover:bg-slate-900/30"
+                      ? "bg-[#222] text-[#c0c0c0]"
+                      : "text-[#606060] hover:text-[#a0a0a0] hover:bg-[#161616]/30"
                   }`}
                 >
                   {filter}
@@ -896,23 +896,23 @@ export default function ResearchLab({
           {/* Terminal output */}
           <div
             ref={logsEndRef}
-            className="flex-1 overflow-y-auto p-4 space-y-1.5 font-mono text-[10px] bg-slate-950/60 leading-normal"
+            className="flex-1 overflow-y-auto p-4 space-y-1.5 font-mono text-[10px] bg-[#111]/60 leading-normal"
           >
             {analysisLoading && (
-              <div className="text-blue-400 flex items-center gap-2 py-2">
+              <div className="text-[#93b4ff] flex items-center gap-2 py-2">
                 <Loader2 size={10} className="animate-spin" />
                 <span>Initializing quantitative profiling engine...</span>
               </div>
             )}
 
             {!analysisResult && !analysisLoading && (
-              <div className="text-slate-600 italic py-4 text-center">
+              <div className="text-[#a0a0a0] italic py-4 text-center">
                 Console idle. Awaiting dataset diagnostics execution.
               </div>
             )}
 
             {analysisResult && filteredLogs.length === 0 && (
-              <div className="text-slate-600 italic py-2">
+              <div className="text-[#a0a0a0] italic py-2">
                 No logs matching filter constraints.
               </div>
             )}
@@ -922,7 +922,7 @@ export default function ResearchLab({
               const isWarn = log.includes("[WARN]") || log.includes("WARNING");
               const isRec = log.includes("RECOMMENDED") || log.includes("[SUITABILITY]");
               
-              let textColor = "text-slate-450";
+              let textColor = "text-[#a0a0a0]";
               if (isError) textColor = "text-rose-400 font-semibold";
               else if (isWarn) textColor = "text-amber-400";
               else if (isRec) textColor = "text-emerald-400 font-bold";
@@ -942,33 +942,33 @@ export default function ResearchLab({
         
         {/* If Active Result - Top Ribbon Metadata Header */}
         {analysisResult && analysisResult.valid && (
-          <div className="glass-panel p-4 rounded-xl border-slate-800/60 shadow-lg flex flex-wrap items-center justify-between gap-4">
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 rounded-xl border-[var(--ax-border)]/60 shadow-lg flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-500/10 border border-blue-800/30 rounded-lg p-2 flex items-center justify-center">
-                <Activity size={18} className="text-blue-400" />
+              <div className="bg-[#4a7fcc]/10 border border-[#2a3a5a]/30 rounded-lg p-2 flex items-center justify-center">
+                <Activity size={18} className="text-[#93b4ff]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-slate-100 text-sm leading-tight uppercase font-mono">
+                  <h3 className="font-bold text-[#e8e8e8] text-sm leading-tight uppercase font-mono">
                     {analysisResult.symbol}
                   </h3>
-                  <span className="text-[10px] bg-slate-800 border border-slate-700/50 rounded-full px-2 py-0.5 font-bold font-mono text-slate-300">
+                  <span className="text-[10px] bg-[#222] border border-[var(--ax-border)]/50 rounded-full px-2 py-0.5 font-bold font-mono text-[#a0a0a0]">
                     {analysisResult.interval}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  Range: <span className="font-mono text-slate-400">{analysisResult.date_range.start?.split(" ")[0]}</span> to <span className="font-mono text-slate-400">{analysisResult.date_range.end?.split(" ")[0]}</span>
+                <p className="text-[10px] text-[#606060] mt-0.5">
+                  Range: <span className="font-mono text-[#a0a0a0]">{analysisResult.date_range.start?.split(" ")[0]}</span> to <span className="font-mono text-[#a0a0a0]">{analysisResult.date_range.end?.split(" ")[0]}</span>
                 </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-6">
               <div className="text-right">
-                <span className="text-[9px] uppercase font-bold text-slate-500 block">Bars Analyzed</span>
-                <span className="font-mono text-xs font-bold text-slate-300">{analysisResult.bars}</span>
+                <span className="text-[9px] uppercase font-bold text-[#606060] block">Bars Analyzed</span>
+                <span className="font-mono text-xs font-bold text-[#a0a0a0]">{analysisResult.bars}</span>
               </div>
               <div className="text-right">
-                <span className="text-[9px] uppercase font-bold text-slate-500 block">Volatility Regime</span>
+                <span className="text-[9px] uppercase font-bold text-[#606060] block">Volatility Regime</span>
                 <span className={`text-xs font-bold tracking-wide uppercase ${
                   analysisResult.volatility?.current_vol_regime === "HIGH" ? "text-rose-400" :
                   analysisResult.volatility?.current_vol_regime === "LOW" ? "text-emerald-400" : "text-amber-400"
@@ -976,8 +976,8 @@ export default function ResearchLab({
                   {analysisResult.volatility?.current_vol_regime}
                 </span>
               </div>
-              <div className="text-right border-l border-slate-800 pl-6">
-                <span className="text-[9px] uppercase font-bold text-slate-500 block">Recommended Strategy</span>
+              <div className="text-right border-l border-[var(--ax-border)] pl-6">
+                <span className="text-[9px] uppercase font-bold text-[#606060] block">Recommended Strategy</span>
                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
                   {analysisResult.suitability?.recommended?.replace(/_/g, " ")}
                 </span>
@@ -991,7 +991,7 @@ export default function ResearchLab({
           <div className="flex flex-col gap-6 flex-1">
             
             {/* Custom Glowing Tabs List */}
-            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-800/80 pb-px">
+            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--ax-border)]/80 pb-px">
               {(
                 [
                   { id: "overview", label: "Overview", icon: BarChart2 },
@@ -1011,11 +1011,11 @@ export default function ResearchLab({
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs font-bold tracking-wide uppercase transition-all whitespace-nowrap cursor-pointer ${
                       isActive
-                        ? "border-blue-500 text-blue-400 bg-blue-500/5"
-                        : "border-transparent text-slate-500 hover:text-slate-350 hover:border-slate-800/80"
+                        ? "border-[#4a7fcc] text-[#93b4ff] bg-[#4a7fcc]/5"
+                        : "border-transparent text-[#606060] hover:text-slate-350 hover:border-[var(--ax-border)]/80"
                     }`}
                   >
-                    <Icon size={12} className={isActive ? "text-blue-400" : "text-slate-500"} />
+                    <Icon size={12} className={isActive ? "text-[#93b4ff]" : "text-[#606060]"} />
                     {tab.label}
                   </button>
                 );
@@ -1029,14 +1029,14 @@ export default function ResearchLab({
               {activeTab === "overview" && (
                 <div className="space-y-6">
                   {/* Candlestick ECharts */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg">
-                    <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg">
+                    <div className="flex items-center justify-between mb-4 border-b border-[var(--ax-border)] pb-3">
                       <div>
                         <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
-                          <Activity size={12} className="text-blue-400" />
+                          <Activity size={12} className="text-[#93b4ff]" />
                           OHLCV Price Series
                         </h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Zoom and drag to review raw market candle structures with EMA 20 & 50.</p>
+                        <p className="text-[10px] text-[#606060] mt-0.5">Zoom and drag to review raw market candle structures with EMA 20 & 50.</p>
                       </div>
                     </div>
                     <div className="h-88">
@@ -1075,13 +1075,13 @@ export default function ResearchLab({
                   </div>
 
                   {/* Candlestick Patterns */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                    <div className="border-b border-slate-800 pb-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                    <div className="border-b border-[var(--ax-border)] pb-3">
                       <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                         <AlertTriangle size={12} className="text-blue-450" />
                         Detected Candlestick Patterns
                       </h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Absolute occurrence counts and frequencies inside the target dataset.</p>
+                      <p className="text-[10px] text-[#606060] mt-0.5">Absolute occurrence counts and frequencies inside the target dataset.</p>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                       <PatternBadge name="Doji" count={analysisResult.patterns?.doji_count} pct={analysisResult.patterns?.doji_pct} />
@@ -1101,7 +1101,7 @@ export default function ResearchLab({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <StatCard label="Mean Return per bar" value={analysisResult.returns?.mean_return_pct} suffix="%" />
                     <StatCard label="Volatility per bar" value={analysisResult.returns?.std_return_pct} suffix="%" />
-                    <StatCard label="Sharpe (Approx)" value={analysisResult.returns?.sharpe_approx} badge="Annualized" badgeColor="bg-slate-800 text-slate-300" />
+                    <StatCard label="Sharpe (Approx)" value={analysisResult.returns?.sharpe_approx} badge="Annualized" badgeColor="bg-[#222] text-[#a0a0a0]" />
                     <StatCard 
                       label="Normal Distribution?" 
                       value={analysisResult.returns?.is_normal ? "Passed" : "Failed"} 
@@ -1113,7 +1113,7 @@ export default function ResearchLab({
                     <StatCard 
                       label="Skewness" 
                       value={analysisResult.returns?.skewness} 
-                      color={analysisResult.returns?.skewness < -0.5 ? "text-rose-450" : "text-slate-100"} 
+                      color={analysisResult.returns?.skewness < -0.5 ? "text-rose-450" : "text-[#e8e8e8]"} 
                       desc="Symmetry of returns. Negative values imply downside tails."
                     />
                     <StatCard label="Kurtosis" value={analysisResult.returns?.kurtosis} desc="Fat tails measurement. Values >3 are leptokurtic." />
@@ -1122,9 +1122,9 @@ export default function ResearchLab({
                   {/* Histogram and Tail Risk row */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Returns Dist EChart */}
-                    <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg md:col-span-2">
-                      <h4 className="text-xs font-bold text-slate-250 uppercase mb-4 border-b border-slate-800 pb-3 flex items-center gap-1.5">
-                        <BarChart3 size={12} className="text-blue-400" />
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg md:col-span-2">
+                      <h4 className="text-xs font-bold text-slate-250 uppercase mb-4 border-b border-[var(--ax-border)] pb-3 flex items-center gap-1.5">
+                        <BarChart3 size={12} className="text-[#93b4ff]" />
                         Returns Distribution Frequency
                       </h4>
                       <div className="h-56">
@@ -1133,25 +1133,25 @@ export default function ResearchLab({
                     </div>
 
                     {/* Tail Risk Card */}
-                    <div className="glass-panel p-5 rounded-xl border-rose-900/20 bg-rose-955/5 shadow-lg flex flex-col justify-between">
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-rose-900/20 bg-rose-955/5 shadow-lg flex flex-col justify-between">
                       <div className="space-y-4">
                         <div className="border-b border-rose-900/30 pb-3">
                           <h4 className="text-xs font-bold text-rose-400 uppercase flex items-center gap-1.5">
                             <Shield size={12} className="text-rose-400" />
                             Tail Risk Diagnostics
                           </h4>
-                          <p className="text-[10px] text-slate-500 mt-0.5">Loss potential in extreme adverse statistical environments.</p>
+                          <p className="text-[10px] text-[#606060] mt-0.5">Loss potential in extreme adverse statistical environments.</p>
                         </div>
                         <div className="space-y-3">
                           <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Value-at-Risk (VaR 95%)</span>
+                            <span className="text-[9px] uppercase font-bold text-[#606060] block mb-1">Value-at-Risk (VaR 95%)</span>
                             <span className="font-mono text-lg font-bold text-rose-400">-{Math.abs(analysisResult.returns?.var_95_pct)}%</span>
-                            <p className="text-[9px] text-slate-500 mt-0.5">With 95% confidence, loss will not exceed this value per bar.</p>
+                            <p className="text-[9px] text-[#606060] mt-0.5">With 95% confidence, loss will not exceed this value per bar.</p>
                           </div>
                           <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Conditional VaR (CVaR 95%)</span>
+                            <span className="text-[9px] uppercase font-bold text-[#606060] block mb-1">Conditional VaR (CVaR 95%)</span>
                             <span className="font-mono text-lg font-bold text-rose-400">-{Math.abs(analysisResult.returns?.cvar_95_pct)}%</span>
-                            <p className="text-[9px] text-slate-500 mt-0.5">Average loss in the worst 5% of all occurrences.</p>
+                            <p className="text-[9px] text-[#606060] mt-0.5">Average loss in the worst 5% of all occurrences.</p>
                           </div>
                         </div>
                       </div>
@@ -1169,23 +1169,23 @@ export default function ResearchLab({
                   </div>
 
                   {/* Drawdown Curve & Metrics */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg">
-                    <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 mb-5 gap-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg">
+                    <div className="flex flex-wrap items-center justify-between border-b border-[var(--ax-border)] pb-3 mb-5 gap-3">
                       <div>
                         <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                           <ArrowDownRight size={12} className="text-rose-450" />
                           Peak-to-Trough Drawdown
                         </h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Historical equity erosion depth curve.</p>
+                        <p className="text-[10px] text-[#606060] mt-0.5">Historical equity erosion depth curve.</p>
                       </div>
                       <div className="flex items-center gap-6 text-xs font-mono">
                         <div>
-                          <span className="text-[9px] uppercase text-slate-500 block">Max Drawdown</span>
+                          <span className="text-[9px] uppercase text-[#606060] block">Max Drawdown</span>
                           <span className="text-rose-455 font-bold">{analysisResult.drawdown?.max_drawdown_pct}%</span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase text-slate-500 block">Time Underwater</span>
-                          <span className="text-slate-300 font-bold">{analysisResult.drawdown?.underwater_pct}%</span>
+                          <span className="text-[9px] uppercase text-[#606060] block">Time Underwater</span>
+                          <span className="text-[#a0a0a0] font-bold">{analysisResult.drawdown?.underwater_pct}%</span>
                         </div>
                       </div>
                     </div>
@@ -1193,22 +1193,22 @@ export default function ResearchLab({
                       <div className="md:col-span-3 h-56">
                         <ReactECharts option={drawdownChartOpt} style={{ height: "100%" }} />
                       </div>
-                      <div className="space-y-4 justify-center flex flex-col border-t md:border-t-0 md:border-l border-slate-800/80 pt-4 md:pt-0 md:pl-6">
+                      <div className="space-y-4 justify-center flex flex-col border-t md:border-t-0 md:border-l border-[var(--ax-border)]/80 pt-4 md:pt-0 md:pl-6">
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Max Drawdown Date</span>
-                          <span className="font-mono text-xs text-slate-300 font-semibold">{analysisResult.drawdown?.max_dd_date?.slice(0, 10) || "—"}</span>
+                          <span className="text-[9px] uppercase font-bold text-[#606060] block">Max Drawdown Date</span>
+                          <span className="font-mono text-xs text-[#a0a0a0] font-semibold">{analysisResult.drawdown?.max_dd_date?.slice(0, 10) || "—"}</span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Avg DD Recovery Duration</span>
-                          <span className="font-mono text-xs text-slate-300 font-semibold">{analysisResult.drawdown?.avg_drawdown_duration_bars} bars</span>
+                          <span className="text-[9px] uppercase font-bold text-[#606060] block">Avg DD Recovery Duration</span>
+                          <span className="font-mono text-xs text-[#a0a0a0] font-semibold">{analysisResult.drawdown?.avg_drawdown_duration_bars} bars</span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Max DD Recovery Duration</span>
-                          <span className="font-mono text-xs text-slate-300 font-semibold">{analysisResult.drawdown?.max_drawdown_duration_bars} bars</span>
+                          <span className="text-[9px] uppercase font-bold text-[#606060] block">Max DD Recovery Duration</span>
+                          <span className="font-mono text-xs text-[#a0a0a0] font-semibold">{analysisResult.drawdown?.max_drawdown_duration_bars} bars</span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Current Drawdown</span>
-                          <span className={`font-mono text-xs font-bold ${analysisResult.drawdown?.current_drawdown_pct < -2 ? "text-rose-450" : "text-slate-300"}`}>
+                          <span className="text-[9px] uppercase font-bold text-[#606060] block">Current Drawdown</span>
+                          <span className={`font-mono text-xs font-bold ${analysisResult.drawdown?.current_drawdown_pct < -2 ? "text-rose-450" : "text-[#a0a0a0]"}`}>
                             {analysisResult.drawdown?.current_drawdown_pct}%
                           </span>
                         </div>
@@ -1244,8 +1244,8 @@ export default function ResearchLab({
                   {/* Vol Chart and Regimes Row */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Vol Curve */}
-                    <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg md:col-span-2 space-y-4">
-                      <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-slate-800 pb-3 flex items-center gap-1.5">
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg md:col-span-2 space-y-4">
+                      <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-[var(--ax-border)] pb-3 flex items-center gap-1.5">
                         <Zap size={12} className="text-amber-450" />
                         Rolling 20-Period Volatility
                       </h4>
@@ -1255,25 +1255,25 @@ export default function ResearchLab({
                     </div>
 
                     {/* Regimes Doughnut */}
-                    <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg flex flex-col justify-between">
-                      <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-slate-800 pb-3 flex items-center gap-1.5">
-                        <PieChart size={12} className="text-blue-400" />
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg flex flex-col justify-between">
+                      <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-[var(--ax-border)] pb-3 flex items-center gap-1.5">
+                        <PieChart size={12} className="text-[#93b4ff]" />
                         Market Regime Allocation
                       </h4>
                       <div className="h-40 flex items-center justify-center relative">
                         <ReactECharts option={regimeChartOpt} style={{ height: "100%", width: "100%" }} />
                       </div>
-                      <div className="border-t border-slate-800/80 pt-3 text-[10px] text-slate-500 leading-normal flex items-center gap-1.5">
-                        <Info size={11} className="text-slate-400 flex-shrink-0" />
+                      <div className="border-t border-[var(--ax-border)]/80 pt-3 text-[10px] text-[#606060] leading-normal flex items-center gap-1.5">
+                        <Info size={11} className="text-[#a0a0a0] flex-shrink-0" />
                         Hover segments to analyze specific distribution allocations.
                       </div>
                     </div>
                   </div>
 
                   {/* Regime breakdown rows */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                    <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-slate-800 pb-3 flex items-center gap-1.5">
-                      <Layers size={12} className="text-blue-400" />
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                    <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-[var(--ax-border)] pb-3 flex items-center gap-1.5">
+                      <Layers size={12} className="text-[#93b4ff]" />
                       Regime Characteristic Explanations
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
@@ -1322,10 +1322,10 @@ export default function ResearchLab({
                       value={analysisResult.trend?.trend_direction} 
                       color={
                         analysisResult.trend?.trend_direction === "BULLISH" ? "text-emerald-450" :
-                        analysisResult.trend?.trend_direction === "BEARISH" ? "text-rose-455" : "text-slate-450"
+                        analysisResult.trend?.trend_direction === "BEARISH" ? "text-rose-455" : "text-[#a0a0a0]"
                       }
                       badge={analysisResult.trend?.is_trending ? "Trending" : "Ranging"}
-                      badgeColor={analysisResult.trend?.is_trending ? "bg-emerald-500/10 text-emerald-450" : "bg-slate-800 text-slate-400"}
+                      badgeColor={analysisResult.trend?.is_trending ? "bg-emerald-500/10 text-emerald-450" : "bg-[#222] text-[#a0a0a0]"}
                     />
                     <StatCard 
                       label="Linear R-Squared" 
@@ -1338,7 +1338,7 @@ export default function ResearchLab({
                       value={analysisResult.trend?.adx_proxy} 
                       desc="Directional movement index proxy. (>25 is strong trend)."
                       badge={analysisResult.trend?.strong_trend ? "Strong ADX" : "Weak ADX"}
-                      badgeColor={analysisResult.trend?.strong_trend ? "bg-emerald-500/10 text-emerald-450" : "bg-slate-800 text-slate-400"}
+                      badgeColor={analysisResult.trend?.strong_trend ? "bg-emerald-500/10 text-emerald-450" : "bg-[#222] text-[#a0a0a0]"}
                     />
                     <StatCard label="EMA 20" value={`₹${analysisResult.trend?.ema20}`} />
                     <StatCard label="EMA 50" value={`₹${analysisResult.trend?.ema50}`} />
@@ -1357,22 +1357,22 @@ export default function ResearchLab({
                   </div>
 
                   {/* S&R Pivots Card */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg">
-                    <div className="border-b border-slate-800 pb-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg">
+                    <div className="border-b border-[var(--ax-border)] pb-3 mb-4 flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
-                          <Layers size={12} className="text-blue-400" />
+                          <Layers size={12} className="text-[#93b4ff]" />
                           Support & Resistance Levels (Pivots)
                         </h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Clustered local extrema pivot zones indicating target boundaries.</p>
+                        <p className="text-[10px] text-[#606060] mt-0.5">Clustered local extrema pivot zones indicating target boundaries.</p>
                       </div>
                       <div className="flex gap-4 text-xs font-mono">
                         <div>
-                          <span className="text-[9px] uppercase text-slate-50 block">Rolling High</span>
+                          <span className="text-[9px] uppercase text-[#fafafa] block">Rolling High</span>
                           <span className="text-slate-350 font-bold">₹{analysisResult.levels?.rolling_high}</span>
                         </div>
                         <div>
-                          <span className="text-[9px] uppercase text-slate-50 block">Rolling Low</span>
+                          <span className="text-[9px] uppercase text-[#fafafa] block">Rolling Low</span>
                           <span className="text-slate-350 font-bold">₹{analysisResult.levels?.rolling_low}</span>
                         </div>
                       </div>
@@ -1380,7 +1380,7 @@ export default function ResearchLab({
 
                     {/* Proximity gauge indicator */}
                     {analysisResult.levels?.nearest_support && analysisResult.levels?.nearest_resistance && (
-                      <div className="mb-6 bg-slate-950/40 p-4 rounded-xl border border-slate-800/30">
+                      <div className="mb-6 bg-[#111]/40 p-4 rounded-xl border border-[var(--ax-border)]/30">
                         <div className="flex justify-between text-[10px] font-mono font-bold text-slate-550 mb-1">
                           <span>Support (₹{analysisResult.levels.nearest_support.price.toFixed(2)})</span>
                           <span>Resistance (₹{analysisResult.levels.nearest_resistance.price.toFixed(2)})</span>
@@ -1392,18 +1392,18 @@ export default function ResearchLab({
                           const pct = Math.min(Math.max(((cur - sup) / (res - sup)) * 100, 0), 100);
                           return (
                             <div className="relative">
-                              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden flex">
-                                <div className="h-full bg-slate-850" style={{ width: `${pct}%` }} />
-                                <div className="h-full bg-slate-950 flex-1" />
+                              <div className="w-full bg-[#161616] h-2 rounded-full overflow-hidden flex">
+                                <div className="h-full bg-[#111]" style={{ width: `${pct}%` }} />
+                                <div className="h-full bg-[#111] flex-1" />
                               </div>
                               <div 
-                                className="absolute -top-1 w-4 h-4 bg-blue-500 border-2 border-slate-950 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)] transition-all duration-300"
+                                className="absolute -top-1 w-4 h-4 bg-[#4a7fcc] border-2 border-[var(--ax-border)] rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)] transition-all duration-300"
                                 style={{ left: `calc(${pct}% - 8px)` }}
                               />
                             </div>
                           );
                         })()}
-                        <div className="flex justify-between text-[9px] text-slate-500 mt-2 font-mono">
+                        <div className="flex justify-between text-[9px] text-[#606060] mt-2 font-mono">
                           <span>Dist: {analysisResult.levels.distance_to_support_pct}% below close</span>
                           <span>Dist: {analysisResult.levels.distance_to_resistance_pct}% above close</span>
                         </div>
@@ -1412,22 +1412,22 @@ export default function ResearchLab({
 
                     {/* Pivots Table */}
                     {analysisResult.levels?.pivots?.length > 0 ? (
-                      <div className="overflow-hidden border border-slate-800/50 rounded-lg">
-                        <table className="w-full text-left text-xs text-slate-400">
+                      <div className="overflow-hidden border border-[var(--ax-border)]/50 rounded-lg">
+                        <table className="w-full text-left text-xs text-[#a0a0a0]">
                           <thead>
-                            <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 font-bold">
+                            <tr className="bg-[#111]/80 border-b border-[var(--ax-border)] text-[#a0a0a0] font-bold">
                               <th className="py-2.5 px-4">Type</th>
                               <th className="py-2.5 px-4">Target Pivot Price</th>
                               <th className="py-2.5 px-4">Detected Cluster Strength</th>
                               <th className="py-2.5 px-4">Distance from current Close</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/50 bg-slate-950/10">
+                          <tbody className="divide-y divide-[var(--ax-border)]/50 bg-[#111]/10">
                             {analysisResult.levels.pivots.map((p: any, i: number) => {
                               const curClose = analysisResult.plot_series?.close?.[analysisResult.plot_series.close.length - 1] || p.price;
                               const dist = ((p.price - curClose) / curClose) * 100;
                               return (
-                                <tr key={i} className="hover:bg-slate-900/20 transition-colors">
+                                <tr key={i} className="hover:bg-[#161616]/20 transition-colors">
                                   <td className="py-2.5 px-4">
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                                       p.type === "support" 
@@ -1437,7 +1437,7 @@ export default function ResearchLab({
                                       {p.type}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-4 font-mono font-bold text-slate-200">₹{p.price.toFixed(2)}</td>
+                                  <td className="py-2.5 px-4 font-mono font-bold text-[#c0c0c0]">₹{p.price.toFixed(2)}</td>
                                   <td className="py-2.5 px-4 font-mono text-slate-350">{p.strength} hits</td>
                                   <td className="py-2.5 px-4 font-mono font-bold">
                                     <span className={dist >= 0 ? "text-emerald-450" : "text-rose-455"}>
@@ -1451,7 +1451,7 @@ export default function ResearchLab({
                         </table>
                       </div>
                     ) : (
-                      <div className="text-center text-xs text-slate-500 py-6">
+                      <div className="text-center text-xs text-[#606060] py-6">
                         No support or resistance pivots detected in current window parameters.
                       </div>
                     )}
@@ -1479,7 +1479,7 @@ export default function ResearchLab({
                       />
                     </div>
                   ) : (
-                    <div className="glass-panel p-5 rounded-xl border-slate-800/40 text-center text-xs text-slate-500">
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/40 text-center text-xs text-[#606060]">
                       No Volume metrics available for current instrument catalog schema.
                     </div>
                   )}
@@ -1488,9 +1488,9 @@ export default function ResearchLab({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Seasonality DOW Chart */}
                     {analysisResult.seasonality?.dow?.dow_data ? (
-                      <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg md:col-span-2 space-y-4">
-                        <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-slate-800 pb-3 flex items-center gap-1.5">
-                          <Calendar size={12} className="text-blue-400" />
+                      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg md:col-span-2 space-y-4">
+                        <h4 className="text-xs font-bold text-slate-250 uppercase border-b border-[var(--ax-border)] pb-3 flex items-center gap-1.5">
+                          <Calendar size={12} className="text-[#93b4ff]" />
                           Seasonality: Day of Week returns
                         </h4>
                         <div className="h-56">
@@ -1498,26 +1498,26 @@ export default function ResearchLab({
                         </div>
                       </div>
                     ) : (
-                      <div className="glass-panel p-5 rounded-xl border-slate-800/40 text-center text-xs text-slate-500 md:col-span-2">
+                      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/40 text-center text-xs text-[#606060] md:col-span-2">
                         No day-of-week seasonality dataset parsed.
                       </div>
                     )}
 
                     {/* Hourly Statistics Cards */}
-                    <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg flex flex-col justify-between">
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg flex flex-col justify-between">
                       <div className="space-y-4">
-                        <div className="border-b border-slate-800 pb-3">
+                        <div className="border-b border-[var(--ax-border)] pb-3">
                           <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
-                            <Clock size={12} className="text-blue-400" />
+                            <Clock size={12} className="text-[#93b4ff]" />
                             Hourly Windows
                           </h4>
-                          <p className="text-[10px] text-slate-500 mt-0.5">Top performing intraday execution schedules.</p>
+                          <p className="text-[10px] text-[#606060] mt-0.5">Top performing intraday execution schedules.</p>
                         </div>
                         
                         {analysisResult.seasonality?.hourly ? (
                           <div className="space-y-4">
                             <div>
-                              <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Golden Hour (Best)</span>
+                              <span className="text-[9px] uppercase font-bold text-[#606060] block mb-1">Golden Hour (Best)</span>
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-base font-bold text-emerald-450">
                                   {analysisResult.seasonality.hourly.best_hour}:00
@@ -1526,10 +1526,10 @@ export default function ResearchLab({
                                   ({analysisResult.seasonality.hourly.best_hour_return_pct}%)
                                 </span>
                               </div>
-                              <p className="text-[9px] text-slate-500 mt-0.5">Best window to execute long-biased parameters.</p>
+                              <p className="text-[9px] text-[#606060] mt-0.5">Best window to execute long-biased parameters.</p>
                             </div>
                             <div>
-                              <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Risk Window (Worst)</span>
+                              <span className="text-[9px] uppercase font-bold text-[#606060] block mb-1">Risk Window (Worst)</span>
                               <div className="flex items-center gap-2">
                                 <span className="font-mono text-base font-bold text-rose-455">
                                   {analysisResult.seasonality.hourly.worst_hour}:00
@@ -1538,11 +1538,11 @@ export default function ResearchLab({
                                   ({analysisResult.seasonality.hourly.worst_hour_return_pct}%)
                                 </span>
                               </div>
-                              <p className="text-[9px] text-slate-500 mt-0.5">Avoid active long scaling during this timezone.</p>
+                              <p className="text-[9px] text-[#606060] mt-0.5">Avoid active long scaling during this timezone.</p>
                             </div>
                           </div>
                         ) : (
-                          <div className="text-xs text-slate-500 italic py-6">
+                          <div className="text-xs text-[#606060] italic py-6">
                             Intraday hourly parameters unavailable (asset interval is daily+).
                           </div>
                         )}
@@ -1556,12 +1556,12 @@ export default function ResearchLab({
               {activeTab === "verdict" && (
                 <div className="space-y-6">
                   {/* Verdict header box */}
-                  <div className="glass-panel p-5 rounded-xl border-emerald-900/30 bg-emerald-955/5 shadow-lg space-y-4">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-emerald-900/30 bg-emerald-955/5 shadow-lg space-y-4">
                     <div className="flex items-center gap-2 border-b border-emerald-900/20 pb-3">
                       <Shield size={14} className="text-emerald-400" />
                       <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Lab Expert Verdict recommendation</h4>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                    <p className="text-xs text-[#a0a0a0] leading-relaxed font-medium">
                       {(() => {
                         const rec = analysisResult.suitability?.recommended?.replace(/_/g, " ") || "unknown";
                         const score = analysisResult.suitability?.recommended_score || 0;
@@ -1575,7 +1575,7 @@ export default function ResearchLab({
                             Statistical profiling recommends deploying a{" "}
                             <span className="font-bold text-emerald-400 uppercase tracking-wide underline">{rec}</span> strategy structure (Score {score}/100) 
                             for this instrument. This is primarily influenced by the current{" "}
-                            <span className={`font-bold ${trend === "BULLISH" ? "text-emerald-400" : trend === "BEARISH" ? "text-rose-455" : "text-slate-400"}`}>{trend}</span> macro 
+                            <span className={`font-bold ${trend === "BULLISH" ? "text-emerald-400" : trend === "BEARISH" ? "text-rose-455" : "text-[#a0a0a0]"}`}>{trend}</span> macro 
                             trend drift and <span className={`font-bold ${vol === "HIGH" ? "text-rose-450" : vol === "LOW" ? "text-emerald-450" : "text-amber-450"}`}>{vol}</span> volatility environment. 
                             {skew < -0.5 && " Heavy negative skew is detected; you should enforce strict stop-loss caps."}
                             {skew > 0.5 && " Returns possess positive skew; trail profit targets for breakout continuation."}
@@ -1590,13 +1590,13 @@ export default function ResearchLab({
                   </div>
 
                   {/* Strategy Suite Scores */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                    <div className="border-b border-slate-800 pb-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                    <div className="border-b border-[var(--ax-border)] pb-3">
                       <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
-                        <Activity size={12} className="text-blue-400" />
+                        <Activity size={12} className="text-[#93b4ff]" />
                         Strategy Suite Suitability scores
                       </h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Comparative scoring (0-100) of strategy categories based on statistical metrics.</p>
+                      <p className="text-[10px] text-[#606060] mt-0.5">Comparative scoring (0-100) of strategy categories based on statistical metrics.</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {Object.entries(analysisResult.suitability?.scores || {}).map(([name, score]: [string, any]) => (
@@ -1611,31 +1611,31 @@ export default function ResearchLab({
                   </div>
 
                   {/* Tuning Parameters Guidance */}
-                  <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                    <div className="border-b border-slate-800 pb-3">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                    <div className="border-b border-[var(--ax-border)] pb-3">
                       <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                         <Zap size={12} className="text-amber-450" />
                         Tuning Parameter reference & metrics
                       </h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Calculated limits and statistical guidelines to manually optimize your strategies.</p>
+                      <p className="text-[10px] text-[#606060] mt-0.5">Calculated limits and statistical guidelines to manually optimize your strategies.</p>
                     </div>
-                    <div className="overflow-x-auto border border-slate-800/60 rounded-lg">
-                      <table className="w-full text-left text-xs text-slate-400">
+                    <div className="overflow-x-auto border border-[var(--ax-border)]/60 rounded-lg">
+                      <table className="w-full text-left text-xs text-[#a0a0a0]">
                         <thead>
-                          <tr className="bg-slate-950/80 border-b border-slate-800 font-bold text-slate-400">
+                          <tr className="bg-[#111]/80 border-b border-[var(--ax-border)] font-bold text-[#a0a0a0]">
                             <th className="py-2.5 px-4 w-48">Parameter</th>
                             <th className="py-2.5 px-4 w-32">Metric Value</th>
                             <th className="py-2.5 px-4">Tuning Guidance</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800/50 bg-slate-950/10 font-medium">
+                        <tbody className="divide-y divide-[var(--ax-border)]/50 bg-[#111]/10 font-medium">
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">avg_range</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">avg_range</td>
                             <td className="py-2.5 px-4 font-mono">₹{analysisResult.price_stats?.avg_range}</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">Scale stops and targets here. Enforce ATR filters ~1.5x to 2.5x this value.</td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">body_to_range</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">body_to_range</td>
                             <td className="py-2.5 px-4 font-mono">{analysisResult.price_stats?.body_to_range_ratio}</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">
                               {analysisResult.price_stats?.body_to_range_ratio > 0.6 
@@ -1644,7 +1644,7 @@ export default function ResearchLab({
                             </td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">annualized_vol</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">annualized_vol</td>
                             <td className="py-2.5 px-4 font-mono">{analysisResult.returns?.annualized_vol_pct}%</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">
                               {analysisResult.returns?.annualized_vol_pct > 35 
@@ -1653,7 +1653,7 @@ export default function ResearchLab({
                             </td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">autocorr_lag1</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">autocorr_lag1</td>
                             <td className="py-2.5 px-4 font-mono">
                               {analysisResult.autocorrelation?.lags?.[0]?.autocorr ?? "—"}
                             </td>
@@ -1664,7 +1664,7 @@ export default function ResearchLab({
                             </td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">adx_proxy</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">adx_proxy</td>
                             <td className="py-2.5 px-4 font-mono">{analysisResult.trend?.adx_proxy}</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">
                               {analysisResult.trend?.adx_proxy > 25 
@@ -1673,12 +1673,12 @@ export default function ResearchLab({
                             </td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">nearest_support</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">nearest_support</td>
                             <td className="py-2.5 px-4 font-mono text-emerald-450">₹{analysisResult.levels?.nearest_support?.price || "—"}</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">Use as stop-loss buffer zone for long positions.</td>
                           </tr>
                           <tr>
-                            <td className="py-2.5 px-4 font-mono font-bold text-slate-300">nearest_resistance</td>
+                            <td className="py-2.5 px-4 font-mono font-bold text-[#a0a0a0]">nearest_resistance</td>
                             <td className="py-2.5 px-4 font-mono text-rose-455">₹{analysisResult.levels?.nearest_resistance?.price || "—"}</td>
                             <td className="py-2.5 px-4 leading-normal text-slate-350">Use as profit target target zone for long configurations.</td>
                           </tr>
@@ -1688,21 +1688,21 @@ export default function ResearchLab({
                   </div>
 
                   {/* Raw JSON Tuning Config */}
-                  <div className="glass-panel rounded-xl overflow-hidden border-slate-800/60 shadow-lg">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/40">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Database size={12} className="text-slate-400" />
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl overflow-hidden border-[var(--ax-border)]/60 shadow-lg">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--ax-border)] bg-[#111]/40">
+                      <span className="text-[10px] font-bold text-[#a0a0a0] uppercase tracking-wider flex items-center gap-1.5">
+                        <Database size={12} className="text-[#a0a0a0]" />
                         Tuning configuration JSON
                       </span>
                       <button
                         onClick={handleCopyJSON}
-                        className="text-[10px] bg-slate-950 hover:bg-slate-900 border border-slate-850 px-3 py-1 rounded text-slate-300 hover:text-slate-100 flex items-center gap-1.5 transition-colors font-bold shadow-md cursor-pointer"
+                        className="text-[10px] bg-[#111] hover:bg-[#161616] border border-[var(--ax-border)] px-3 py-1 rounded text-[#a0a0a0] hover:text-[#e8e8e8] flex items-center gap-1.5 transition-colors font-bold shadow-md cursor-pointer"
                       >
                         {copied ? <Check size={11} className="text-emerald-400 animate-scale" /> : <Copy size={11} />}
                         {copied ? "Copied" : "Copy JSON"}
                       </button>
                     </div>
-                    <pre className="p-4 overflow-x-auto text-[10px] font-mono text-slate-400 bg-slate-950/80 leading-relaxed max-h-96">
+                    <pre className="p-4 overflow-x-auto text-[10px] font-mono text-[#a0a0a0] bg-[#111]/80 leading-relaxed max-h-96">
                       {tuningConfig ? JSON.stringify(tuningConfig, null, 2) : "No analysis result available."}
                     </pre>
                   </div>
@@ -1714,15 +1714,15 @@ export default function ResearchLab({
                 <div className="space-y-6">
                   {quantLoading && (
                     <div className="flex items-center justify-center py-12">
-                      <Loader2 size={24} className="animate-spin text-blue-400 mr-3" />
-                      <span className="text-sm text-slate-400">Running deep quantitative analysis on full dataset...</span>
+                      <Loader2 size={24} className="animate-spin text-[#93b4ff] mr-3" />
+                      <span className="text-sm text-[#a0a0a0]">Running deep quantitative analysis on full dataset...</span>
                     </div>
                   )}
 
                   {!quantLoading && Object.keys(quantResults).length === 0 && (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <BarChart3 size={32} className="text-slate-600 mb-3" />
-                      <p className="text-sm text-slate-400">Click "Run Quant Analysis" to compute Hurst, Half-Life, Volume Profile, Gap stats, Tail Risk, and more.</p>
+                      <BarChart3 size={32} className="text-[#a0a0a0] mb-3" />
+                      <p className="text-sm text-[#a0a0a0]">Click "Run Quant Analysis" to compute Hurst, Half-Life, Volume Profile, Gap stats, Tail Risk, and more.</p>
                     </div>
                   )}
 
@@ -1730,13 +1730,13 @@ export default function ResearchLab({
                     <>
                       {/* Mean Reversion */}
                       {quantResults.mean_reversion && !quantResults.mean_reversion.error && (
-                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                          <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                          <div className="border-b border-[var(--ax-border)] pb-3 flex items-center justify-between">
                             <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                               <Activity size={12} className="text-violet-400" />
                               Mean Reversion Analysis
                             </h4>
-                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${quantResults.mean_reversion.mean_reversion_strength > 50 ? "bg-violet-500/10 text-violet-400" : "bg-slate-800 text-slate-400"}`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${quantResults.mean_reversion.mean_reversion_strength > 50 ? "bg-violet-500/10 text-violet-400" : "bg-[#222] text-[#a0a0a0]"}`}>
                               Strength: {quantResults.mean_reversion.mean_reversion_strength}/100
                             </span>
                           </div>
@@ -1751,40 +1751,40 @@ export default function ResearchLab({
 
                       {/* Volume Profile */}
                       {quantResults.volume_profile && !quantResults.volume_profile.error && (
-                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                          <div className="border-b border-slate-800 pb-3">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                          <div className="border-b border-[var(--ax-border)] pb-3">
                             <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
-                              <Layers size={12} className="text-blue-400" />
+                              <Layers size={12} className="text-[#93b4ff]" />
                               Volume Profile (POC, VAH, VAL, HVN, LVN)
                             </h4>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <StatCard label="POC (Point of Control)" value={`₹${quantResults.volume_profile.POC}`} color="text-blue-400" />
+                            <StatCard label="POC (Point of Control)" value={`₹${quantResults.volume_profile.POC}`} color="text-[#93b4ff]" />
                             <StatCard label="VAH (Value Area High)" value={`₹${quantResults.volume_profile.VAH}`} color="text-emerald-400" />
                             <StatCard label="VAL (Value Area Low)" value={`₹${quantResults.volume_profile.VAL}`} color="text-rose-400" />
                             <StatCard label="Value Area %" value={`${quantResults.volume_profile.value_area_pct * 100}%`} />
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">High Volume Nodes (HVN)</h5>
+                              <h5 className="text-[10px] uppercase font-bold text-[#606060] mb-2">High Volume Nodes (HVN)</h5>
                               <div className="space-y-1">
                                 {quantResults.volume_profile.HVN?.map((h: any, i: number) => (
-                                  <div key={i} className="flex justify-between text-xs font-mono bg-slate-950/30 px-3 py-1.5 rounded">
-                                    <span className="text-slate-300">₹{h.price}</span>
-                                    <span className="text-slate-500">{h.volume.toLocaleString()}</span>
+                                  <div key={i} className="flex justify-between text-xs font-mono bg-[#111]/30 px-3 py-1.5 rounded">
+                                    <span className="text-[#a0a0a0]">₹{h.price}</span>
+                                    <span className="text-[#606060]">{h.volume.toLocaleString()}</span>
                                   </div>
-                                )) || <span className="text-xs text-slate-600">No HVN data</span>}
+                                )) || <span className="text-xs text-[#a0a0a0]">No HVN data</span>}
                               </div>
                             </div>
                             <div>
-                              <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Low Volume Nodes (LVN)</h5>
+                              <h5 className="text-[10px] uppercase font-bold text-[#606060] mb-2">Low Volume Nodes (LVN)</h5>
                               <div className="space-y-1">
                                 {quantResults.volume_profile.LVN?.map((l: any, i: number) => (
-                                  <div key={i} className="flex justify-between text-xs font-mono bg-slate-950/30 px-3 py-1.5 rounded">
-                                    <span className="text-slate-300">₹{l.price}</span>
-                                    <span className="text-slate-500">{l.volume.toLocaleString()}</span>
+                                  <div key={i} className="flex justify-between text-xs font-mono bg-[#111]/30 px-3 py-1.5 rounded">
+                                    <span className="text-[#a0a0a0]">₹{l.price}</span>
+                                    <span className="text-[#606060]">{l.volume.toLocaleString()}</span>
                                   </div>
-                                )) || <span className="text-xs text-slate-600">No LVN data</span>}
+                                )) || <span className="text-xs text-[#a0a0a0]">No LVN data</span>}
                               </div>
                             </div>
                           </div>
@@ -1793,8 +1793,8 @@ export default function ResearchLab({
 
                       {/* Gap Analysis */}
                       {quantResults.gap && !quantResults.gap.error && (
-                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                          <div className="border-b border-slate-800 pb-3">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                          <div className="border-b border-[var(--ax-border)] pb-3">
                             <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                               <ArrowUpRight size={12} className="text-amber-400" />
                               Gap Analysis
@@ -1811,7 +1811,7 @@ export default function ResearchLab({
 
                       {/* Tail Risk */}
                       {quantResults.tail_risk && !quantResults.tail_risk.error && (
-                        <div className="glass-panel p-5 rounded-xl border-rose-900/20 bg-rose-955/5 shadow-lg space-y-4">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-rose-900/20 bg-rose-955/5 shadow-lg space-y-4">
                           <div className="border-b border-rose-900/20 pb-3">
                             <h4 className="text-xs font-bold text-rose-400 uppercase flex items-center gap-1.5">
                               <Shield size={12} className="text-rose-400" />
@@ -1833,8 +1833,8 @@ export default function ResearchLab({
 
                       {/* Order Flow */}
                       {quantResults.order_flow && !quantResults.order_flow.error && (
-                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                          <div className="border-b border-slate-800 pb-3">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                          <div className="border-b border-[var(--ax-border)] pb-3">
                             <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                               <TrendingUp size={12} className="text-emerald-400" />
                               Order Flow Proxies
@@ -1851,8 +1851,8 @@ export default function ResearchLab({
 
                       {/* Feature Importance */}
                       {quantResults.feature_importance && !quantResults.feature_importance.error && (
-                        <div className="glass-panel p-5 rounded-xl border-slate-800/60 shadow-lg space-y-4">
-                          <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl border-[var(--ax-border)]/60 shadow-lg space-y-4">
+                          <div className="border-b border-[var(--ax-border)] pb-3 flex items-center justify-between">
                             <h4 className="text-xs font-bold text-slate-250 uppercase flex items-center gap-1.5">
                               <Target size={12} className="text-amber-400" />
                               Feature Importance Engine
@@ -1863,14 +1863,14 @@ export default function ResearchLab({
                           </div>
                           <div className="space-y-2">
                             {quantResults.feature_importance.ranked_features?.map((feat: any, i: number) => (
-                              <div key={i} className="flex items-center gap-3 bg-slate-950/20 px-3 py-2 rounded">
-                                <span className="text-[10px] font-bold text-slate-500 w-5">{i + 1}</span>
-                                <span className="text-xs font-bold text-slate-300 w-28 uppercase">{feat.feature.replace(/_/g, " ")}</span>
-                                <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                              <div key={i} className="flex items-center gap-3 bg-[#111]/20 px-3 py-2 rounded">
+                                <span className="text-[10px] font-bold text-[#606060] w-5">{i + 1}</span>
+                                <span className="text-xs font-bold text-[#a0a0a0] w-28 uppercase">{feat.feature.replace(/_/g, " ")}</span>
+                                <div className="flex-1 h-2 bg-[#222] rounded-full overflow-hidden">
                                   <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${Math.min(feat.predictive_power, 100)}%` }} />
                                 </div>
                                 <span className="text-xs font-mono font-bold text-amber-400 w-10 text-right">{feat.predictive_power}</span>
-                                <span className="text-[10px] font-mono text-slate-500 w-16">r={feat.correlation}</span>
+                                <span className="text-[10px] font-mono text-[#606060] w-16">r={feat.correlation}</span>
                               </div>
                             ))}
                           </div>
@@ -1885,12 +1885,12 @@ export default function ResearchLab({
             </div>
           </div>
         ) : (
-          <div className="flex-1 min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-slate-900/15 border border-slate-800/40 rounded-2xl glass-panel shadow-inner">
-            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-6 mb-4 shadow-lg text-blue-500/20">
-              <BarChart2 size={42} className="mx-auto text-blue-400/80 animate-pulse" />
+          <div className="flex-1 min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-[#161616]/15 border border-[var(--ax-border)]/40 rounded-2xl bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl shadow-inner">
+            <div className="bg-[#111]/60 border border-[var(--ax-border)] rounded-2xl p-6 mb-4 shadow-lg text-[#4a7fcc]/20">
+              <BarChart2 size={42} className="mx-auto text-[#93b4ff]/80 animate-pulse" />
             </div>
-            <h4 className="font-bold text-slate-300 text-sm">Target Dataset Diagnostics Required</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm leading-normal">
+            <h4 className="font-bold text-[#a0a0a0] text-sm">Target Dataset Diagnostics Required</h4>
+            <p className="text-xs text-[#606060] mt-1 max-w-sm leading-normal">
               Select an instrument dataset CSV and run deep statistical diagnostics to compute suitability profiling, tail risk, and regimes.
             </p>
           </div>

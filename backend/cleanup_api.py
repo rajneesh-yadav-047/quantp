@@ -215,7 +215,7 @@ def run_cleanup(req: CleanupRequest):
                         details.append(f"[ERROR] Failed to delete {fpath}: {e}")
 
     if req.target in ("strategies", "all"):
-        # Find and delete strategy .py files
+        # ── Delete strategy .py files from disk (legacy on-disk storage) ──
         strategies_dir = "./strategies"
         if os.path.exists(strategies_dir):
             for fname in os.listdir(strategies_dir):
@@ -229,40 +229,52 @@ def run_cleanup(req: CleanupRequest):
                 fpath = os.path.join(strategies_dir, fname)
                 size = _get_size(fpath)
                 if req.dry_run:
-                    details.append(f"[WOULD DELETE] strategy: {fname} ({_format_size(size)})")
+                    details.append(f"[WOULD DELETE] strategy file: {fname} ({_format_size(size)})")
                 else:
                     try:
                         os.remove(fpath)
                         files_deleted += 1
                         bytes_freed += size
-                        details.append(f"[DELETED] strategy: {fname} ({_format_size(size)})")
+                        details.append(f"[DELETED] strategy file: {fname} ({_format_size(size)})")
                     except Exception as e:
                         details.append(f"[ERROR] Failed to delete {fpath}: {e}")
 
-            # Clean orphaned strategy DB records if not dry-run
-            if not req.dry_run:
-                db_path = "./quantlab.db"
-                if os.path.exists(db_path):
-                    try:
-                        from sqlalchemy import create_engine, text
-                        engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
-                        with engine.connect() as conn:
-                            result = conn.execute(text("SELECT id, name FROM strategies"))
-                            rows = result.fetchall()
-                            orphaned = []
-                            for row in rows:
-                                sid, name = row
-                                py_path = f"./strategies/{name}.py"
-                                if not os.path.exists(py_path):
-                                    orphaned.append(sid)
-                            if orphaned:
-                                for sid in orphaned:
-                                    conn.execute(text("DELETE FROM strategies WHERE id = :id"), {"id": sid})
-                                    details.append(f"[DELETED] Strategy DB orphan: {sid}")
-                                conn.commit()
-                                details.append(f"Cleaned {len(orphaned)} orphaned strategy DB record(s)")
-                    except Exception as e:
-                        details.append(f"[WARN] Could not clean strategy DB orphans: {e}")
+        # ── Delete matching strategy records from the database ──
+        db_path = "./quantlab.db"
+        if os.path.exists(db_path):
+            try:
+                from sqlalchemy import create_engine, text
+                engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+                with engine.connect() as conn:
+                    conditions = []
+                    params = {}
+                    if req.strategy_id:
+                        conditions.append("id = :id")
+                        params["id"] = req.strategy_id
+                    if req.older_than_days is not None:
+                        conditions.append("updated_at < :cutoff")
+                        params["cutoff"] = (datetime.now() - timedelta(days=req.older_than_days)).isoformat()
+
+                    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+                    count_result = conn.execute(text(f"SELECT COUNT(*) FROM strategies WHERE {where_clause}"), params)
+                    count = count_result.scalar()
+
+                    if count == 0:
+                        details.append("No matching strategy DB records found")
+                    else:
+                        if req.dry_run:
+                            name_result = conn.execute(text(f"SELECT id, name FROM strategies WHERE {where_clause}"), params)
+                            for sid, sname in name_result.fetchall():
+                                details.append(f"[WOULD DELETE] strategy DB record: {sname} ({sid})")
+                            details.append(f"Would delete {count} strategy DB record(s)")
+                        else:
+                            result = conn.execute(text(f"DELETE FROM strategies WHERE {where_clause}"), params)
+                            conn.commit()
+                            details.append(f"[DELETED] {result.rowcount} strategy DB record(s)")
+                            files_deleted += result.rowcount
+            except Exception as e:
+                details.append(f"[ERROR] Could not delete strategy DB records: {e}")
 
     if req.target in ("db_orphans", "all"):
         # Clean database records with missing log files
@@ -272,6 +284,7 @@ def run_cleanup(req: CleanupRequest):
                 from sqlalchemy import create_engine, text
                 engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
                 with engine.connect() as conn:
+                    # ── orphaned backtest_results ──
                     result = conn.execute(text("SELECT id, log_file_path FROM backtest_results"))
                     rows = result.fetchall()
                     orphaned = []
@@ -289,9 +302,31 @@ def run_cleanup(req: CleanupRequest):
                                 conn.execute(text("DELETE FROM backtest_results WHERE id = :id"), {"id": run_id})
                                 details.append(f"[DELETED] DB orphan: {run_id}")
                             conn.commit()
-                        details.append(f"{'Would clean' if req.dry_run else 'Cleaned'} {len(orphaned)} orphaned DB record(s)")
+                        details.append(f"{'Would clean' if req.dry_run else 'Cleaned'} {len(orphaned)} orphaned backtest record(s)")
                     else:
-                        details.append("No orphaned DB records found")
+                        details.append("No orphaned backtest records found")
+
+                    # ── orphaned option-strategy shadow records in strategies ──
+                    # Option strategies create a shadow StrategyDB entry so they can be backtested.
+                    # When the option strategy is deleted, the shadow record should be cleaned too.
+                    result2 = conn.execute(text(
+                        "SELECT s.id, s.name FROM strategies s "
+                        "WHERE s.id GLOB '[0-9]*' "
+                        "AND s.id NOT IN (SELECT CAST(id AS TEXT) FROM option_strategies)"
+                    ))
+                    shadow_rows = result2.fetchall()
+                    if shadow_rows:
+                        if req.dry_run:
+                            for sid, sname in shadow_rows:
+                                details.append(f"[WOULD DELETE] Strategy shadow orphan: {sname} ({sid})")
+                        else:
+                            for sid, sname in shadow_rows:
+                                conn.execute(text("DELETE FROM strategies WHERE id = :id"), {"id": sid})
+                                details.append(f"[DELETED] Strategy shadow orphan: {sname} ({sid})")
+                            conn.commit()
+                        details.append(f"{'Would clean' if req.dry_run else 'Cleaned'} {len(shadow_rows)} orphaned strategy shadow record(s)")
+                    else:
+                        details.append("No orphaned strategy shadow records found")
             except Exception as e:
                 details.append(f"[ERROR] DB orphan cleanup failed: {e}")
 

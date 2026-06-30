@@ -20,7 +20,7 @@ class SandboxCompiler:
     - Runtime class/func detection for auto-routing
     """
 
-    ALLOWED_MODULES = {"math", "statistics", "json", "pandas", "numpy", "typing", "collections", "itertools"}
+    ALLOWED_MODULES = {"math", "statistics", "json", "pandas", "numpy", "typing", "collections", "itertools", "datetime", "_strptime", "time"}
 
     SAFE_BUILTINS = {
         'print': print,
@@ -48,12 +48,16 @@ class SandboxCompiler:
         'zip': zip,
         'filter': filter,
         'map': map,
+        'any': any,
+        'all': all,
         'type': type,
         'Exception': Exception,
         'ValueError': ValueError,
         'KeyError': KeyError,
         'IndexError': IndexError,
         'AttributeError': AttributeError,
+        'globals': globals,
+        'locals': locals,
     }
 
     @classmethod

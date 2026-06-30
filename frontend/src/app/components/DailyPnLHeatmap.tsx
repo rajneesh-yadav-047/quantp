@@ -158,7 +158,7 @@ export function DailyPnLHeatmap({ equityCurve, startDate, endDate }: DailyPnLHea
 
   if (!equityCurve || equityCurve.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-xs text-slate-500">
+      <div className="flex items-center justify-center h-48 text-xs text-[#606060]">
         No equity data available for calendar view.
       </div>
     );
@@ -197,16 +197,16 @@ export function DailyPnLHeatmap({ equityCurve, startDate, endDate }: DailyPnLHea
       {/* Months grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {months.map((month) => (
-          <div key={month.yearMonth} className="border border-slate-800 rounded-lg p-3 bg-slate-950/40">
+          <div key={month.yearMonth} className="border border-[var(--ax-border)] rounded-lg p-3 bg-[#111]/40">
             {/* Month header */}
-            <div className="text-xs font-bold text-slate-300 mb-2 text-center">
+            <div className="text-xs font-bold text-[#888] mb-2 text-center">
               {month.label}
             </div>
 
             {/* Day-of-week headers */}
             <div className="grid grid-cols-7 gap-1 mb-1">
               {WEEKDAYS.map((d, i) => (
-                <div key={`wd-${i}`} className="text-[9px] text-slate-500 text-center font-medium">
+                <div key={`wd-${i}`} className="text-[9px] text-[#606060] text-center font-medium">
                   {d}
                 </div>
               ))}
@@ -235,7 +235,7 @@ export function DailyPnLHeatmap({ equityCurve, startDate, endDate }: DailyPnLHea
                       fontSize: "10px",
                     }}
                   >
-                    <span className={`font-medium ${hasData ? "text-slate-900" : "text-slate-500"}`}>
+                    <span className={`font-medium ${hasData ? "text-[#e8e8e8]" : "text-[#606060]"}`}>
                       {dayNum}
                     </span>
                   </div>
@@ -247,7 +247,7 @@ export function DailyPnLHeatmap({ equityCurve, startDate, endDate }: DailyPnLHea
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-5 text-[10px] text-slate-400">
+      <div className="flex items-center justify-center gap-4 mt-5 text-[10px] text-[#a0a0a0]">
         <span>Loss</span>
         <div className="flex gap-1">
           <div className="w-4 h-4 rounded-sm" style={{ backgroundColor: "rgba(244, 63, 94, 0.85)" }} />
@@ -266,23 +266,23 @@ export function DailyPnLHeatmap({ equityCurve, startDate, endDate }: DailyPnLHea
       {/* Tooltip */}
       {hovered && (
         <div
-          className="fixed z-50 pointer-events-none bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 shadow-2xl text-xs"
+          className="fixed z-50 pointer-events-none bg-[#161616] border border-[var(--ax-border)] rounded-lg px-3 py-2 shadow-2xl text-xs"
           style={{
             left: tooltipPos.x + 16,
             top: tooltipPos.y - 12,
           }}
         >
-          <div className="font-bold text-slate-200 mb-1">{formatLabel(hovered.date)}</div>
+          <div className="font-bold text-[#c0c0c0] mb-1">{formatLabel(hovered.date)}</div>
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Daily PnL:</span>
+            <span className="text-[#a0a0a0]">Daily PnL:</span>
             <span className={`font-mono font-bold ${hovered.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
               {hovered.pnl >= 0 ? "+" : ""}₹{hovered.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-1">
+          <div className="text-[10px] text-[#606060] mt-1">
             Start: ₹{hovered.equityStart.toLocaleString(undefined, { maximumFractionDigits: 0 })} → End: ₹{hovered.equityEnd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
+          <div className="text-[10px] text-[#606060] mt-0.5">
             Change: {((hovered.pnl / hovered.equityStart) * 100).toFixed(2)}%
           </div>
         </div>

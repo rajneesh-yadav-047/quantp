@@ -107,7 +107,7 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
   if (!svgData) {
     return (
       <div
-        className="w-full bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 flex items-center justify-center text-slate-500 dark:text-slate-450 text-xs"
+        className="w-full bg-[#fafafa] bg-[#111]/40 rounded-xl border border-[var(--ax-border)] border-[var(--ax-border)]/50 flex items-center justify-center text-[#606060] dark:text-[#a0a0a0] text-xs"
         style={{ height }}
       >
         No PnL data
@@ -118,16 +118,16 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
   const { width, series, zeroY, ticks, timeLabels, maxVal, minVal } = svgData;
 
   return (
-    <div className="w-full relative bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 overflow-hidden transition-colors duration-200">
+    <div className="w-full relative bg-[#fafafa] bg-[#111]/40 rounded-xl border border-[var(--ax-border)] border-[var(--ax-border)]/50 overflow-hidden transition-colors duration-200">
       {/* Header with legend */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-200 dark:border-slate-800/50 bg-slate-100/50 dark:bg-slate-950/40">
-        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{title}</span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--ax-border)] border-[var(--ax-border)]/50 bg-[#f4f4f5]/50 bg-[#111]/40">
+        <span className="text-[10px] font-bold text-[#606060] text-[#a0a0a0] uppercase tracking-wider">{title}</span>
         <div className="flex items-center gap-3 flex-wrap">
           {series.map(s => (
             <div key={s.symbol} className="flex items-center gap-1">
               <span className="w-2 h-0.5 rounded" style={{ backgroundColor: s.lineColor }} />
-              <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400">{s.symbol}</span>
-              <span className={`text-[9px] font-mono font-bold ${s.finalPnL > 0 ? "text-emerald-500 dark:text-emerald-400" : s.finalPnL < 0 ? "text-rose-500 dark:text-rose-400" : "text-orange-400 dark:text-orange-300"}`}>
+              <span className="text-[9px] font-mono text-[#606060] text-[#a0a0a0]">{s.symbol}</span>
+              <span className={`text-[9px] font-mono font-bold ${s.finalPnL > 0 ? "text-emerald-500 text-emerald-400" : s.finalPnL < 0 ? "text-rose-500 text-rose-400" : "text-orange-400 dark:text-orange-300"}`}>
                 ₹{s.finalPnL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </span>
             </div>
@@ -150,7 +150,7 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
             x2={width - 10}
             y2={t.y}
             stroke="currentColor"
-            className="text-slate-250 dark:text-slate-850"
+            className="text-slate-250 dark:text-[#c0c0c0]"
             strokeWidth={0.5}
             opacity={0.6}
           />
@@ -163,7 +163,7 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
           x2={width - 10}
           y2={zeroY}
           stroke="currentColor"
-          className="text-slate-450 dark:text-slate-650"
+          className="text-[#a0a0a0] dark:text-slate-650"
           strokeWidth={1}
           strokeDasharray="4 4"
           opacity={0.7}
@@ -201,7 +201,7 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
             y={t.y + 3}
             textAnchor="end"
             fill="currentColor"
-            className="text-slate-500 dark:text-slate-450 font-mono text-[9px]"
+            className="text-[#606060] dark:text-[#a0a0a0] font-mono text-[9px]"
           >
             {t.val >= 1000 ? `₹${(t.val / 1000).toFixed(1)}k` : `₹${Math.round(t.val)}`}
           </text>
@@ -215,7 +215,7 @@ export default function PnLChart({ data, height = 180, title = "PnL Performance"
             y={height - 6}
             textAnchor={timeLabels.length === 1 ? "middle" : i === 0 ? "start" : i === timeLabels.length - 1 ? "end" : "middle"}
             fill="currentColor"
-            className="text-slate-500 dark:text-slate-450 font-mono text-[8px]"
+            className="text-[#606060] dark:text-[#a0a0a0] font-mono text-[8px]"
           >
             {t.label}
           </text>

@@ -233,7 +233,7 @@ export default function LightweightChart({
   }, [candles, trades, showEmaFast, showEmaSlow, showBuyTrades, showSellTrades, emaFastPeriod, emaSlowPeriod, height, theme]);
 
   return (
-    <div className={`w-full relative rounded-xl border p-2 overflow-hidden ${theme === "dark" ? "bg-[#0B0F19] border-slate-800" : "bg-white border-slate-200"}`}>
+    <div className={`w-full relative rounded-xl border p-2 overflow-hidden ${theme === "dark" ? "bg-[#0B0F19] border-[var(--ax-border)]" : "bg-white border-[var(--ax-border)]"}`}>
       <div ref={containerRef} className="w-full" style={{ height: `${height}px` }} />
     </div>
   );

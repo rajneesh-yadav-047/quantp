@@ -273,10 +273,13 @@ def prepare_backtest_data(
     # Prepare shared download client
     dl_client: Optional[SmartAPIClient] = None
     if auto_download and SmartAPIManager.is_configured():
-        dl_client = SmartAPIManager.create_fresh_client()
-        if not dl_client.connect():
-            print(f"WARN: Shared SmartAPI connect failed: {dl_client.last_error}")
-            dl_client = None
+        # Try existing authenticated client first (pre-flight may have already logged in)
+        dl_client = SmartAPIManager.get_client()
+        if not dl_client or not dl_client.jwt_token:
+            dl_client = SmartAPIManager.create_fresh_client()
+            if not dl_client.connect():
+                print(f"WARN: Shared SmartAPI connect failed: {dl_client.last_error}")
+                dl_client = None
     
     for symbol in symbols:
         sym = symbol.upper().strip()

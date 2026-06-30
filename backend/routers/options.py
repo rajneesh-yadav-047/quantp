@@ -1,23 +1,74 @@
 """
-Options router: option chain, option strategies, and visual strategy builder.
+Options router: option chain, option strategies, visual strategy builder,
+and options data download / NSE bhavcopy bulk import.
 """
 
 import json
+import uuid
+import threading
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.database import get_db, StrategyDB
+from backend.database import get_db, StrategyDB, SessionLocal, DownloadJobDB
 from backend.options_models import (
     OptionStrategyDB, OptionLegDB,
     get_option_strategy, get_option_legs,
-    resolve_strike_price, generate_strategy_code,
+    generate_strategy_code,
     create_strategy_from_template,
 )
 from backend.smartapi import SmartAPIClient
 from backend.services.smartapi_manager import SmartAPIManager
+from engine.options_catalog import resolve_token
+from engine.options_data import OptionsDataManager, bulk_import_nse_bhavcopy
 
 router = APIRouter(prefix="/api/options", tags=["options"])
+
+# ── Background worker for options downloads ──
+_options_download_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="options_download_")
+
+
+def _get_db() -> Session:
+    return SessionLocal()
+
+
+def _sync_options_job(
+    job_id: str,
+    status: str,
+    progress: int = None,
+    total_chunks: int = None,
+    completed_chunks: int = None,
+    records_downloaded: int = None,
+    error_message: str = None,
+    file_path: str = None,
+    catalog_key: str = None,
+):
+    db = _get_db()
+    try:
+        job = db.query(DownloadJobDB).filter(DownloadJobDB.id == job_id).first()
+        if not job:
+            return
+        job.status = status
+        if progress is not None:
+            job.progress = progress
+        if total_chunks is not None:
+            job.total_chunks = total_chunks
+        if completed_chunks is not None:
+            job.completed_chunks = completed_chunks
+        if records_downloaded is not None:
+            job.records_downloaded = records_downloaded
+        if error_message is not None:
+            job.error_message = error_message
+        if file_path is not None:
+            job.file_path = file_path
+        if catalog_key is not None:
+            job.catalog_key = catalog_key
+        job.updated_at = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
 
 
 # ── Pydantic Models ──
@@ -72,6 +123,20 @@ class TemplateRequest(BaseModel):
     template_name: str  # short_straddle, short_strangle, long_straddle, iron_condor
     underlying_symbol: str = "NSE:NIFTY 50"
     name: Optional[str] = None
+
+
+class OptionsDownloadRequest(BaseModel):
+    symbol: str
+    expiry: str
+    strikes: List[float]
+    option_types: List[str]  # ["CE", "PE"]
+    from_dt: str
+    to_dt: str
+
+
+class BhavcopyImportRequest(BaseModel):
+    from_date: str
+    to_date: str
 
 
 # ── Endpoints ──
@@ -206,14 +271,13 @@ def create_option_strategy(req: OptionStrategyRequest, db: Session = Depends(get
     
     # Also create a regular StrategyDB entry so it can be backtested
     strategy_db = StrategyDB(
-        id=strategy.id,  # Use same ID for easy reference
+        id=str(strategy.id),  # Convert int to string for StrategyDB UUID
         name=strategy.name,
         description=strategy.description or f"Option strategy: {strategy.name}",
         code=strategy.code,
         symbols=json.dumps([strategy.underlying_symbol]),
         interval="FIVE_MINUTE",
         initial_capital=strategy.initial_capital,
-        max_position_size=strategy.max_position_size,
         runtime_type="legacy_on_bar",
     )
     db.add(strategy_db)
@@ -241,14 +305,13 @@ def create_from_template(req: TemplateRequest, db: Session = Depends(get_db)):
     
     # Also create a regular StrategyDB entry so it can be backtested
     strategy_db = StrategyDB(
-        id=strategy.id,
+        id=str(strategy.id),  # Convert int to string for StrategyDB UUID
         name=strategy.name,
         description=strategy.description or f"Option strategy: {strategy.name}",
         code=strategy.code,
         symbols=json.dumps([strategy.underlying_symbol]),
         interval="FIVE_MINUTE",
         initial_capital=strategy.initial_capital,
-        max_position_size=strategy.max_position_size,
         runtime_type="legacy_on_bar",
     )
     db.add(strategy_db)
@@ -266,11 +329,15 @@ def create_from_template(req: TemplateRequest, db: Session = Depends(get_db)):
 @router.get("/strategies/{strategy_id}")
 def get_option_strategy_detail(strategy_id: str, db: Session = Depends(get_db)):
     """Get full strategy details including legs."""
-    strategy = get_option_strategy(db, strategy_id)
+    try:
+        strategy_id_int = int(strategy_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid strategy ID")
+    strategy = get_option_strategy(db, strategy_id_int)
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
     
-    legs = get_option_legs(db, strategy_id)
+    legs = get_option_legs(db, strategy_id_int)
     
     return {
         "ok": True,
@@ -327,6 +394,12 @@ def delete_option_strategy(strategy_id: str, db: Session = Depends(get_db)):
     # Delete legs first
     db.query(OptionLegDB).filter(OptionLegDB.strategy_id == strategy_id).delete()
     db.delete(strategy)
+    
+    # Also delete the shadow StrategyDB entry created for backtest compatibility
+    shadow = db.query(StrategyDB).filter(StrategyDB.id == str(strategy_id)).first()
+    if shadow:
+        db.delete(shadow)
+    
     db.commit()
     
     return {"ok": True, "message": "Strategy deleted"}
@@ -366,5 +439,229 @@ def list_templates():
                 "legs_count": 4,
                 "example": "BUY CE(far) + SELL CE(near) + SELL PE(near) + BUY PE(far)",
             },
+            {
+                "id": "butterfly",
+                "name": "Long Call Butterfly",
+                "description": "Buy lower-strike CE, sell 2x ATM CE, buy higher-strike CE. Low risk, limited reward.",
+                "legs_count": 3,
+                "example": "BUY ATM-50 CE + SELL 2x ATM CE + BUY ATM+50 CE",
+            },
         ]
     }
+
+
+# ── Options data download & import endpoints ──
+
+@router.post("/download")
+def download_options_data(req: OptionsDownloadRequest):
+    """
+    Trigger async download of historical 1-minute options OHLC from SmartAPI
+    for the requested contracts.  Returns a job ID to poll for status.
+    """
+    client = SmartAPIManager.get_client()
+    if not client or not client.jwt_token:
+        client = SmartAPIManager.create_fresh_client()
+    if not client or not client.jwt_token:
+        raise HTTPException(status_code=400, detail="SmartAPI not authenticated. Please log in first.")
+
+    # Create a single job that tracks all requested contracts
+    total_contracts = len(req.strikes) * len(req.option_types)
+    db = _get_db()
+    try:
+        job = DownloadJobDB(
+            id=str(uuid.uuid4()),
+            symbol=f"NFO:OPTION_BULK:{req.symbol}:{req.expiry}",
+            interval="ONE_MINUTE",
+            start_date=req.from_dt[:10] if len(req.from_dt) >= 10 else req.from_dt,
+            end_date=req.to_dt[:10] if len(req.to_dt) >= 10 else req.to_dt,
+            status="pending",
+            total_chunks=total_contracts,
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+    finally:
+        db.close()
+
+    _options_download_executor.submit(
+        _run_options_download_job,
+        job_id,
+        req.symbol,
+        req.expiry,
+        req.strikes,
+        req.option_types,
+        req.from_dt,
+        req.to_dt,
+    )
+
+    return {
+        "message": "Options download job queued. Poll /api/data/download/jobs/{job_id} for status.",
+        "job_id": job_id,
+        "status": "queued",
+        "contracts": total_contracts,
+    }
+
+
+@router.post("/import-bhavcopy")
+def import_bhavcopy(req: BhavcopyImportRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger background import of NSE F&O EOD bhavcopy archives for the
+    requested date range.  Returns a job ID to poll for status.
+    """
+    total_days = (
+        datetime.strptime(req.to_date, "%Y-%m-%d") - datetime.strptime(req.from_date, "%Y-%m-%d")
+    ).days + 1
+
+    db = _get_db()
+    try:
+        job = DownloadJobDB(
+            id=str(uuid.uuid4()),
+            symbol="NSE:BHAVCOPY_FO",
+            interval="ONE_DAY",
+            start_date=req.from_date,
+            end_date=req.to_date,
+            status="pending",
+            total_chunks=max(1, total_days),
+        )
+        db.add(job)
+        db.commit()
+        job_id = job.id
+    finally:
+        db.close()
+
+    _options_download_executor.submit(
+        _run_bhavcopy_import_job,
+        job_id,
+        req.from_date,
+        req.to_date,
+    )
+
+    return {
+        "message": "Bhavcopy import job queued. Poll /api/data/download/jobs/{job_id} for status.",
+        "job_id": job_id,
+        "status": "queued",
+        "days": max(1, total_days),
+    }
+
+
+# ── Background workers ──
+
+def _run_options_download_job(
+    job_id: str,
+    symbol: str,
+    expiry: str,
+    strikes: List[float],
+    option_types: List[str],
+    from_dt: str,
+    to_dt: str,
+):
+    """Background worker that downloads each requested contract."""
+    import traceback
+    try:
+        _run_options_download_inner(job_id, symbol, expiry, strikes, option_types, from_dt, to_dt)
+    except Exception as e:
+        print(f"CRITICAL: Options download job {job_id} crashed: {e}")
+        traceback.print_exc()
+        _sync_options_job(
+            job_id,
+            status="failed",
+            error_message=f"Internal crash: {str(e)}",
+            progress=0,
+        )
+
+
+def _run_options_download_inner(
+    job_id: str,
+    symbol: str,
+    expiry: str,
+    strikes: List[float],
+    option_types: List[str],
+    from_dt: str,
+    to_dt: str,
+):
+    total = len(strikes) * len(option_types)
+    completed = 0
+    records = 0
+
+    _sync_options_job(job_id, status="running", progress=0, completed_chunks=0)
+
+    manager = OptionsDataManager()
+    for strike in strikes:
+        for opt_type in option_types:
+            try:
+                contract = resolve_token(symbol, expiry, strike, opt_type, fallback_to_snapshots=True)
+                if not contract:
+                    print(f"WARN: Could not resolve token for {symbol} {expiry} {strike} {opt_type}")
+                    completed += 1
+                    progress = int((completed / total) * 100)
+                    _sync_options_job(job_id, status="running", progress=progress, completed_chunks=completed)
+                    continue
+
+                path = manager.fetch_and_store(
+                    token=contract["token"],
+                    tradingsymbol=contract.get("tradingsymbol", f"{symbol}-{expiry}-{strike}-{opt_type}"),
+                    expiry=expiry,
+                    strike=strike,
+                    option_type=opt_type,
+                    lotsize=contract.get("lotsize", 1),
+                    from_dt=from_dt,
+                    to_dt=to_dt,
+                )
+                if path:
+                    records += 1
+            except Exception as e:
+                print(f"ERROR: Download failed for {symbol} {expiry} {strike} {opt_type}: {e}")
+
+            completed += 1
+            progress = int((completed / total) * 100)
+            _sync_options_job(
+                job_id,
+                status="running" if completed < total else "completed",
+                progress=progress,
+                completed_chunks=completed,
+                records_downloaded=records,
+            )
+
+    _sync_options_job(
+        job_id,
+        status="completed",
+        progress=100,
+        completed_chunks=total,
+        records_downloaded=records,
+    )
+
+
+def _run_bhavcopy_import_job(
+    job_id: str,
+    from_date: str,
+    to_date: str,
+):
+    """Background worker that imports NSE F&O bhavcopy archives."""
+    import traceback
+    try:
+        _sync_options_job(job_id, status="running", progress=0)
+        result = bulk_import_nse_bhavcopy(from_date, to_date, sync_progress=lambda pct: _sync_options_job(job_id, status="running", progress=pct))
+        total_contracts = result.get("contracts_imported", 0)
+        errors = result.get("errors", [])
+        days = result.get("days_processed", 0)
+        file_paths = result.get("files_created", [])
+
+        _sync_options_job(
+            job_id,
+            status="completed",
+            progress=100,
+            records_downloaded=total_contracts,
+            completed_chunks=days,
+            total_chunks=days,
+            error_message="; ".join(errors[:5]) if errors else None,
+            file_path=";".join(file_paths[:5]) if file_paths else None,
+        )
+    except Exception as e:
+        print(f"CRITICAL: Bhavcopy import job {job_id} crashed: {e}")
+        traceback.print_exc()
+        _sync_options_job(
+            job_id,
+            status="failed",
+            error_message=f"Internal crash: {str(e)}",
+            progress=0,
+        )

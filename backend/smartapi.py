@@ -100,6 +100,49 @@ class SmartAPIClient:
             print(f"Exception during SmartAPI connection: {str(e)}")
             return False
 
+    def refresh_session(self) -> bool:
+        """Refresh JWT token using the stored refresh token (no TOTP required)."""
+        self.last_error = None
+        if not self.refresh_token or not self.is_configured():
+            self.last_error = "No refresh token available or credentials not configured."
+            return False
+
+        try:
+            url = "https://apiconnect.angelone.in/rest/auth/angelbroking/user/v1/generateToken"
+            payload = {"refreshToken": self.refresh_token}
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {self.jwt_token}",
+                "X-PrivateKey": self.api_key,
+                "X-UserType": "USER",
+                "X-SourceID": "WEB",
+                "X-ClientLocalIP": os.getenv("SMARTAPI_CLIENT_LOCAL_IP", "127.0.0.1"),
+                "X-ClientPublicIP": os.getenv("SMARTAPI_CLIENT_PUBLIC_IP", "127.0.0.1"),
+                "X-MACAddress": os.getenv("SMARTAPI_MAC_ADDRESS", "00:00:00:00:00:00"),
+            }
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            res_data = response.json()
+            if res_data.get("status") is True:
+                token_data = res_data.get("data", {})
+                self.jwt_token = token_data.get("jwtToken")
+                self.feed_token = token_data.get("feedToken")
+                # Refresh token may also be renewed
+                new_refresh = token_data.get("refreshToken")
+                if new_refresh:
+                    self.refresh_token = new_refresh
+                print("SmartAPI session refreshed successfully.")
+                return True
+            else:
+                api_message = res_data.get('message') or res_data.get('errorMessage') or "Unknown refresh error"
+                self.last_error = f"Refresh failed: {api_message}"
+                print(f"SmartAPI refresh failed: {api_message}")
+                return False
+        except Exception as e:
+            self.last_error = f"Refresh exception: {str(e)}"
+            print(f"Exception during SmartAPI refresh: {str(e)}")
+            return False
+
     def download_symbol_tokens(self, force: bool = False):
         """Downloads the full Angel One symbol token mapping list."""
         if os.path.exists(self.symbol_token_path) and not force:

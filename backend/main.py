@@ -18,8 +18,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from pathlib import Path
+
 # Load .env BEFORE any module reads os.getenv()
-load_dotenv()
+# .env lives at project root (one dir above backend/)
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from backend.database import init_db
 from backend.options_models import OptionStrategyDB, OptionLegDB  # Register option tables
@@ -32,6 +35,7 @@ from backend.services.redis_client import get_redis_status
 from backend.services.event_bus import EventBus
 from backend.services.persistence_service import PersistenceService
 from backend.services.deployment_engine import DeploymentEngine
+from backend.services.options_collector_service import get_options_collector_service
 
 import asyncio
 
@@ -70,10 +74,19 @@ async def lifespan(app: FastAPI):
     else:
         print("INFO: SmartAPI not authenticated. Market Data Service will start on-demand after login.")
     
+    # Initialize Options Collector Scheduler (always start; it will no-op if SmartAPI not available)
+    print("INFO: Initializing OptionsCollectorService...")
+    options_collector = get_options_collector_service()
+    options_collector.start()
+    print("INFO: OptionsCollectorService started.")
+    
     yield
     
     # Shutdown
     print("INFO: Shutting down services...")
+    
+    options_collector = get_options_collector_service()
+    options_collector.stop()
     
     mds = MarketDataService.get_instance()
     mds.stop()

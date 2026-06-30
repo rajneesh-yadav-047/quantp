@@ -150,16 +150,16 @@ const TagInput = ({
     setInput("");
   };
   return (
-    <div className="flex flex-wrap gap-1.5 p-2 rounded-lg border border-slate-700/60 bg-slate-900/40 min-h-[40px]">
+    <div className="flex flex-wrap gap-1.5 p-2 rounded-lg border border-[var(--ax-border)]/60 bg-[#161616]/40 min-h-[40px]">
       {value.map((sym) => (
         <span
           key={sym}
-          className="flex items-center gap-1 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
+          className="flex items-center gap-1 bg-[#1c2030] border border-[#4a7fcc]/30 text-[#93b4ff] text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
         >
           {sym}
           <button
             onClick={() => onChange(value.filter((s) => s !== sym))}
-            className="text-blue-400 hover:text-red-400 transition-colors ml-0.5 leading-none"
+            className="text-[#93b4ff] hover:text-red-400 transition-colors ml-0.5 leading-none"
           >
             ×
           </button>
@@ -177,9 +177,9 @@ const TagInput = ({
   );
 };
 
-const MetricBadge = ({ label, value, color = "text-slate-200" }: { label: string; value: string | number; color?: string }) => (
+const MetricBadge = ({ label, value, color = "text-[#c0c0c0]" }: { label: string; value: string | number; color?: string }) => (
   <div className="flex flex-col gap-0.5">
-    <span className="text-[9px] text-slate-500 uppercase tracking-wider font-bold">{label}</span>
+    <span className="text-[9px] text-[#606060] uppercase tracking-wider font-bold">{label}</span>
     <span className={`font-mono text-sm font-bold ${color}`}>{value}</span>
   </div>
 );
@@ -479,7 +479,7 @@ export default function MultiAssetResearch({
           yAxisIndex: 0,
           showSymbol: false,
           lineStyle: { color: "#3b82f6", width: 1.5 },
-          areaStyle: { color: "rgba(59,130,246,0.08)" },
+          areaStyle: { color: "rgba(74,127,204,0.08)" },
         },
         {
           name: "Z-Score",
@@ -544,14 +544,14 @@ export default function MultiAssetResearch({
   return (
     <div className="flex flex-col gap-6">
       {/* ─── Header ─── */}
-      <div className="glass-panel p-5 rounded-xl shadow-xl">
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-800/60">
+      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 rounded-xl shadow-xl">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[var(--ax-border)]/60">
           <div className="p-2 bg-violet-500/10 border border-violet-500/20 rounded-lg">
             <Network size={18} className="text-violet-400" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-100 text-sm">Multi-Asset Research Lab</h3>
-            <p className="text-[10px] text-slate-500 mt-0.5">Correlations · Pair Trading · Sector Analysis · Factor Ranking</p>
+            <h3 className="font-bold text-[#e8e8e8] text-sm">Multi-Asset Research Lab</h3>
+            <p className="text-[10px] text-[#606060] mt-0.5">Correlations · Pair Trading · Sector Analysis · Factor Ranking</p>
           </div>
         </div>
 
@@ -562,16 +562,16 @@ export default function MultiAssetResearch({
             {needsPair ? (
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Symbol 1</label>
+                  <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Symbol 1</label>
                   <SymbolAutocomplete value={sym1} onChange={setSym1} placeholder="e.g. SBIN" />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Symbol 2</label>
+                  <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Symbol 2</label>
                   <SymbolAutocomplete value={sym2} onChange={setSym2} placeholder="e.g. HDFCBANK" />
                 </div>
                 {activeTab === "spread" && (
                   <div className="w-24">
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Hedge Ratio</label>
+                    <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Hedge Ratio</label>
                     <input
                       type="number"
                       step="0.01"
@@ -585,13 +585,13 @@ export default function MultiAssetResearch({
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-500">Symbol Universe</label>
+                  <label className="text-[10px] uppercase font-bold text-[#606060]">Symbol Universe</label>
                   <div className="flex gap-1">
                     {Object.keys(PRESET_GROUPS).map((g) => (
                       <button
                         key={g}
                         onClick={() => setSymbols(PRESET_GROUPS[g])}
-                        className="text-[9px] px-2 py-0.5 rounded font-bold bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-colors"
+                        className="text-[9px] px-2 py-0.5 rounded font-bold bg-[#222] text-[#a0a0a0] hover:bg-[#333] hover:text-[#c0c0c0] transition-colors"
                       >
                         {g}
                       </button>
@@ -606,7 +606,7 @@ export default function MultiAssetResearch({
           <div className="flex flex-col gap-3">
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Interval</label>
+                <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Interval</label>
                 <select
                   value={interval}
                   onChange={(e) => setInterval(e.target.value)}
@@ -621,7 +621,7 @@ export default function MultiAssetResearch({
               </div>
               {activeTab === "ranking" && (
                 <div className="flex-1">
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Factor</label>
+                  <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Factor</label>
                   <select
                     value={factor}
                     onChange={(e) => setFactor(e.target.value)}
@@ -637,7 +637,7 @@ export default function MultiAssetResearch({
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">From</label>
+                <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">From</label>
                 <input
                   type="date"
                   value={fromDate}
@@ -646,7 +646,7 @@ export default function MultiAssetResearch({
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">To</label>
+                <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">To</label>
                 <input
                   type="date"
                   value={toDate}
@@ -659,7 +659,7 @@ export default function MultiAssetResearch({
             <button
               onClick={run}
               disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-[#f0f0f0] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all"
               id="multiasset-run-btn"
             >
               {loading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
@@ -671,25 +671,25 @@ export default function MultiAssetResearch({
 
       {/* ─── Data Coverage Banner ─── */}
       {(coverageAvailable.length > 0 || coverageMissing.length > 0) && (
-        <div className="glass-panel p-3 rounded-xl flex flex-col gap-2">
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-3 rounded-xl flex flex-col gap-2">
           {coverageAvailable.length > 0 && (
             <div className="flex items-center gap-2 text-[11px]">
               <span className="font-bold text-emerald-400 uppercase tracking-wider">Available:</span>
-              <span className="text-slate-300 font-mono">{coverageAvailable.join(", ")}</span>
+              <span className="text-[#888] font-mono">{coverageAvailable.join(", ")}</span>
             </div>
           )}
           {coverageMissing.length > 0 && (
             <div className="flex items-center gap-2 text-[11px]">
               <span className="font-bold text-rose-400 uppercase tracking-wider">Missing:</span>
-              <span className="text-slate-300 font-mono">{coverageMissing.join(", ")}</span>
-              <span className="text-slate-500 italic ml-1">Will auto-download after TOTP</span>
+              <span className="text-[#888] font-mono">{coverageMissing.join(", ")}</span>
+              <span className="text-[#606060] italic ml-1">Will auto-download after TOTP</span>
             </div>
           )}
         </div>
       )}
 
       {/* ─── Tabs ─── */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-slate-800/60">
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[var(--ax-border)]/60">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -700,7 +700,7 @@ export default function MultiAssetResearch({
               className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-[11px] font-semibold whitespace-nowrap transition-all ${
                 active
                   ? "bg-violet-600/20 border border-violet-500/30 text-violet-300"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/40"
+                  : "text-[#606060] hover:text-[#888] hover:bg-[#222]/40"
               }`}
             >
               <Icon size={12} />
@@ -712,16 +712,16 @@ export default function MultiAssetResearch({
 
       {/* ─── Results ─── */}
       {!result && !loading && (
-        <div className="glass-panel rounded-xl p-12 text-center">
-          <Network size={40} className="text-slate-700 mx-auto mb-4" />
-          <p className="text-slate-500 text-sm">Configure your symbols and run analysis to see results.</p>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-12 text-center">
+          <Network size={40} className="text-[#a0a0a0] mx-auto mb-4" />
+          <p className="text-[#606060] text-sm">Configure your symbols and run analysis to see results.</p>
         </div>
       )}
 
       {loading && (
-        <div className="glass-panel rounded-xl p-12 text-center">
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-12 text-center">
           <Loader2 size={32} className="text-violet-400 mx-auto mb-4 animate-spin" />
-          <p className="text-slate-400 text-sm">Running multi-asset analysis…</p>
+          <p className="text-[#a0a0a0] text-sm">Running multi-asset analysis…</p>
         </div>
       )}
 
@@ -729,10 +729,10 @@ export default function MultiAssetResearch({
         <div className="flex flex-col gap-6">
           {/* Correlation heatmap */}
           {activeTab === "correlation" && correlationHeatmapOpt && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <BarChart2 size={14} className="text-violet-400" /> Correlation Matrix
-                <span className="text-[10px] text-slate-500 font-normal ml-1">({result.n_bars_used} bars)</span>
+                <span className="text-[10px] text-[#606060] font-normal ml-1">({result.n_bars_used} bars)</span>
               </h4>
               <ReactECharts option={correlationHeatmapOpt} style={{ height: 380 }} />
             </div>
@@ -740,26 +740,26 @@ export default function MultiAssetResearch({
 
           {/* Pair discovery */}
           {activeTab === "pairs" && result.pairs && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <GitBranch size={14} className="text-violet-400" /> Discovered Pairs
-                <span className="text-[10px] text-slate-500 font-normal ml-1">({result.pairs.length} pairs)</span>
+                <span className="text-[10px] text-[#606060] font-normal ml-1">({result.pairs.length} pairs)</span>
               </h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-800">
+                    <tr className="border-b border-[var(--ax-border)]">
                       {["Rank", "Symbol 1", "Symbol 2", "Correlation", "Type"].map((h) => (
-                        <th key={h} className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
+                        <th key={h} className="text-left py-2 px-3 text-[10px] font-bold text-[#606060] uppercase tracking-wider">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {result.pairs.map((p: any, i: number) => (
-                      <tr key={i} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors">
-                        <td className="py-2 px-3 font-mono text-slate-500">#{i + 1}</td>
-                        <td className="py-2 px-3 font-mono font-bold text-blue-300">{p.sym1}</td>
-                        <td className="py-2 px-3 font-mono font-bold text-blue-300">{p.sym2}</td>
+                      <tr key={i} className="border-b border-[var(--ax-border)]/40 hover:bg-[#222]/20 transition-colors">
+                        <td className="py-2 px-3 font-mono text-[#606060]">#{i + 1}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-[#93b4ff]">{p.sym1}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-[#93b4ff]">{p.sym2}</td>
                         <td className="py-2 px-3 font-mono font-bold">
                           <span className={p.correlation > 0 ? "text-emerald-400" : "text-rose-400"}>
                             {p.correlation > 0 ? "+" : ""}{p.correlation}
@@ -784,8 +784,8 @@ export default function MultiAssetResearch({
 
           {/* Cointegration */}
           {activeTab === "cointegration" && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <ArrowRightLeft size={14} className="text-violet-400" />
                 Cointegration Test: {result.sym1} / {result.sym2}
               </h4>
@@ -811,7 +811,7 @@ export default function MultiAssetResearch({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <MetricBadge label="P-Value" value={result.pvalue} color={result.pvalue < 0.05 ? "text-emerald-400" : "text-rose-400"} />
                 <MetricBadge label="ADF Stat" value={result.adf_stat} />
-                <MetricBadge label="Hedge Ratio" value={result.hedge_ratio} color="text-blue-300" />
+                <MetricBadge label="Hedge Ratio" value={result.hedge_ratio} color="text-[#93b4ff]" />
                 <MetricBadge label="Intercept" value={result.intercept} />
               </div>
             </div>
@@ -819,8 +819,8 @@ export default function MultiAssetResearch({
 
           {/* Spread & Z-Score */}
           {activeTab === "spread" && spreadChartOpt && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-2 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-2 flex items-center gap-2">
                 <Activity size={14} className="text-violet-400" />
                 Spread & Z-Score: {result.sym1} / {result.sym2}
               </h4>
@@ -837,7 +837,7 @@ export default function MultiAssetResearch({
                       : "text-emerald-400"
                   }
                 />
-                <MetricBadge label="Hedge Ratio" value={result.hedge_ratio} color="text-blue-300" />
+                <MetricBadge label="Hedge Ratio" value={result.hedge_ratio} color="text-[#93b4ff]" />
               </div>
               <ReactECharts option={spreadChartOpt} style={{ height: 360 }} />
             </div>
@@ -845,22 +845,22 @@ export default function MultiAssetResearch({
 
           {/* Lead-Lag */}
           {activeTab === "leadlag" && result.relationships && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <TrendingUp size={14} className="text-violet-400" /> Lead-Lag Relationships
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {Object.values(result.relationships).map((r: any, i: number) => (
-                  <div key={i} className="p-3 rounded-lg border border-slate-800/60 bg-slate-900/30">
+                  <div key={i} className="p-3 rounded-lg border border-[var(--ax-border)]/60 bg-[#161616]/30">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-xs font-bold text-slate-300">
+                      <span className="font-mono text-xs font-bold text-[#888]">
                         {r.sym1} / {r.sym2}
                       </span>
-                      <span className={`text-[10px] font-mono font-bold ${r.best_lag === 0 ? "text-slate-400" : r.best_lag > 0 ? "text-blue-400" : "text-amber-400"}`}>
+                      <span className={`text-[10px] font-mono font-bold ${r.best_lag === 0 ? "text-[#a0a0a0]" : r.best_lag > 0 ? "text-[#93b4ff]" : "text-amber-400"}`}>
                         lag={r.best_lag} (xcorr={r.max_xcorr})
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500">{r.relationship}</p>
+                    <p className="text-[10px] text-[#606060]">{r.relationship}</p>
                   </div>
                 ))}
               </div>
@@ -869,8 +869,8 @@ export default function MultiAssetResearch({
 
           {/* Breadth */}
           {activeTab === "breadth" && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <Layers size={14} className="text-violet-400" /> Sector Breadth
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -893,7 +893,7 @@ export default function MultiAssetResearch({
                         : "bg-rose-900/20 border-rose-800/40"
                     }`}
                   >
-                    <span className="font-mono text-xs font-bold text-slate-300 block">{sym}</span>
+                    <span className="font-mono text-xs font-bold text-[#888] block">{sym}</span>
                     <span className={`text-[10px] font-bold ${above ? "text-emerald-400" : "text-rose-400"}`}>
                       {above ? "▲ Above" : "▼ Below"}
                     </span>
@@ -905,8 +905,8 @@ export default function MultiAssetResearch({
 
           {/* Factor Ranking */}
           {activeTab === "ranking" && rankingChartOpt && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl rounded-xl p-5">
+              <h4 className="text-sm font-bold text-[#c0c0c0] mb-4 flex items-center gap-2">
                 <AlignJustify size={14} className="text-violet-400" />
                 Cross-Sectional Ranking ({result.factor} / {result.lookback}d lookback)
               </h4>
@@ -917,21 +917,21 @@ export default function MultiAssetResearch({
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800">
+                      <tr className="border-b border-[var(--ax-border)]">
                         {["Rank", "Symbol", "Score", "Percentile"].map((h) => (
-                          <th key={h} className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
+                          <th key={h} className="text-left py-2 px-3 text-[10px] font-bold text-[#606060] uppercase tracking-wider">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {result.rankings.map((r: any) => (
-                        <tr key={r.symbol} className="border-b border-slate-800/40 hover:bg-slate-800/20">
-                          <td className="py-2 px-3 font-mono text-slate-500">#{r.rank}</td>
-                          <td className="py-2 px-3 font-mono font-bold text-slate-200">{r.symbol}</td>
+                        <tr key={r.symbol} className="border-b border-[var(--ax-border)]/40 hover:bg-[#222]/20">
+                          <td className="py-2 px-3 font-mono text-[#606060]">#{r.rank}</td>
+                          <td className="py-2 px-3 font-mono font-bold text-[#c0c0c0]">{r.symbol}</td>
                           <td className={`py-2 px-3 font-mono font-bold ${r.raw_score >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                             {r.raw_score > 0 ? "+" : ""}{r.raw_score}
                           </td>
-                          <td className="py-2 px-3 font-mono text-slate-400">{r.percentile}%</td>
+                          <td className="py-2 px-3 font-mono text-[#a0a0a0]">{r.percentile}%</td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,5 +1,5 @@
 /**
- * QuantLab Safe API Client
+ * Axon Safe API Client
  * 
  * Wraps all backend communication with:
  * - Safe JSON parsing (never crashes on HTML error pages)

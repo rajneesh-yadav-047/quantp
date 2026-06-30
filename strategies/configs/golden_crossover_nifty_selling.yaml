@@ -1,0 +1,13 @@
+name: "GOLDEN CROSSOVER NIFTY SELLING"
+symbol: "NSE:NIFTY 50"
+interval: "THREE_MINUTE"
+capital: 200000
+lot_size: 65
+max_trade_cycles_per_day: 6
+square_off_time: "15:15"
+ema_fast: 10
+ema_slow: 30
+strike_offset_points: 200
+sl_points: 20
+expiry_type: "WEEKLY"
+runtime: "legacy_on_bar"

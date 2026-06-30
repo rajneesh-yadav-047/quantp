@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -9,10 +10,35 @@
   --color-card-bg: var(--bg-card);
   --color-border-custom: var(--border-color);
   --color-text-muted: var(--text-muted);
+  --font-space: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 :root {
-  /* ───── Corporate Light Theme ───── */
+  /* ───── Axon Light Theme ───── */
+  --ax-bg: #fafafa;
+  --ax-surface: #ffffff;
+  --ax-surface-2: #f4f4f5;
+  --ax-border: #e4e4e7;
+  --ax-atm: #EFF6FF;
+  --ax-profit: #F0FDF4;
+  --ax-loss: #FEF2F2;
+  --ax-text: #e0e0e0;
+  --ax-text-2: #a0a0a0;
+  --ax-text-3: #606060;
+  --ax-text-primary: #111111;
+  --ax-text-secondary: #444444;
+  --ax-text-tertiary: #888888;
+  --ax-accent-blue: #4a7fcc;
+  --ax-accent-blue-light: #93b4ff;
+  --ax-nav-bg: #0a0a0a;
+  --ax-sidebar-bg: #0d0d0d;
+  --ax-sidebar-active-bg: #161616;
+  --ax-sidebar-accent-bg: #0f1520;
+  --ax-header-bg: #111111;
+  --ax-summary-bg: #0d0d0d;
+
+  /* Legacy compatibility tokens */
   --background: #f1f5f9;
   --foreground: #0f172a;
   --accent-green: #059669;
@@ -27,7 +53,6 @@
   --sidebar-border: #e2e8f0;
   --bg-pre: #f1f5f9;
   --bg-terminal: #0f172a;
-  /* row/panel shades */
   --bg-row-hover: rgba(15, 23, 42, 0.04);
   --bg-panel-inner: #f8fafc;
   --bg-panel-deep: #f1f5f9;
@@ -40,7 +65,30 @@
 }
 
 .dark {
-  /* ───── Corporate Dark Theme ───── */
+  /* ───── Axon Dark Theme ───── */
+  --ax-bg: #111111;
+  --ax-surface: #0d0d0d;
+  --ax-surface-2: #161616;
+  --ax-border: #1f1f1f;
+  --ax-atm: #131b2e;
+  --ax-profit: #0d1a10;
+  --ax-loss: #1a0d0d;
+  --ax-text: #e0e0e0;
+  --ax-text-2: #a0a0a0;
+  --ax-text-3: #606060;
+  --ax-text-primary: #e8e8e8;
+  --ax-text-secondary: #c0c0c0;
+  --ax-text-tertiary: #484848;
+  --ax-accent-blue: #4a7fcc;
+  --ax-accent-blue-light: #93b4ff;
+  --ax-nav-bg: #0a0a0a;
+  --ax-sidebar-bg: #0d0d0d;
+  --ax-sidebar-active-bg: #161616;
+  --ax-sidebar-accent-bg: #0f1520;
+  --ax-header-bg: #111111;
+  --ax-summary-bg: #0d0d0d;
+
+  /* Legacy compatibility tokens */
   --background: #090d16;
   --foreground: #f1f5f9;
   --accent-green: #10b981;
@@ -55,7 +103,6 @@
   --sidebar-border: #1e293b;
   --bg-pre: #060913;
   --bg-terminal: #060913;
-  /* row/panel shades */
   --bg-row-hover: rgba(148, 163, 184, 0.06);
   --bg-panel-inner: #0d1526;
   --bg-panel-deep: #060913;
@@ -71,9 +118,9 @@
    BASE
 ────────────────────────────────────────────── */
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--ax-bg);
+  color: var(--ax-text-primary);
+  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -83,8 +130,8 @@ body {
    Works in both light and dark automatically
 ────────────────────────────────────────────── */
 .glass-panel {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background-color: var(--ax-surface);
+  border: 1px solid var(--ax-border);
   border-radius: 12px;
   box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px 0 rgba(0,0,0,0.04);
   transition: border-color 0.2s ease, background-color 0.2s ease;
@@ -94,25 +141,38 @@ body {
   transition: all 0.18s ease-in-out;
 }
 .glass-panel-hover:hover {
-  border-color: var(--accent-blue);
-  box-shadow: 0 4px 12px -1px rgba(37,99,235,0.08);
+  border-color: var(--ax-accent-blue);
+  box-shadow: 0 4px 12px -1px rgba(74,127,204,0.08);
 }
 
 /* ──────────────────────────────────────────────
-   SEMANTIC UTILITY CLASSES (theme-aware)
-   Use these instead of raw slate-X classes in components.
+   AXON UTILITY CLASSES (theme-aware)
 ────────────────────────────────────────────── */
 
 /* Panels / surfaces */
+.ax-bg-page      { background-color: var(--ax-bg); }
+.ax-bg-surface   { background-color: var(--ax-surface); }
+.ax-bg-surface-2 { background-color: var(--ax-surface-2); }
+.ax-bg-nav       { background-color: var(--ax-nav-bg); }
+.ax-bg-sidebar   { background-color: var(--ax-sidebar-bg); }
+.ax-bg-header    { background-color: var(--ax-header-bg); }
+.ax-bg-summary   { background-color: var(--ax-summary-bg); }
+
+/* Borders */
+.ax-border       { border-color: var(--ax-border); }
+
+/* Text */
+.ax-text         { color: var(--ax-text-primary); }
+.ax-text-2       { color: var(--ax-text-secondary); }
+.ax-text-muted   { color: var(--ax-text-tertiary); }
+.ax-text-blue    { color: var(--ax-accent-blue-light); }
+
+/* Legacy semantic utility classes (backward compatible) */
 .t-bg-page      { background-color: var(--background); }
 .t-bg-card      { background-color: var(--bg-card); }
 .t-bg-inner     { background-color: var(--bg-panel-inner); }
 .t-bg-deep      { background-color: var(--bg-panel-deep); }
-
-/* Borders */
 .t-border       { border-color: var(--border-color); }
-
-/* Text */
 .t-text         { color: var(--text-primary); }
 .t-text-2       { color: var(--text-secondary); }
 .t-text-muted   { color: var(--text-tertiary); }
@@ -137,7 +197,7 @@ body {
 .t-table-row:hover { background-color: var(--bg-row-hover); }
 .t-table-divider { border-color: var(--table-divider); }
 
-/* Legacy alias – keeps old .corp-input still working */
+/* Legacy alias */
 .corp-input {
   background-color: var(--bg-input);
   color: var(--foreground);
@@ -157,8 +217,8 @@ body {
 ────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb { background: var(--ax-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ax-text-tertiary); }
 
 /* ──────────────────────────────────────────────
    DATE PICKER ICON
@@ -195,12 +255,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity:
 
 /* ──────────────────────────────────────────────
    TAILWIND DARK: OVERRIDES
-   Force hardcoded slate components to flip in light mode
-   by targeting common slate patterns via a parent selector.
 ────────────────────────────────────────────── */
-
-/* When NOT .dark, override the most common dark-only raw Tailwind utilities
-   so the UI still looks consistent.                                         */
 
 :root:not(.dark) .text-slate-100,
 :root:not(.dark) .text-slate-200 { color: var(--text-primary); }
@@ -223,11 +278,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity:
 :root:not(.dark) .divide-slate-800\/50 > * + * { border-color: var(--table-divider); }
 :root:not(.dark) .divide-slate-800\/40 > * + * { border-color: var(--table-divider); }
 
-/* Table row hover in light mode */
 :root:not(.dark) .hover\:bg-slate-900\/30:hover { background-color: var(--bg-row-hover); }
 :root:not(.dark) .hover\:bg-slate-800\/40:hover  { background-color: var(--bg-row-hover); }
 
-/* Select / input element backgrounds */
 :root:not(.dark) select.bg-slate-950,
 :root:not(.dark) select.bg-slate-800,
 :root:not(.dark) select.bg-slate-900 {
@@ -243,18 +296,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity:
   color: var(--foreground);
 }
 
-/* Sticky table headers */
 :root:not(.dark) .bg-slate-900.sticky,
 :root:not(.dark) thead .bg-slate-950\/40 { background-color: var(--table-header-bg); }
 
-/* Suggestion dropdown */
 :root:not(.dark) .bg-slate-950.border-slate-800 { 
   background-color: #ffffff;
   border-color: var(--border-color);
   box-shadow: 0 4px 20px rgba(0,0,0,0.12);
 }
 
-/* Button bg overrides */
 :root:not(.dark) .bg-slate-800.text-slate-200 {
   background-color: #e2e8f0;
   color: var(--text-primary);
@@ -266,7 +316,6 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover { opacity:
   background-color: rgba(248,250,252,0.8);
 }
 
-/* Preview stats panel */
 :root:not(.dark) .bg-slate-950\/40 {
   background-color: rgba(241, 245, 249, 0.8);
 }

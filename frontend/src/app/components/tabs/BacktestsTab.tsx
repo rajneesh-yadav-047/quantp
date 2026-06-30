@@ -54,103 +54,102 @@ export function BacktestsTab({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-full items-start">
       {/* Sidebar Controls Panel */}
-      <div className="xl:col-span-1 glass-panel p-5 rounded-xl space-y-5 flex flex-col justify-between self-start shadow-xl">
+      <div className="xl:col-span-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-5 space-y-5 flex flex-col justify-between self-start">
         <div className="space-y-4">
-          <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
-            <Sliders className="w-4 h-4 text-blue-400" />
+          <h4 className="text-[11px] font-medium text-[#606060] uppercase tracking-wider flex items-center gap-2 border-b border-[#2a2a2a] pb-3">
+            <Sliders className="w-4 h-4 text-[#93b4ff]" />
             Backtest Configurations
           </h4>
 
-          {/* Strategy Select */}
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5">Target Strategy</label>
-            <select
-              value={selectedStrategyId}
-              onChange={e => handleSelectStrategy(e.target.value)}
-              className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-blue-500 font-semibold"
-            >
-              <option value="">-- Select Strategy --</option>
-              {strategies.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Run Config Card */}
+          <div className="bg-[#161616] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+            <div>
+              <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Target Strategy</label>
+              <select
+                value={selectedStrategyId}
+                onChange={e => handleSelectStrategy(e.target.value)}
+                className="w-full text-[12px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[#c0c0c0] focus:outline-none focus:border-[#4a7fcc] font-medium"
+              >
+                <option value="">-- Select Strategy --</option>
+                {strategies.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Date Picker Range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5 flex items-center gap-1">
-                <Calendar size={10} className="text-blue-400" /> From Date
-              </label>
-              <input
-                type="date"
-                value={btStartDate}
-                onChange={e => setBtStartDate(e.target.value)}
-                className={`text-xs bg-slate-950 border rounded px-2 py-1.5 text-slate-200 w-full focus:outline-none ${
-                  !isDateRangeValid && coverage.missing.some((m: any) => btStartDate < m.startDate)
-                    ? 'border-rose-700 focus:border-rose-500'
-                    : 'border-slate-800 focus:border-blue-500'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5 flex items-center gap-1">
-                <Calendar size={10} className="text-blue-400" /> To Date
-              </label>
-              <input
-                type="date"
-                value={btEndDate}
-                onChange={e => setBtEndDate(e.target.value)}
-                className={`text-xs bg-slate-950 border rounded px-2 py-1.5 text-slate-200 w-full focus:outline-none ${
-                  !isDateRangeValid && coverage.missing.some((m: any) => btEndDate > m.endDate)
-                    ? 'border-rose-700 focus:border-rose-500'
-                    : 'border-slate-800 focus:border-blue-500'
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Slippage & Position Limits */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5">Slippage %</label>
-              <input
-                type="number"
-                step="0.01"
-                value={btSlippage}
-                onChange={e => setBtSlippage(Number(e.target.value))}
-                className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 font-semibold font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5">Max Position Size</label>
-              <input
-                type="number"
-                value={btMaxPositionSize || ""}
-                onChange={e => setBtMaxPositionSize(e.target.value ? parseInt(e.target.value) : null)}
-                placeholder="Auto"
-                className="w-full text-xs bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 font-semibold font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Trade Type Selection */}
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-450 mb-1.5">Trade Execution Mode</label>
-            <div className="grid grid-cols-2 gap-1">
-              {["INTRADAY", "DELIVERY", "FUTURES", "OPTIONS"].map(t => (
-                <button
-                  key={t}
-                  onClick={() => setBtTradeType(t)}
-                  className={`px-1 py-1.5 text-[9px] font-bold border rounded transition-all ${
-                    btTradeType === t
-                      ? "bg-blue-600/15 border-blue-500 text-blue-400 shadow-sm"
-                      : "border-slate-850 text-slate-450 bg-slate-950/50 hover:bg-slate-900"
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Calendar size={10} className="text-[#93b4ff]" /> From
+                </label>
+                <input
+                  type="date"
+                  value={btStartDate}
+                  onChange={e => setBtStartDate(e.target.value)}
+                  className={`text-[12px] bg-[#1a1a1a] border rounded-lg px-3 py-2 text-[#c0c0c0] w-full focus:outline-none ${
+                    !isDateRangeValid && coverage.missing.some((m: any) => btStartDate < m.startDate)
+                      ? 'border-red-700 focus:border-red-500'
+                      : 'border-[#2a2a2a] focus:border-[#4a7fcc]'
                   }`}
-                >
-                  {t}
-                </button>
-              ))}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Calendar size={10} className="text-[#93b4ff]" /> To
+                </label>
+                <input
+                  type="date"
+                  value={btEndDate}
+                  onChange={e => setBtEndDate(e.target.value)}
+                  className={`text-[12px] bg-[#1a1a1a] border rounded-lg px-3 py-2 text-[#c0c0c0] w-full focus:outline-none ${
+                    !isDateRangeValid && coverage.missing.some((m: any) => btEndDate > m.endDate)
+                      ? 'border-red-700 focus:border-red-500'
+                      : 'border-[#2a2a2a] focus:border-[#4a7fcc]'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Slippage %</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={btSlippage}
+                  onChange={e => setBtSlippage(Number(e.target.value))}
+                  className="w-full text-[12px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[#c0c0c0] font-medium font-mono focus:outline-none focus:border-[#4a7fcc]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Max Position</label>
+                <input
+                  type="number"
+                  value={btMaxPositionSize || ""}
+                  onChange={e => setBtMaxPositionSize(e.target.value ? parseInt(e.target.value) : null)}
+                  placeholder="Auto"
+                  className="w-full text-[12px] bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[#c0c0c0] font-medium font-mono focus:outline-none focus:border-[#4a7fcc]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Trade Mode</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {["INTRADAY", "DELIVERY", "FUTURES", "OPTIONS"].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setBtTradeType(t)}
+                    className={`px-1 py-1.5 text-[10px] font-medium border rounded-lg transition-all ${
+                      btTradeType === t
+                        ? "bg-[#1c2030] border-[#4a7fcc] text-[#93b4ff]"
+                        : "border-[#2a2a2a] text-[#a0a0a0] bg-[#1a1a1a] hover:bg-[#1e1e1e]"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -159,27 +158,27 @@ export function BacktestsTab({
         {selectedStrategyId && (
           <div className="space-y-2 pt-2">
             {coverage.missing.length > 0 && (
-              <div className="flex items-start gap-2 p-2.5 rounded-lg border border-rose-800/40 bg-rose-950/20 text-rose-400 text-[10px] leading-relaxed">
-                <XCircle size={14} className="shrink-0 mt-0.5" />
+              <div className="bg-[#1a0d0d] border border-[#3a1515] rounded-lg px-4 py-3 flex items-start gap-3 text-[12px] text-[#c0c0c0]">
+                <XCircle size={14} className="shrink-0 mt-0.5 text-red-400" />
                 <div className="flex-1">
-                  <p className="font-bold mb-1">Missing Coverage Period:</p>
+                  <p className="font-medium mb-1 text-red-400">Missing Coverage Period:</p>
                   {coverage.missing.map((m: any, i: number) => (
-                    <p key={i} className="text-rose-300/80">{m.symbol}: {m.reason}</p>
+                    <p key={i} className="text-red-300/80">{m.symbol}: {m.reason}</p>
                   ))}
-                  <p className="text-[9px] text-rose-300/50 mt-1.5 italic">Will auto-download from SmartAPI on backtest run.</p>
+                  <p className="text-[11px] text-red-300/50 mt-1.5 italic">Will auto-download from SmartAPI on backtest run.</p>
                 </div>
               </div>
             )}
             {coverage.available.length > 0 && coverage.missing.length === 0 && (
-              <div className="flex items-start gap-2 p-2 rounded-lg border border-emerald-800/40 bg-emerald-950/20 text-emerald-400 text-[10px]">
-                <CheckCircle2 size={13} className="shrink-0 mt-0.5" />
-                <span>Historical data cached and verified locally for backtest parameters.</span>
+              <div className="bg-[#0d1a10] border border-[#1a3a20] rounded-lg px-4 py-3 flex items-start gap-3 text-[12px] text-[#c0c0c0]">
+                <CheckCircle2 size={13} className="shrink-0 mt-0.5 text-emerald-400" />
+                <span className="text-emerald-300/80">Historical data cached and verified locally for backtest parameters.</span>
               </div>
             )}
             {coverage.available.length === 0 && coverage.missing.length === 0 && (
-              <div className="flex items-start gap-2 p-2 rounded-lg border border-slate-850 bg-slate-950/40 text-slate-500 text-[10px]">
-                <Database size={13} className="shrink-0 mt-0.5" />
-                <span>No local cache folders found for {symbols.join(", ")}. Missing candles will be downloaded.</span>
+              <div className="bg-[#0f1520] border border-[#1e2d4a] rounded-lg px-4 py-3 flex items-start gap-3 text-[12px] text-[#c0c0c0]">
+                <Database size={13} className="shrink-0 mt-0.5 text-[#93b4ff]" />
+                <span className="text-[#93b4ff]/80">No local cache folders found for {symbols.join(", ")}. Missing candles will be downloaded.</span>
               </div>
             )}
           </div>
@@ -188,7 +187,7 @@ export function BacktestsTab({
         <button
           onClick={handleRunBacktest}
           disabled={!selectedStrategyId}
-          className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded font-bold text-xs py-2 px-4 transition-all flex items-center justify-center gap-2"
+          className="w-full mt-2 bg-[#1c2030] hover:bg-[#222d40] disabled:bg-[#161616] disabled:text-[#606060] text-[#93b4ff] border border-[#2a3a5a] rounded-xl font-medium text-[12px] py-2.5 transition-all flex items-center justify-center gap-2"
         >
           <PlayCircle size={14} fill="currentColor" /> Run Simulation Engine
         </button>
@@ -198,33 +197,29 @@ export function BacktestsTab({
       <div className="xl:col-span-3 h-full flex flex-col gap-6">
         {backtestDetail ? (
           <>
-            {/* Top Stat Ribbon */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {/* Net PnL Card — expanded for multi-symbol breakdown */}
-              <div className="glass-panel p-4 rounded-xl shadow flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500">Net PnL</span>
-                    <h3 className={`text-xl font-bold font-mono mt-1 ${backtestDetail.total_pnl > 0 ? "text-emerald-400" : backtestDetail.total_pnl < 0 ? "text-rose-400" : "text-orange-400"}`}>
-                      ₹{backtestDetail.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? "0"}
-                    </h3>
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Net Profit */}
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] border-l-emerald-500 rounded-r-xl rounded-l-none p-4 flex flex-col justify-between">
+                <div>
+                  <div className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Net Profit</div>
+                  <div className={`text-[22px] font-semibold text-[#f0f0f0] leading-none ${backtestDetail.total_pnl > 0 ? "text-emerald-400" : backtestDetail.total_pnl < 0 ? "text-red-400" : ""}`}>
+                    ₹{backtestDetail.total_pnl?.toLocaleString(undefined, { maximumFractionDigits: 0 }) ?? "0"}
                   </div>
-                  <TrendingUp className="w-5 h-5 text-slate-600/70" />
                 </div>
-                {/* Per-symbol breakdown */}
                 {pnlCurveData.length > 0 && (() => {
                   const finalValues = pnlCurveData[pnlCurveData.length - 1].values;
                   const symbols = Object.keys(finalValues);
                   if (symbols.length <= 1) return null;
                   return (
-                    <div className="mt-2 pt-2 border-t border-slate-800/50 space-y-1">
+                    <div className="mt-2 pt-2 border-t border-[#2a2a2a]/50 space-y-1">
                       {symbols.map((sym) => {
                         const val = finalValues[sym] || 0;
                         const hasTrade = val !== 0 || backtestDetail.trades?.some((t: any) => t.symbol === sym);
                         return (
                           <div key={sym} className="flex items-center justify-between text-[10px] font-mono">
-                            <span className="text-slate-400">{sym}</span>
-                            <span className={val > 0 ? "text-emerald-400" : val < 0 ? "text-rose-400" : !hasTrade ? "text-orange-400" : "text-slate-500"}>
+                            <span className="text-[#a0a0a0]">{sym}</span>
+                            <span className={val > 0 ? "text-emerald-400" : val < 0 ? "text-red-400" : !hasTrade ? "text-orange-400" : "text-[#505050]"}>
                               ₹{val.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </span>
                           </div>
@@ -233,74 +228,81 @@ export function BacktestsTab({
                     </div>
                   );
                 })()}
-                <div className={`text-[10px] font-mono mt-1 ${backtestDetail.total_pnl >= 0 ? "text-emerald-500/70" : "text-rose-500/70"}`}>
+                <div className={`text-[11px] mt-1.5 ${backtestDetail.total_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   Return: {(((backtestDetail.final_equity - backtestDetail.initial_capital) / backtestDetail.initial_capital) * 100).toFixed(1)}%
                 </div>
               </div>
 
-              {[
-                { label: "Sharpe Ratio", val: backtestDetail.sharpe_ratio?.toFixed(2) ?? "-", color: "text-purple-400", icon: Award },
-                { label: "Max Drawdown", val: `${(backtestDetail.max_drawdown * 100).toFixed(1)}%`, color: "text-rose-400", icon: AlertTriangle },
-                { label: "Trade Fills Count", val: backtestDetail.metrics?.trade_metrics?.total_trades ?? "-", color: "text-blue-400", icon: Clock },
-              ].map((m, i) => (
-                <div key={i} className="glass-panel p-4 rounded-xl shadow flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500">{m.label}</span>
-                    <h3 className={`text-xl font-bold font-mono mt-1 ${m.color}`}>{m.val}</h3>
-                  </div>
-                  <m.icon className="w-5 h-5 text-slate-600/70" />
-                </div>
-              ))}
+              {/* Sharpe */}
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] border-l-[#4a7fcc] rounded-r-xl rounded-l-none p-4">
+                <div className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Sharpe Ratio</div>
+                <div className="text-[22px] font-semibold text-[#f0f0f0] leading-none">{backtestDetail.sharpe_ratio?.toFixed(2) ?? "-"}</div>
+                <div className="text-[11px] mt-1.5 text-[#93b4ff]">Risk-adjusted return</div>
+              </div>
+
+              {/* Max Drawdown */}
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] border-l-red-500 rounded-r-xl rounded-l-none p-4">
+                <div className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Max Drawdown</div>
+                <div className="text-[22px] font-semibold text-[#f0f0f0] leading-none text-red-400">{(backtestDetail.max_drawdown * 100).toFixed(1)}%</div>
+                <div className="text-[11px] mt-1.5 text-red-400">Peak-to-trough decline</div>
+              </div>
+
+              {/* Win Rate */}
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] border-l-[#4a7fcc] rounded-r-xl rounded-l-none p-4">
+                <div className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">Win Rate</div>
+                <div className="text-[22px] font-semibold text-[#f0f0f0] leading-none">{(backtestDetail.win_rate * 100).toFixed(1)}%</div>
+                <div className="text-[11px] mt-1.5 text-[#93b4ff]">Profitable trades</div>
+              </div>
             </div>
 
             {/* Results Studio Card */}
-            <div className="glass-panel rounded-xl overflow-hidden shadow-2xl flex flex-col border border-slate-800/80 bg-[#0B0F19]/40">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden flex flex-col">
               {/* Tabs selector */}
-              <div className="px-5 py-3 border-b border-slate-800 bg-slate-950/20 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-850">
+              <div className="px-5 py-3 border-b border-[#2a2a2a] bg-[#161616] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex bg-[#1a1a1a] p-1 rounded-lg border border-[#2a2a2a]">
                   <button
                     onClick={() => setActiveResultsTab("replay")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
                       activeResultsTab === "replay"
-                        ? "bg-slate-850 text-blue-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-[#222] text-[#93b4ff]"
+                        : "text-[#a0a0a0] hover:text-[#c0c0c0]"
                     }`}
                   >
                     Replay Studio
                   </button>
                   <button
                     onClick={() => setActiveResultsTab("trades")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
                       activeResultsTab === "trades"
-                        ? "bg-slate-850 text-blue-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-[#222] text-[#93b4ff]"
+                        : "text-[#a0a0a0] hover:text-[#c0c0c0]"
                     }`}
                   >
                     Trade Log ({backtestDetail.metrics?.trades?.length || 0})
                   </button>
                   <button
                     onClick={() => setActiveResultsTab("metrics")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
                       activeResultsTab === "metrics"
-                        ? "bg-slate-850 text-blue-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-[#222] text-[#93b4ff]"
+                        : "text-[#a0a0a0] hover:text-[#c0c0c0]"
                     }`}
                   >
                     Analysis Summary
                   </button>
                   <button
                     onClick={() => setActiveResultsTab("calendar")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-all ${
                       activeResultsTab === "calendar"
-                        ? "bg-slate-850 text-blue-400 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-[#222] text-[#93b4ff]"
+                        : "text-[#a0a0a0] hover:text-[#c0c0c0]"
                     }`}
                   >
                     Calendar
                   </button>
                 </div>
 
-                <div className="text-[10px] text-slate-500 font-bold uppercase font-mono">
+                <div className="text-[10px] text-[#606060] font-medium uppercase font-mono">
                   Strategy: {backtestDetail.strategy_name}
                 </div>
               </div>
@@ -309,21 +311,21 @@ export function BacktestsTab({
               {activeResultsTab === "replay" && (
                 <div className="p-5 space-y-5">
                   {/* Playback HUD Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-slate-950/80 border border-slate-850 rounded-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => setCurrentStep(0)} className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded transition-colors"><SkipBack size={12} /></button>
+                      <button onClick={() => setCurrentStep(0)} className="p-1.5 bg-[#222] border border-[#2a2a2a] hover:bg-[#2a2a2a] text-[#a0a0a0] rounded-lg transition-colors"><SkipBack size={12} /></button>
                       <button
                         onClick={() => setIsPlaying(!isPlaying)}
-                        className={`p-2 rounded text-white transition-all ${isPlaying ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                        className={`p-2 rounded-lg text-[#f0f0f0] transition-all ${isPlaying ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
                       >
                         {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                       </button>
-                      <button onClick={() => setCurrentStep((prev: number) => Math.min(replayEvents.length - 1, prev + 1))} className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 rounded transition-colors"><SkipForward size={12} /></button>
+                      <button onClick={() => setCurrentStep((prev: number) => Math.min(replayEvents.length - 1, prev + 1))} className="p-1.5 bg-[#222] border border-[#2a2a2a] hover:bg-[#2a2a2a] text-[#a0a0a0] rounded-lg transition-colors"><SkipForward size={12} /></button>
                     </div>
 
                     <div className="flex items-center gap-1">
                       {[1, 2, 5, 10].map(speed => (
-                        <button key={speed} onClick={() => setPlaybackSpeed(speed)} className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${playbackSpeed === speed ? "bg-blue-600/20 border-blue-500 text-blue-400" : "border-slate-850 text-slate-500 hover:bg-slate-900"}`}>
+                        <button key={speed} onClick={() => setPlaybackSpeed(speed)} className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${playbackSpeed === speed ? "bg-[#1c2030] border-[#4a7fcc] text-[#93b4ff]" : "border-[#2a2a2a] text-[#505050] hover:bg-[#222]"}`}>
                           {speed}x
                         </button>
                       ))}
@@ -339,31 +341,31 @@ export function BacktestsTab({
                         onChange={e => setCurrentStep(Number(e.target.value))}
                         className="w-full accent-blue-500 cursor-pointer"
                       />
-                      <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{currentStep} / {replayEvents.length - 1}</span>
+                      <span className="text-[10px] font-mono text-[#a0a0a0] whitespace-nowrap bg-[#222] px-2 py-0.5 rounded border border-[#2a2a2a]">{currentStep} / {replayEvents.length - 1}</span>
                     </div>
 
                     {/* Active timestamp info */}
-                    <div className="text-[10px] font-mono text-slate-350 bg-blue-950/30 border border-blue-900/50 px-2 py-1 rounded">
+                    <div className="text-[10px] font-mono text-[#888] bg-[#1a1a1a] border border-[#2a3a5a]/50 px-2 py-1 rounded-lg">
                       Time: {currentEvent?.timestamp?.split(" ")[1] || "--:--:--"}
                     </div>
                   </div>
 
                   {/* Chart controls & Lightweight Candlestick Chart */}
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between px-1 flex-wrap gap-2 border-b border-slate-850/60 pb-2">
+                    <div className="flex items-center justify-between px-1 flex-wrap gap-2 border-b border-[#2a2a2a]/60 pb-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">EMA Channels:</span>
-                        <button onClick={() => setShowEmaFast(!showEmaFast)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${showEmaFast ? "bg-blue-600/10 border-blue-500 text-blue-400" : "border-slate-850 text-slate-500 hover:bg-slate-900"}`}>EMA Fast (9)</button>
-                        <button onClick={() => setShowEmaSlow(!showEmaSlow)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${showEmaSlow ? "bg-amber-600/10 border-amber-500 text-amber-400" : "border-slate-850 text-slate-500 hover:bg-slate-900"}`}>EMA Slow (21)</button>
+                        <span className="text-[10px] text-[#505050] font-medium uppercase">EMA Channels:</span>
+                        <button onClick={() => setShowEmaFast(!showEmaFast)} className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${showEmaFast ? "bg-[#1c2030] border-[#4a7fcc] text-[#93b4ff]" : "border-[#2a2a2a] text-[#505050] hover:bg-[#222]"}`}>EMA Fast (9)</button>
+                        <button onClick={() => setShowEmaSlow(!showEmaSlow)} className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${showEmaSlow ? "bg-amber-600/10 border-amber-500 text-amber-400" : "border-[#2a2a2a] text-[#505050] hover:bg-[#222]"}`}>EMA Slow (21)</button>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">Trades:</span>
-                        <button onClick={() => setShowBuyTrades(!showBuyTrades)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${showBuyTrades ? "bg-emerald-600/10 border-emerald-500 text-emerald-400" : "border-slate-850 text-slate-500 hover:bg-slate-900"}`}>BUY Markers</button>
-                        <button onClick={() => setShowSellTrades(!showSellTrades)} className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all ${showSellTrades ? "bg-rose-600/10 border-rose-500 text-rose-400" : "border-slate-850 text-slate-500 hover:bg-slate-900"}`}>SELL Markers</button>
+                        <span className="text-[10px] text-[#505050] font-medium uppercase">Trades:</span>
+                        <button onClick={() => setShowBuyTrades(!showBuyTrades)} className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${showBuyTrades ? "bg-emerald-600/10 border-emerald-500 text-emerald-400" : "border-[#2a2a2a] text-[#505050] hover:bg-[#222]"}`}>BUY Markers</button>
+                        <button onClick={() => setShowSellTrades(!showSellTrades)} className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-all ${showSellTrades ? "bg-red-500/10 border-red-500 text-red-400" : "border-[#2a2a2a] text-[#505050] hover:bg-[#222]"}`}>SELL Markers</button>
                       </div>
                     </div>
 
-                    <div className="relative">
+                    <div className="relative bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
                       {activeCandles.length > 0 ? (
                         <LightweightChart
                           candles={activeCandles}
@@ -375,9 +377,9 @@ export function BacktestsTab({
                           height={360}
                         />
                       ) : (
-                        <div className="w-full h-80 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col items-center justify-center text-slate-500">
-                          <AlertTriangle size={32} className="text-slate-600 mb-2 animate-bounce" />
-                          <span className="text-xs">No active replay data loaded.</span>
+                        <div className="w-full h-80 bg-[#161616] rounded-xl border border-[#2a2a2a] flex flex-col items-center justify-center text-[#505050]">
+                          <AlertTriangle size={32} className="text-[#505050] mb-2 animate-bounce" />
+                          <span className="text-[13px]">No active replay data loaded.</span>
                         </div>
                       )}
                     </div>
@@ -386,46 +388,46 @@ export function BacktestsTab({
                   {/* Exposure Curve and Positions HUD */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     {/* Exposure Chart */}
-                    <div className="lg:col-span-2 border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/20">
-                      <div className="px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <div className="lg:col-span-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden">
+                      <div className="px-4 py-2 bg-[#161616] border-b border-[#2a2a2a] text-[10px] font-medium uppercase tracking-wider text-[#606060] flex items-center justify-between">
                         <span>Net Position Exposure</span>
-                        <span className="font-mono text-blue-400">{currentPortfolio?.positions ? Object.keys(currentPortfolio.positions).length : 0} Assets</span>
+                        <span className="font-mono text-[#93b4ff]">{currentPortfolio?.positions ? Object.keys(currentPortfolio.positions).length : 0} Assets</span>
                       </div>
                       <PositionChart data={positionCurveData} height={130} />
                     </div>
 
                     {/* Positions Details List */}
-                    <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/20 flex flex-col">
-                      <div className="px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden flex flex-col">
+                      <div className="px-4 py-2 bg-[#161616] border-b border-[#2a2a2a] text-[10px] font-medium uppercase tracking-wider text-[#606060]">
                         Open Positions HUD
                       </div>
                       <div className="flex-1 p-3 overflow-y-auto space-y-2 max-h-[130px] custom-scrollbar">
                         {currentPortfolio?.positions && Object.keys(currentPortfolio.positions).length > 0 ? (
                           Object.values(currentPortfolio.positions).map((pos: any) => (
-                            <div key={pos.symbol} className="flex justify-between items-center text-[11px] border border-slate-850 rounded-lg p-2 bg-slate-950/60">
+                            <div key={pos.symbol} className="flex justify-between items-center text-[11px] border border-[#2a2a2a] rounded-lg p-2 bg-[#161616]">
                               <div>
-                                <span className="font-bold text-slate-200">{pos.symbol}</span>
-                                <div className="text-[9px] text-slate-500 mt-0.5">
+                                <span className="font-medium text-[#d0d0d0]">{pos.symbol}</span>
+                                <div className="text-[10px] text-[#505050] mt-0.5">
                                   {pos.qty > 0 ? "LONG" : pos.qty < 0 ? "SHORT" : "FLAT"} {Math.abs(pos.qty)} @ ₹{pos.avg_price?.toFixed(1) || "-"}
                                 </div>
                               </div>
-                              <span className={`font-mono font-bold ${pos.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              <span className={`font-mono font-medium ${pos.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 PnL: ₹{pos.unrealized_pnl?.toFixed(1) || "0.0"}
                               </span>
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-slate-500 text-center py-8 font-medium">No open positions at this step.</div>
+                          <div className="text-[11px] text-[#505050] text-center py-8 font-medium">No open positions at this step.</div>
                         )}
                       </div>
                     </div>
                   </div>
 
                   {/* Per-Symbol PnL Chart */}
-                  <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/20">
-                    <div className="px-4 py-2 bg-slate-950/60 border-b border-slate-850 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden">
+                    <div className="px-4 py-2 bg-[#161616] border-b border-[#2a2a2a] text-[10px] font-medium uppercase tracking-wider text-[#606060] flex items-center justify-between">
                       <span>Per-Symbol PnL Curve</span>
-                      <span className="font-mono text-slate-500">Realized + Unrealized</span>
+                      <span className="font-mono text-[#505050]">Realized + Unrealized</span>
                     </div>
                     <PnLChart data={pnlCurveData} height={180} title="" />
                   </div>
@@ -435,40 +437,40 @@ export function BacktestsTab({
               {/* Tab: Trade Log */}
               {activeResultsTab === "trades" && (
                 <div className="p-5">
-                  <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/20 max-h-[480px] custom-scrollbar">
-                    <table className="w-full text-xs text-left">
+                  <div className="overflow-x-auto rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] max-h-[480px] custom-scrollbar">
+                    <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-slate-900 border-b border-slate-800 text-slate-300 font-semibold sticky top-0 shadow">
-                          <th className="p-3">Timestamp</th>
-                          <th className="p-3">Symbol</th>
-                          <th className="p-3">Direction</th>
-                          <th className="p-3 text-right">Quantity</th>
-                          <th className="p-3 text-right">Execution Price (₹)</th>
-                          <th className="p-3 text-right">Value (₹)</th>
-                          <th className="p-3 text-right">Commission & Taxes (₹)</th>
+                        <tr className="bg-[#161616] border-b border-[#222]">
+                          <th className="p-3 text-[11px] font-medium text-[#606060] uppercase tracking-wider">Timestamp</th>
+                          <th className="p-3 text-[11px] font-medium text-[#606060] uppercase tracking-wider">Symbol</th>
+                          <th className="p-3 text-[11px] font-medium text-[#606060] uppercase tracking-wider">Direction</th>
+                          <th className="p-3 text-right text-[11px] font-medium text-[#606060] uppercase tracking-wider">Quantity</th>
+                          <th className="p-3 text-right text-[11px] font-medium text-[#606060] uppercase tracking-wider">Price (₹)</th>
+                          <th className="p-3 text-right text-[11px] font-medium text-[#606060] uppercase tracking-wider">Value (₹)</th>
+                          <th className="p-3 text-right text-[11px] font-medium text-[#606060] uppercase tracking-wider">Fees (₹)</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/40 font-mono">
+                      <tbody className="font-mono">
                         {(!backtestDetail.metrics?.trades || backtestDetail.metrics.trades.length === 0) ? (
-                          <tr>
-                            <td colSpan={7} className="p-8 text-center text-slate-500 font-medium">No trades recorded.</td>
+                          <tr className="bg-[#1a1a1a]">
+                            <td colSpan={7} className="p-8 text-center text-[12px] text-[#505050] font-medium">No trades recorded.</td>
                           </tr>
                         ) : (
                           backtestDetail.metrics.trades.map((t: any, i: number) => (
-                            <tr key={i} className="hover:bg-slate-900/30">
-                              <td className="p-3 text-slate-500">{t.timestamp}</td>
-                              <td className="p-3 font-bold text-slate-200">{t.symbol}</td>
+                            <tr key={i} className="bg-[#1a1a1a] border-b border-[#222] hover:bg-[#1e1e1e]">
+                              <td className="p-3 text-[12px] text-[#c0c0c0]">{t.timestamp}</td>
+                              <td className="p-3 text-[12px] font-medium text-[#d0d0d0]">{t.symbol}</td>
                               <td className="p-3">
-                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  t.direction === "BUY" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-950" : "bg-red-500/10 text-red-400 border border-red-950"
+                                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
+                                  t.direction === "BUY" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-900" : "bg-red-500/10 text-red-400 border border-red-900"
                                 }`}>
                                   {t.direction}
                                 </span>
                               </td>
-                              <td className="p-3 text-right">{t.qty}</td>
-                              <td className="p-3 text-right">₹{Number(t.price).toFixed(2)}</td>
-                              <td className="p-3 text-right text-slate-350">₹{Number(t.qty * t.price).toFixed(2)}</td>
-                              <td className="p-3 text-right text-amber-500 font-bold">₹{Number(t.total_charges || 0).toFixed(2)}</td>
+                              <td className="p-3 text-right text-[12px] text-[#c0c0c0]">{t.qty}</td>
+                              <td className="p-3 text-right text-[12px] text-[#c0c0c0]">₹{Number(t.price).toFixed(2)}</td>
+                              <td className="p-3 text-right text-[12px] text-[#c0c0c0]">₹{Number(t.qty * t.price).toFixed(2)}</td>
+                              <td className="p-3 text-right text-[12px] text-amber-400 font-medium">₹{Number(t.total_charges || 0).toFixed(2)}</td>
                             </tr>
                           ))
                         )}
@@ -482,8 +484,8 @@ export function BacktestsTab({
               {activeResultsTab === "metrics" && (
                 <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Performance Indicators */}
-                  <div className="glass-panel p-4 rounded-xl space-y-3 bg-slate-950/20">
-                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+                    <h5 className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
                       Key Performance Ratios
                     </h5>
@@ -493,20 +495,20 @@ export function BacktestsTab({
                       { label: "Sortino Ratio", val: backtestDetail.sortino_ratio?.toFixed(2) ?? "-", desc: "Risk-adjusted return vs downside risk" },
                       { label: "Max Drawdown", val: `${(backtestDetail.max_drawdown * 100).toFixed(2)}%`, desc: "Peak-to-trough decline limit" },
                     ].map((row, i) => (
-                      <div key={i} className="py-2 border-b border-slate-800/40 last:border-0">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400">{row.label}</span>
-                          <span className="font-bold text-slate-200 font-mono">{row.val}</span>
+                      <div key={i} className="py-2 border-b border-[#2a2a2a]/40 last:border-0">
+                        <div className="flex justify-between items-center text-[12px]">
+                          <span className="text-[#a0a0a0]">{row.label}</span>
+                          <span className="font-medium text-[#d0d0d0] font-mono">{row.val}</span>
                         </div>
-                        <p className="text-[9px] text-slate-500 mt-0.5">{row.desc}</p>
+                        <p className="text-[10px] text-[#505050] mt-0.5">{row.desc}</p>
                       </div>
                     ))}
                   </div>
 
                   {/* Trade Analysis Statistics */}
-                  <div className="glass-panel p-4 rounded-xl space-y-3 bg-slate-950/20">
-                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-blue-400" />
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+                    <h5 className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-[#93b4ff]" />
                       Trade Execution Summary
                     </h5>
                     {[
@@ -515,19 +517,19 @@ export function BacktestsTab({
                       { label: "Initial Capital", val: `₹${backtestDetail.initial_capital?.toLocaleString()}`, desc: "Starting simulation pool" },
                       { label: "Final Equity Value", val: `₹${backtestDetail.final_equity?.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, desc: "Resulting account valuation" },
                     ].map((row, i) => (
-                      <div key={i} className="py-2 border-b border-slate-800/40 last:border-0">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400">{row.label}</span>
-                          <span className="font-bold text-slate-200 font-mono">{row.val}</span>
+                      <div key={i} className="py-2 border-b border-[#2a2a2a]/40 last:border-0">
+                        <div className="flex justify-between items-center text-[12px]">
+                          <span className="text-[#a0a0a0]">{row.label}</span>
+                          <span className="font-medium text-[#d0d0d0] font-mono">{row.val}</span>
                         </div>
-                        <p className="text-[9px] text-slate-500 mt-0.5">{row.desc}</p>
+                        <p className="text-[10px] text-[#505050] mt-0.5">{row.desc}</p>
                       </div>
                     ))}
                   </div>
 
                   {/* Portfolio Drag & Expenses */}
-                  <div className="glass-panel p-4 rounded-xl space-y-3 bg-slate-950/20">
-                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+                    <h5 className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <DollarSign className="w-4 h-4 text-amber-500" />
                       Frictional Drag Breakdown
                     </h5>
@@ -537,12 +539,12 @@ export function BacktestsTab({
                       { label: "Max Position Limit", val: `${backtestDetail.max_position_size || "No limit specified"}`, desc: "Risk boundaries applied on execution" },
                       { label: "Slippage Applied", val: `${btSlippage}%`, desc: "Simulated market slippage percentage" },
                     ].map((row, i) => (
-                      <div key={i} className="py-2 border-b border-slate-800/40 last:border-0">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400">{row.label}</span>
-                          <span className="font-bold text-slate-200 font-mono">{row.val}</span>
+                      <div key={i} className="py-2 border-b border-[#2a2a2a]/40 last:border-0">
+                        <div className="flex justify-between items-center text-[12px]">
+                          <span className="text-[#a0a0a0]">{row.label}</span>
+                          <span className="font-medium text-[#d0d0d0] font-mono">{row.val}</span>
                         </div>
-                        <p className="text-[9px] text-slate-500 mt-0.5">{row.desc}</p>
+                        <p className="text-[10px] text-[#505050] mt-0.5">{row.desc}</p>
                       </div>
                     ))}
                   </div>
@@ -552,11 +554,11 @@ export function BacktestsTab({
               {activeResultsTab === "calendar" && (
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-blue-400" />
+                    <h5 className="text-[11px] font-medium text-[#606060] uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-[#93b4ff]" />
                       Daily PnL Heatmap
                     </h5>
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-[#505050]">
                       {backtestDetail.start_time?.slice(0, 10)} → {backtestDetail.end_time?.slice(0, 10)}
                     </span>
                   </div>
@@ -570,10 +572,10 @@ export function BacktestsTab({
             </div>
           </>
         ) : (
-          <div className="glass-panel p-16 text-center text-slate-500 rounded-xl flex-1 flex flex-col items-center justify-center border border-slate-850">
-            <PlayCircle size={40} className="mb-3 text-slate-700 animate-pulse" />
-            <span className="text-sm font-semibold">Ready for Backtest Simulation</span>
-            <p className="text-xs text-slate-450 mt-1 max-w-sm">Select a strategy from the sidebar, configure dates/execution type, and hit run to display historical results.</p>
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-16 text-center text-[#505050] flex-1 flex flex-col items-center justify-center">
+            <PlayCircle size={40} className="mb-3 text-[#606060] animate-pulse" />
+            <span className="text-[13px] font-medium text-[#d0d0d0]">Ready for Backtest Simulation</span>
+            <p className="text-[11px] text-[#a0a0a0] mt-1 max-w-sm">Select a strategy from the sidebar, configure dates/execution type, and hit run to display historical results.</p>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Cpu, LayoutDashboard, Database, Code, PlayCircle, Rocket, Radio, FlaskConical, Settings, Trash2, CheckCircle2, AlertCircle, Sun, Moon, Network, BarChart3, TrendingUp } from "lucide-react";
-import type { Notif } from "../../hooks/useQuantLab";
+import type { Notif } from "../../hooks/useAxon";
 
 interface SidebarProps {
   activeTab: string;
@@ -52,12 +52,12 @@ export default function Sidebar({
       <div>
         {/* Logo */}
         <div className="flex items-center gap-3 px-2 py-3 mb-6">
-          <div className="p-2 bg-blue-600 rounded-lg text-white shadow-sm">
+          <div className="p-2 bg-blue-600 rounded-lg text-[#f0f0f0] shadow-sm">
             <Cpu size={18} />
           </div>
           <div>
             <h1 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-              QuantLab
+              Axon
             </h1>
             <span className="text-[10px] font-mono font-medium" style={{ color: "var(--text-tertiary)" }}>
               v2.0.0-STRAT
@@ -78,7 +78,7 @@ export default function Sidebar({
                   else { setActiveTab(item.id); }
                 }}
                 style={active ? {
-                  backgroundColor: isDark ? "rgba(59,130,246,0.12)" : "rgba(37,99,235,0.08)",
+                  backgroundColor: isDark ? "rgba(59,130,246,0.12)" : "rgba(74,127,204,0.08)",
                   color: isDark ? "#60a5fa" : "#1d4ed8",
                   borderLeft: "2px solid var(--accent-blue)",
                 } : {
@@ -113,10 +113,10 @@ export default function Sidebar({
           <div
             className={`p-2.5 rounded-lg border text-[11px] flex gap-2 items-center leading-normal font-medium ${
               notif.type === "success"
-                ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50"
+                ? "bg-emerald-50 bg-[#0d1a10]/20 text-emerald-700 text-emerald-400 border-emerald-200 border-emerald-800/50"
                 : notif.type === "error"
-                  ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/50"
-                  : "bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
+                  ? "bg-rose-50 bg-[#1a0d0d]/20 text-rose-700 text-rose-400 border-rose-200 border-rose-800/50"
+                  : "bg-[#eff6ff] bg-[var(--ax-atm)]/20 text-blue-700 text-[#93b4ff] border-blue-200 border-[#2a3a5a]/50"
             }`}
           >
             {notif.type === "success" ? <CheckCircle2 size={13} className="shrink-0" /> : <AlertCircle size={13} className="shrink-0" />}
@@ -135,7 +135,7 @@ export default function Sidebar({
           <div className="flex items-center justify-between px-1">
             <span style={{ color: "var(--text-tertiary)" }}>SmartAPI Feed</span>
             <div className="flex items-center gap-1.5 font-mono">
-              <div className={`h-2 w-2 rounded-full ${smartapiConnected ? "bg-emerald-500" : isDark ? "bg-slate-600" : "bg-slate-400"}`} />
+              <div className={`h-2 w-2 rounded-full ${smartapiConnected ? "bg-emerald-500" : isDark ? "bg-[#444]" : "bg-slate-400"}`} />
               <span style={{ color: "var(--text-secondary)" }}>{smartapiConnected ? "Connected" : "Disconnected"}</span>
             </div>
           </div>

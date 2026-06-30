@@ -27,6 +27,9 @@ class Order:
     Supports both constructor styles:
       - Standard: Order(symbol, direction, price, quantity)
       - Prosperity: Order(symbol, price, quantity)  # direction inferred from qty sign
+
+    New: supports options contracts via instrument_type, expiry, strike, option_type,
+    action, and quantity_lots.
     """
     symbol: str
     direction: str = ""  # "BUY" or "SELL"
@@ -34,6 +37,14 @@ class Order:
     quantity: int = 0
     type: str = "LIMIT"
     order_id: Optional[str] = None
+    # Options-specific fields
+    instrument_type: str = "EQUITY"  # EQUITY, OPTION, FUTURES
+    expiry: str = ""                  # YYYY-MM-DD for options
+    strike: float = 0.0               # Strike price for options
+    option_type: str = ""             # CE or PE
+    action: str = ""                  # BUY or SELL (synonym for direction, used by options pipeline)
+    quantity_lots: int = 0            # Number of lots (for options)
+    lot_size: int = 0                 # Lot size override (for options)
 
     def __post_init__(self):
         # If direction is missing, this was called Prosperity-style:
@@ -48,6 +59,9 @@ class Order:
             except (ValueError, TypeError):
                 self.direction = "BUY"
                 self.quantity = abs(self.quantity)
+        # Sync action with direction if not set
+        if not self.action:
+            self.action = self.direction
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -57,6 +71,13 @@ class Order:
             "quantity": self.quantity,
             "type": self.type,
             "order_id": self.order_id,
+            "instrument_type": self.instrument_type,
+            "expiry": self.expiry,
+            "strike": self.strike,
+            "option_type": self.option_type,
+            "action": self.action,
+            "quantity_lots": self.quantity_lots,
+            "lot_size": self.lot_size,
         }
 
 

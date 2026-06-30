@@ -16,26 +16,23 @@ interface Props {
   setNotif: (n: { type: "success" | "error" | "info"; msg: string } | null) => void;
 }
 
-const Metric = ({
+const StatCard = ({
   label,
   value,
   sub,
-  color = "text-slate-200",
-  icon: Icon,
+  subColor = "text-[#93b4ff]",
+  borderColor = "border-l-[#4a7fcc]",
 }: {
   label: string;
   value: string | number;
   sub?: string;
-  color?: string;
-  icon?: React.ElementType;
+  subColor?: string;
+  borderColor?: string;
 }) => (
-  <div className="glass-panel rounded-xl p-4 flex flex-col gap-1 shadow-xs hover:border-slate-600/50 transition-colors">
-    <div className="flex items-center justify-between">
-      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">{label}</span>
-      {Icon && <Icon size={13} className="text-slate-600" />}
-    </div>
-    <span className={`font-mono text-xl font-bold ${color}`}>{value}</span>
-    {sub && <p className="text-[10px] text-slate-500 leading-tight">{sub}</p>}
+  <div className={`bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] ${borderColor} rounded-r-xl rounded-l-none p-4 flex flex-col justify-center`}>
+    <span className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">{label}</span>
+    <span className="text-[22px] font-semibold text-[#f0f0f0] leading-none">{value}</span>
+    {sub && <p className={`text-[11px] mt-1.5 ${subColor}`}>{sub}</p>}
   </div>
 );
 
@@ -138,20 +135,20 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
   return (
     <div className="flex flex-col gap-6">
       {/* ─── Header ─── */}
-      <div className="glass-panel p-5 rounded-xl">
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-800/60">
+      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[#2a2a2a]">
           <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
             <BarChart3 size={18} className="text-emerald-400" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-100 text-sm">Portfolio Risk Analytics</h3>
-            <p className="text-[10px] text-slate-500">Monte Carlo · Stress Tests · Drawdown Projections · Risk-of-Ruin</p>
+            <h3 className="font-bold text-[#f0f0f0] text-sm">Portfolio Risk Analytics</h3>
+            <p className="text-[10px] text-[#505050]">Monte Carlo · Stress Tests · Drawdown Projections · Risk-of-Ruin</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Select Backtest Run</label>
+            <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Select Backtest Run</label>
             <select
               value={selectedRunId}
               onChange={(e) => { setSelectedRunId(e.target.value); setMcResult(null); }}
@@ -168,7 +165,7 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
           </div>
 
           <div className="w-28">
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Simulations</label>
+            <label className="block text-[10px] uppercase font-bold text-[#606060] mb-1">Simulations</label>
             <input
               type="number"
               min={100}
@@ -184,7 +181,7 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
             <button
               onClick={runMonteCarlo}
               disabled={mcLoading || !selectedRunId}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
+              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[#f0f0f0] px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
               id="run-montecarlo-btn"
             >
               {mcLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
@@ -196,29 +193,33 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
 
       {/* ─── Selected run summary ─── */}
       {selectedResult && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <Metric label="Total PnL" value={`₹${(selectedResult.total_pnl ?? 0).toFixed(0)}`} color={(selectedResult.total_pnl ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"} icon={DollarSign} />
-          <Metric label="CAGR" value={`${((selectedResult.cagr ?? 0) * 100).toFixed(2)}%`} color="text-blue-400" icon={TrendingUp} />
-          <Metric label="Sharpe" value={(selectedResult.sharpe_ratio ?? 0).toFixed(2)} color="text-violet-400" icon={Activity} />
-          <Metric label="Max DD" value={`${((selectedResult.max_drawdown ?? 0) * 100).toFixed(2)}%`} color="text-rose-400" icon={TrendingDown} />
-          <Metric label="Win Rate" value={`${((selectedResult.win_rate ?? 0) * 100).toFixed(1)}%`} color="text-amber-400" icon={Shield} />
-          <Metric label="Symbol" value={selectedResult.symbol} icon={Zap} />
-          <Metric label="Interval" value={selectedResult.interval} />
+        <div className="grid grid-cols-7 gap-3">
+          <StatCard
+            label="Total PnL"
+            value={`₹${(selectedResult.total_pnl ?? 0).toFixed(0)}`}
+            borderColor={(selectedResult.total_pnl ?? 0) >= 0 ? "border-l-emerald-500" : "border-l-red-500"}
+          />
+          <StatCard label="CAGR" value={`${((selectedResult.cagr ?? 0) * 100).toFixed(2)}%`} borderColor="border-l-[#4a7fcc]" />
+          <StatCard label="Sharpe" value={(selectedResult.sharpe_ratio ?? 0).toFixed(2)} borderColor="border-l-[#4a7fcc]" />
+          <StatCard label="Max DD" value={`${((selectedResult.max_drawdown ?? 0) * 100).toFixed(2)}%`} borderColor="border-l-red-500" />
+          <StatCard label="Win Rate" value={`${((selectedResult.win_rate ?? 0) * 100).toFixed(1)}%`} borderColor="border-l-emerald-500" />
+          <StatCard label="Symbol" value={selectedResult.symbol} borderColor="border-l-[#4a7fcc]" />
+          <StatCard label="Interval" value={selectedResult.interval} borderColor="border-l-[#4a7fcc]" />
         </div>
       )}
 
       {/* ─── Monte Carlo Results ─── */}
       {mcLoading && (
-        <div className="glass-panel rounded-xl p-12 text-center">
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-12 text-center">
           <Loader2 size={32} className="text-emerald-400 mx-auto mb-3 animate-spin" />
-          <p className="text-slate-400 text-sm">Running {nSims.toLocaleString()} Monte Carlo simulations…</p>
+          <p className="text-[#a0a0a0] text-sm">Running {nSims.toLocaleString()} Monte Carlo simulations…</p>
         </div>
       )}
 
       {mcResult && (
         <div className="flex flex-col gap-5">
           {/* View tabs */}
-          <div className="flex gap-2 border-b border-slate-800/60 pb-1">
+          <div className="flex gap-2 border-b border-[#2a2a2a] pb-1">
             {(["overview", "montecarlo", "stress"] as const).map((v) => (
               <button
                 key={v}
@@ -226,7 +227,7 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
                 className={`px-3 py-1.5 rounded-t-lg text-[11px] font-semibold capitalize transition-all ${
                   activeView === v
                     ? "bg-emerald-600/20 border border-emerald-500/30 text-emerald-300"
-                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/40"
+                    : "text-[#505050] hover:text-[#888] hover:bg-[#222]/40"
                 }`}
               >
                 {v.replace("montecarlo", "Monte Carlo")}
@@ -236,42 +237,46 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
 
           {/* Overview */}
           {activeView === "overview" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Metric
+            <div className="grid grid-cols-4 gap-3">
+              <StatCard
                 label="Risk of Ruin"
                 value={`${mcResult.monte_carlo.risk_of_ruin_pct}%`}
-                color={mcResult.monte_carlo.risk_of_ruin_pct > 5 ? "text-rose-400" : "text-emerald-400"}
                 sub="Probability of losing all capital"
+                subColor={mcResult.monte_carlo.risk_of_ruin_pct > 5 ? "text-red-400" : "text-emerald-400"}
+                borderColor={mcResult.monte_carlo.risk_of_ruin_pct > 5 ? "border-l-red-500" : "border-l-emerald-500"}
               />
-              <Metric
+              <StatCard
                 label="Positive Outcome"
                 value={`${mcResult.monte_carlo.positive_outcome_pct}%`}
-                color="text-emerald-400"
                 sub="Simulations ending above initial capital"
+                subColor="text-emerald-400"
+                borderColor="border-l-emerald-500"
               />
-              <Metric
+              <StatCard
                 label="Expected Return"
                 value={`${mcResult.monte_carlo.expected_return_pct.mean}%`}
                 sub={`95% CI: [${mcResult.monte_carlo.expected_return_pct.ci_95_low}%, ${mcResult.monte_carlo.expected_return_pct.ci_95_high}%]`}
-                color="text-blue-400"
+                subColor="text-[#93b4ff]"
+                borderColor="border-l-[#4a7fcc]"
               />
-              <Metric
+              <StatCard
                 label="Worst-Case DD (p95)"
                 value={`${(mcResult.monte_carlo.max_drawdown.p95 * 100).toFixed(1)}%`}
-                color="text-rose-400"
                 sub={`Mean: ${(mcResult.monte_carlo.max_drawdown.mean * 100).toFixed(1)}%`}
+                subColor="text-red-400"
+                borderColor="border-l-red-500"
               />
-              <Metric label="Median Final Equity" value={`₹${mcResult.monte_carlo.final_equity.median.toLocaleString()}`} color="text-violet-400" />
-              <Metric label="Best Case (p95)" value={`₹${mcResult.monte_carlo.final_equity.p95.toLocaleString()}`} color="text-emerald-400" />
-              <Metric label="Worst Case (p5)" value={`₹${mcResult.monte_carlo.final_equity.p5.toLocaleString()}`} color="text-rose-400" />
-              <Metric label="Total Simulations" value={mcResult.monte_carlo.n_simulations.toLocaleString()} />
+              <StatCard label="Median Final Equity" value={`₹${mcResult.monte_carlo.final_equity.median.toLocaleString()}`} borderColor="border-l-[#4a7fcc]" />
+              <StatCard label="Best Case (p95)" value={`₹${mcResult.monte_carlo.final_equity.p95.toLocaleString()}`} borderColor="border-l-emerald-500" />
+              <StatCard label="Worst Case (p5)" value={`₹${mcResult.monte_carlo.final_equity.p5.toLocaleString()}`} borderColor="border-l-red-500" />
+              <StatCard label="Total Simulations" value={mcResult.monte_carlo.n_simulations.toLocaleString()} borderColor="border-l-[#4a7fcc]" />
             </div>
           )}
 
           {/* Monte Carlo curves */}
           {activeView === "montecarlo" && mcEquityCurveOpt && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-[#f0f0f0] mb-3 flex items-center gap-2">
                 <Activity size={14} className="text-emerald-400" />
                 Monte Carlo Equity Paths (20 samples shown)
               </h4>
@@ -281,20 +286,20 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
 
           {/* Stress test */}
           {activeView === "stress" && stressChartOpt && (
-            <div className="glass-panel rounded-xl p-5">
-              <h4 className="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+              <h4 className="text-sm font-semibold text-[#f0f0f0] mb-3 flex items-center gap-2">
                 <AlertTriangle size={14} className="text-amber-400" /> Stress Test Results
               </h4>
               <ReactECharts option={stressChartOpt} style={{ height: 300 }} />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                 {Object.entries(mcResult.stress_test).map(([name, s]: [string, any]) => (
-                  <div key={name} className={`p-3 rounded-lg border text-center ${s.ruin ? "border-rose-800/50 bg-rose-900/10" : "border-slate-800/50 bg-slate-900/20"}`}>
-                    <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">{name.replace("_", " ")}</p>
-                    <p className={`font-mono text-sm font-bold ${s.total_return_pct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <div key={name} className={`bg-[#1a1a1a] border border-[#2a2a2a] border-l-[3px] ${s.ruin ? "border-l-red-500" : "border-l-[#4a7fcc]"} rounded-r-xl rounded-l-none p-4 text-center`}>
+                    <p className="text-[11px] font-medium text-[#606060] uppercase tracking-wider mb-2">{name.replace("_", " ")}</p>
+                    <p className={`text-[22px] font-semibold leading-none ${s.total_return_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                       {s.total_return_pct > 0 ? "+" : ""}{s.total_return_pct}%
                     </p>
-                    <p className="text-[10px] text-slate-500">DD: {(s.max_drawdown * 100).toFixed(1)}%</p>
-                    {s.ruin && <span className="text-[9px] text-rose-400 font-bold">⚠ RUIN</span>}
+                    <p className="text-[11px] text-[#505050] mt-1.5">DD: {(s.max_drawdown * 100).toFixed(1)}%</p>
+                    {s.ruin && <span className="text-[11px] text-red-400 font-bold mt-1.5 block">⚠ RUIN</span>}
                   </div>
                 ))}
               </div>
@@ -304,9 +309,9 @@ export default function PortfolioAnalytics({ backtestResults, theme, setNotif }:
       )}
 
       {!selectedResult && !mcResult && (
-        <div className="glass-panel rounded-xl p-12 text-center">
-          <BarChart3 size={40} className="text-slate-700 mx-auto mb-4" />
-          <p className="text-slate-500 text-sm">Select a completed backtest run and click Run Monte Carlo to analyze risk.</p>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-12 text-center">
+          <BarChart3 size={40} className="text-[#a0a0a0] mx-auto mb-4" />
+          <p className="text-[#505050] text-sm">Select a completed backtest run and click Run Monte Carlo to analyze risk.</p>
         </div>
       )}
     </div>

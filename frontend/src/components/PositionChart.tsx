@@ -66,7 +66,7 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
   if (!svgData) {
     return (
       <div
-        className="w-full bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 flex items-center justify-center text-slate-500 dark:text-slate-400 text-xs"
+        className="w-full bg-[#fafafa] bg-[#111]/40 rounded-xl border border-[var(--ax-border)] border-[var(--ax-border)]/50 flex items-center justify-center text-[#606060] text-[#a0a0a0] text-xs"
         style={{ height }}
       >
         No position data
@@ -77,7 +77,7 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
   const { width, pathD, areaPathD, zeroY, ticks, maxVal, minVal } = svgData;
 
   return (
-    <div className="w-full relative bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-800/50 overflow-hidden transition-colors duration-200">
+    <div className="w-full relative bg-[#fafafa] bg-[#111]/40 rounded-xl border border-[var(--ax-border)] border-[var(--ax-border)]/50 overflow-hidden transition-colors duration-200">
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full"
@@ -93,7 +93,7 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
             x2={width - 10}
             y2={t.y}
             stroke="currentColor"
-            className="text-slate-200 dark:text-slate-800"
+            className="text-[#c0c0c0] text-[#c0c0c0]"
             strokeWidth={0.5}
             opacity={0.6}
           />
@@ -106,7 +106,7 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
           x2={width - 10}
           y2={zeroY}
           stroke="currentColor"
-          className="text-slate-450 dark:text-slate-600"
+          className="text-[#a0a0a0] text-[#a0a0a0]"
           strokeWidth={1}
           strokeDasharray="4 4"
           opacity={0.7}
@@ -133,7 +133,7 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
             y={t.y + 3}
             textAnchor="end"
             fill="currentColor"
-            className="text-slate-500 dark:text-slate-450 font-mono text-[9px]"
+            className="text-[#606060] dark:text-[#a0a0a0] font-mono text-[9px]"
           >
             {Math.round(t.val)}
           </text>
@@ -142,11 +142,11 @@ export default function PositionChart({ data, height = 120 }: PositionChartProps
 
       {/* Current value badge */}
       {data.length > 0 && (
-        <div className="absolute top-2 right-2 px-2 py-0.5 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded text-[10px] font-mono font-bold shadow-xs">
+        <div className="absolute top-2 right-2 px-2 py-0.5 bg-white bg-[#161616]/80 border border-[var(--ax-border)] border-[var(--ax-border)] rounded text-[10px] font-mono font-bold shadow-xs">
           <span
             className={
               data[data.length - 1].value >= 0
-                ? "text-emerald-500 dark:text-emerald-400"
+                ? "text-emerald-500 text-emerald-400"
                 : "text-rose-500 dark:text-rose-455"
             }
           >
