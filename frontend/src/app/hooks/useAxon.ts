@@ -71,7 +71,7 @@ export function useAxon() {
   // ── TOTP Popup ──
   const [isTotpModalOpen, setIsTotpModalOpen] = useState<boolean>(false);
   const [totpInput, setTotpInput] = useState<string>("");
-  const [pendingAction, setPendingAction] = useState<"AUTH" | "DOWNLOAD" | "OPTIONS_DOWNLOAD" | "BHAVCOPY_IMPORT" | "OPTIONS_BACKTEST" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"AUTH" | "DOWNLOAD" | null>(null);
 
   // ── Data Collections ──
   const [datasets, setDatasets] = useState<any[]>([]);
@@ -162,33 +162,6 @@ export function useAxon() {
   const [dlJobId, setDlJobId] = useState<string | null>(null);
   const [dlJobProgress, setDlJobProgress] = useState<number>(0);
 
-  // ── Options data download ──
-  const [optionsDlSymbol, setOptionsDlSymbol] = useState<string>("NSE:NIFTY 50");
-  const [optionsDlExpiry, setOptionsDlExpiry] = useState<string>("");
-  const [optionsDlStrikes, setOptionsDlStrikes] = useState<string>("");  // comma-separated
-  const [optionsDlOptionTypes, setOptionsDlOptionTypes] = useState<string>("CE,PE");
-  const [optionsDlFromDate, setOptionsDlFromDate] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
-  });
-  const [optionsDlToDate, setOptionsDlToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [optionsDlJobId, setOptionsDlJobId] = useState<string | null>(null);
-
-  // ── Bhavcopy import ──
-  const [bhavcopyFromDate, setBhavcopyFromDate] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
-  });
-  const [bhavcopyToDate, setBhavcopyToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [bhavcopyJobId, setBhavcopyJobId] = useState<string | null>(null);
-
-  // ── Pending options backtest ──
-  const [pendingOptionsBacktest, setPendingOptionsBacktest] = useState<{
-    strategyId: string;
-    startDate: string;
-    endDate: string;
-    symbols: string[];
-    interval: string;
-  } | null>(null);
-
   // ── Pending backtest auto-download ──
   const [pendingBacktest, setPendingBacktest] = useState<{
     strategyId: string;
@@ -262,9 +235,6 @@ export function useAxon() {
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
     pendingBacktest, pendingMultiAsset, backendOnlineRef: false, dlJobId,
-    optionsDlSymbol, optionsDlExpiry, optionsDlStrikes, optionsDlOptionTypes,
-    optionsDlFromDate, optionsDlToDate, bhavcopyFromDate, bhavcopyToDate,
-    pendingOptionsBacktest,
   });
   stateRef.current = {
     strategies, datasets, backtestRuns, deployments,
@@ -273,9 +243,6 @@ export function useAxon() {
     btStartDate, btEndDate, btSlippage, btTradeType,
     btIsAutoMaxPos, btAutoMaxPosValue, btMaxPositionSize,
     pendingBacktest, pendingMultiAsset, backendOnlineRef: backendOnline, dlJobId,
-    optionsDlSymbol, optionsDlExpiry, optionsDlStrikes, optionsDlOptionTypes,
-    optionsDlFromDate, optionsDlToDate, bhavcopyFromDate, bhavcopyToDate,
-    pendingOptionsBacktest,
   };
 
   // ── CONNECTIVITY ──
@@ -451,18 +418,6 @@ export function useAxon() {
           setDlJobId(null);
           setDlJobProgress(0);
           fetchCoreData();
-          // ── Pending options backtest auto-resume (async path) ──
-          if (stateRef.current.pendingOptionsBacktest) {
-            const pb = stateRef.current.pendingOptionsBacktest;
-            const downloadedBase = (job.symbol || "").toUpperCase().replace(/^(NSE:|NFO:)/, "").replace(/-EQ$|-BE$|-FUT$/, "");
-            const needed = pb.symbols.map((s: string) => s.toUpperCase().replace(/^(NSE:|NFO:)/, "").replace(/-EQ$|-BE$|-FUT$/, ""));
-            if (needed.some((n: string) => n === downloadedBase || downloadedBase.includes(n) || n.includes(downloadedBase))) {
-              setPendingOptionsBacktest(null);
-              setTimeout(() => {
-                handleOptionsBacktestRef.current(pb.strategyId, pb.startDate, pb.endDate);
-              }, 500);
-            }
-          }
           // ── Single backtest auto-resume (async path) ──
           if (stateRef.current.pendingBacktest) {
             const pb = stateRef.current.pendingBacktest;
@@ -498,68 +453,6 @@ export function useAxon() {
 
     return () => { if (dlPollIntervalRef.current) { clearInterval(dlPollIntervalRef.current); dlPollIntervalRef.current = null; } };
   }, [dlJobId, triggerNotif, fetchCoreData]);
-
-  // ── ASYNC OPTIONS DOWNLOAD POLLING ──
-  const optionsDlPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!optionsDlJobId) {
-      if (optionsDlPollIntervalRef.current) { clearInterval(optionsDlPollIntervalRef.current); optionsDlPollIntervalRef.current = null; }
-      return;
-    }
-    optionsDlPollIntervalRef.current = setInterval(async () => {
-      const res = await api.get(`/data/download/jobs/${optionsDlJobId}`, { timeout: 10000 });
-      if (res.ok && res.data) {
-        const job = res.data;
-        if (job.status === "completed") {
-          triggerNotif("success", `Options download completed — ${job.records_downloaded?.toLocaleString()} contracts downloaded.`);
-          setOptionsDlJobId(null);
-          fetchCoreData();
-        } else if (job.status === "failed") {
-          triggerNotif("error", job.error_message || "Options download failed.");
-          setOptionsDlJobId(null);
-        } else if (job.status === "cancelled") {
-          triggerNotif("info", "Options download cancelled.");
-          setOptionsDlJobId(null);
-        } else {
-          setNotif({ type: "info", msg: `Downloading options… ${job.progress || 0}%` });
-        }
-      }
-    }, 2000);
-
-    return () => { if (optionsDlPollIntervalRef.current) { clearInterval(optionsDlPollIntervalRef.current); optionsDlPollIntervalRef.current = null; } };
-  }, [optionsDlJobId, triggerNotif, fetchCoreData]);
-
-  // ── ASYNC BHAVCOPY IMPORT POLLING ──
-  const bhavcopyPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (!bhavcopyJobId) {
-      if (bhavcopyPollIntervalRef.current) { clearInterval(bhavcopyPollIntervalRef.current); bhavcopyPollIntervalRef.current = null; }
-      return;
-    }
-    bhavcopyPollIntervalRef.current = setInterval(async () => {
-      const res = await api.get(`/data/download/jobs/${bhavcopyJobId}`, { timeout: 10000 });
-      if (res.ok && res.data) {
-        const job = res.data;
-        if (job.status === "completed") {
-          triggerNotif("success", `Bhavcopy import completed — ${job.records_downloaded?.toLocaleString()} contracts imported.`);
-          setBhavcopyJobId(null);
-          fetchCoreData();
-        } else if (job.status === "failed") {
-          triggerNotif("error", job.error_message || "Bhavcopy import failed.");
-          setBhavcopyJobId(null);
-        } else if (job.status === "cancelled") {
-          triggerNotif("info", "Bhavcopy import cancelled.");
-          setBhavcopyJobId(null);
-        } else {
-          setNotif({ type: "info", msg: `Importing bhavcopy… ${job.progress || 0}%` });
-        }
-      }
-    }, 2000);
-
-    return () => { if (bhavcopyPollIntervalRef.current) { clearInterval(bhavcopyPollIntervalRef.current); bhavcopyPollIntervalRef.current = null; } };
-  }, [bhavcopyJobId, triggerNotif, fetchCoreData]);
 
   // ── FILE UPLOAD ──
 
@@ -1075,153 +968,6 @@ export function useAxon() {
     }
   }, [triggerNotif]);
 
-  // ── OPTIONS DOWNLOAD & BHAVCOPY HANDLERS ──
-
-  const triggerOptionsDownload = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    setPendingAction("OPTIONS_DOWNLOAD");
-    setIsTotpModalOpen(true);
-  }, []);
-
-  const finalizeOptionsDownload = useCallback(async (code: string) => {
-    const ref = stateRef.current;
-    if (!ref.backendOnline) {
-      triggerNotif("error", "Backend is offline.");
-      return;
-    }
-    const strikes = ref.optionsDlStrikes.split(",").map(s => Number(s.trim())).filter(Boolean);
-    if (strikes.length === 0) {
-      triggerNotif("error", "Please enter at least one strike price.");
-      return;
-    }
-    const optionTypes = ref.optionsDlOptionTypes.split(",").map(s => s.trim().toUpperCase()).filter(Boolean);
-    if (optionTypes.length === 0) {
-      triggerNotif("error", "Please enter option types (e.g. CE,PE).");
-      return;
-    }
-    triggerNotif("info", `Queuing options download for ${ref.optionsDlSymbol}…`);
-    const result = await api.post("/options/download", {
-      symbol: ref.optionsDlSymbol,
-      expiry: ref.optionsDlExpiry,
-      strikes,
-      option_types: optionTypes,
-      from_dt: ref.optionsDlFromDate,
-      to_dt: ref.optionsDlToDate,
-    });
-    if (result.ok && result.data) {
-      if (result.data.job_id) {
-        setOptionsDlJobId(result.data.job_id);
-        triggerNotif("info", `Options download queued: ${result.data.contracts} contracts. Polling…`);
-      } else {
-        triggerNotif("success", "Options download started!");
-        fetchCoreData();
-      }
-    } else {
-      triggerNotif("error", result.error || "Options download failed.");
-    }
-  }, [triggerNotif, fetchCoreData]);
-
-  const triggerOptionsBhavcopyImport = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    const ref = stateRef.current;
-    if (!ref.backendOnline) {
-      triggerNotif("error", "Backend is offline.");
-      return;
-    }
-    triggerNotif("info", `Queuing bhavcopy import from ${ref.bhavcopyFromDate} to ${ref.bhavcopyToDate}…`);
-    const result = await api.post("/options/import-bhavcopy", {
-      from_date: ref.bhavcopyFromDate,
-      to_date: ref.bhavcopyToDate,
-    });
-    if (result.ok && result.data) {
-      if (result.data.job_id) {
-        setBhavcopyJobId(result.data.job_id);
-        triggerNotif("info", `Bhavcopy import queued: ${result.data.days} days. Polling…`);
-      } else {
-        triggerNotif("success", "Bhavcopy import started!");
-        fetchCoreData();
-      }
-    } else {
-      triggerNotif("error", result.error || "Bhavcopy import failed.");
-    }
-  }, [triggerNotif, fetchCoreData]);
-
-  // ── OPTIONS BACKTEST HANDLER ──
-
-  const handleOptionsBacktest = useCallback(async (strategyId: string, startDate: string, endDate: string) => {
-    const ref = stateRef.current;
-    if (!ref.backendOnline) {
-      triggerNotif("error", "Backend is offline.");
-      return;
-    }
-    triggerNotif("info", `Initiating options backtest on strategy ${strategyId}…`);
-    const result = await api.post("/backtest/run", {
-      strategy_id: strategyId,
-      start_date: startDate,
-      end_date: endDate,
-      slippage_pct: ref.btSlippage / 100.0,
-      trade_type: "OPTIONS",
-      max_position_size: ref.btIsAutoMaxPos ? ref.btAutoMaxPosValue : ref.btMaxPositionSize,
-      auto_download: true,
-    });
-    if (result.ok && result.data) {
-      if (result.data.needs_totp) {
-        setPendingOptionsBacktest({ strategyId, startDate, endDate, symbols: [ref.dlSymbol || "NSE:SBIN-EQ"], interval: "FIVE_MINUTE" });
-        setPendingAction("OPTIONS_BACKTEST");
-        setIsTotpModalOpen(true);
-        triggerNotif("info", "SmartAPI TOTP required for options backtest.");
-        return;
-      }
-      triggerNotif("success", "Options backtest run completed successfully!");
-      setSelectedRunId(result.data.run_id);
-      fetchCoreData();
-      loadBacktestReplay(result.data.run_id);
-      setActiveTab("backtests");
-    } else {
-      triggerNotif("error", `Options backtest failed: ${result.error || "Engine error"}`);
-    }
-  }, [triggerNotif, fetchCoreData, loadBacktestReplay]);
-
-  const handleOptionsBacktestFullFlow = useCallback(async (strategyId: string, startDate: string, endDate: string) => {
-    const ref = stateRef.current;
-    if (!ref.backendOnline) {
-      triggerNotif("error", "Backend is offline.");
-      return;
-    }
-    // Load strategy details to check equity data coverage
-    const result = await api.get(`/strategies/${strategyId}`);
-    if (!result.ok || !result.data) {
-      triggerNotif("error", "Could not load strategy details for coverage check.");
-      return;
-    }
-    const strategy = result.data;
-    const symbols = strategy.symbols || [strategy.symbol || "NSE:SBIN-EQ"];
-    const interval = strategy.interval || "FIVE_MINUTE";
-
-    const missing = checkDataCoverage(symbols, interval, startDate, endDate);
-    if (missing.length > 0) {
-      const first = missing[0];
-      downloadQueueRef.current = [];
-      batchDownloadCountRef.current = 0;
-      triggerNotif("error", `Missing data for ${first.symbol} (${first.interval}): ${first.reason}`);
-      setPendingOptionsBacktest({ strategyId, startDate, endDate, symbols, interval });
-      setDlSymbol(first.symbol);
-      setDlInterval(interval);
-      setDlFromDate(startDate);
-      setDlToDate(endDate);
-      setPendingAction("DOWNLOAD");
-      setIsTotpModalOpen(true);
-      return;
-    }
-
-    // Equity data is present, run options backtest directly
-    handleOptionsBacktest(strategyId, startDate, endDate);
-  }, [triggerNotif, checkDataCoverage, handleOptionsBacktest]);
-
-  // Ref for latest handleOptionsBacktest (used in polling effect to avoid stale closures)
-  const handleOptionsBacktestRef = useRef(handleOptionsBacktest);
-  handleOptionsBacktestRef.current = handleOptionsBacktest;
-
   // Ref for latest handleRunBacktest (used in polling effect to avoid stale closures)
   const handleRunBacktestRef = useRef(handleRunBacktest);
   handleRunBacktestRef.current = handleRunBacktest;
@@ -1232,40 +978,8 @@ export function useAxon() {
     setIsTotpModalOpen(false); setTotpInput("");
     if (pendingAction === "AUTH") finalizeAuth(code);
     else if (pendingAction === "DOWNLOAD") finalizeDownload(code);
-    else if (pendingAction === "OPTIONS_DOWNLOAD") finalizeOptionsDownload(code);
-    else if (pendingAction === "OPTIONS_BACKTEST") {
-      const ref = stateRef.current;
-      if (ref.pendingOptionsBacktest) {
-        const pb = ref.pendingOptionsBacktest;
-        api.post("/backtest/run", {
-          strategy_id: pb.strategyId,
-          start_date: pb.startDate,
-          end_date: pb.endDate,
-          slippage_pct: ref.btSlippage / 100.0,
-          trade_type: "OPTIONS",
-          max_position_size: ref.btIsAutoMaxPos ? ref.btAutoMaxPosValue : ref.btMaxPositionSize,
-          auto_download: true,
-          totp: code,
-        }).then(result => {
-          if (result.ok && result.data) {
-            triggerNotif("success", "Options backtest run completed successfully!");
-            setSelectedRunId(result.data.run_id);
-            fetchCoreData();
-            loadBacktestReplay(result.data.run_id);
-            setActiveTab("backtests");
-          } else {
-            triggerNotif("error", `Options backtest failed: ${result.error || "Engine error"}`);
-          }
-          setPendingOptionsBacktest(null);
-        }).catch(err => {
-          triggerNotif("error", `Options backtest error: ${err}`);
-          setPendingOptionsBacktest(null);
-        });
-      }
-      setPendingOptionsBacktest(null);
-    }
     setPendingAction(null);
-  }, [totpInput, pendingAction, triggerNotif, finalizeAuth, finalizeDownload, finalizeOptionsDownload, fetchCoreData, loadBacktestReplay]);
+  }, [totpInput, pendingAction, triggerNotif, finalizeAuth, finalizeDownload]);
 
   // ── OPTIMIZATION ──
 
@@ -1414,15 +1128,6 @@ export function useAxon() {
     // Replay computed
     currentEvent, currentCandleMap, currentSymbol, currentPortfolio,
     activeCandles, activeTrades, positionCurveData, pnlCurveData,
-    // Options data download
-    optionsDlSymbol, setOptionsDlSymbol, optionsDlExpiry, setOptionsDlExpiry, optionsDlStrikes, setOptionsDlStrikes,
-    optionsDlOptionTypes, setOptionsDlOptionTypes, optionsDlFromDate, setOptionsDlFromDate, optionsDlToDate, setOptionsDlToDate,
-    optionsDlJobId, setOptionsDlJobId,
-    // Bhavcopy import
-    bhavcopyFromDate, setBhavcopyFromDate, bhavcopyToDate, setBhavcopyToDate, bhavcopyJobId, setBhavcopyJobId,
-    // Options backtest
-    pendingOptionsBacktest, setPendingOptionsBacktest, handleOptionsBacktest, handleOptionsBacktestFullFlow,
-    triggerOptionsDownload, triggerOptionsBhavcopyImport, finalizeOptionsDownload,
     // Refetch
     fetchCoreData, checkBackendHealth, checkOllamaHealth,
   };

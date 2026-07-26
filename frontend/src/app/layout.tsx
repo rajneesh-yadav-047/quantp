@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Axon — Quantitative Trading Platform",
-  description: "Options strategy builder, backtesting engine, and live trading for Indian markets (NSE/BSE) via SmartAPI",
+  description: "Strategy workspace, backtesting engine, research lab, and live trading for Indian equity markets (NSE/BSE) via SmartAPI",
 };
 
 export default function RootLayout({

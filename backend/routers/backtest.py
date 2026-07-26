@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from backend.database import get_db, StrategyDB, BacktestResultDB
 from backend.services.data_service import prepare_backtest_data
 from backend.services.sizing_service import calculate_backtest_max_position
-from backend.services.options_backtest_preflight import check_options_backtest_readiness, ensure_smartapi_auth
 from engine.backtester import BacktestEngine
 from engine.analytics import calculate_metrics
 
@@ -31,7 +30,6 @@ class BacktestRequest(BaseModel):
     max_position_size: Optional[int] = None  # Override strategy max_position if provided
     runtime_type: Optional[str] = None
     auto_download: bool = True
-    totp: Optional[str] = None  # SmartAPI TOTP for options data auto-download
 
 
 class OptimizationRequest(BaseModel):
@@ -59,26 +57,6 @@ def run_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
     max_position_size = req.max_position_size if req.max_position_size is not None else s.max_position_size
     runtime_type = req.runtime_type if req.runtime_type is not None else getattr(s, 'runtime_type', 'legacy_on_bar')
     parameters = json.loads(s.parameters_json) if s.parameters_json else None
-
-    # 2.5 Options pre-flight check
-    if req.trade_type.upper() == "OPTIONS" or (s.code and "instrument_type=\"OPTION\"" in s.code):
-        preflight = check_options_backtest_readiness(
-            strategy_id=req.strategy_id,
-            strategy_code=s.code or "",
-            symbols=symbols,
-            start_date=req.start_date,
-            end_date=req.end_date,
-            totp=req.totp,
-            db=db,
-        )
-        if not preflight.get("ready"):
-            if preflight.get("needs_totp"):
-                return {
-                    "needs_totp": True,
-                    "message": preflight.get("message", "SmartAPI TOTP required to download options data."),
-                    "status": "needs_auth",
-                }
-            raise HTTPException(status_code=400, detail=preflight.get("message", "Options backtest pre-flight failed."))
 
     # 3. Prepare data for all symbols
     df_dict, downloaded_symbols, failed_symbols = prepare_backtest_data(

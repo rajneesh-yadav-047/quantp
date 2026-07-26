@@ -25,9 +25,7 @@ from pathlib import Path
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 from backend.database import init_db
-from backend.options_models import OptionStrategyDB, OptionLegDB  # Register option tables
-from backend.routers import auth, data, strategies, backtest, research, deployments, live_trading, options
-from backend.routers.options import router as options_router
+from backend.routers import auth, data, strategies, backtest, research, deployments, live_trading
 from backend.routers import groups as groups_router
 from backend.cleanup_api import router as cleanup_router
 from backend.services.market_data_service import MarketDataService
@@ -35,7 +33,6 @@ from backend.services.redis_client import get_redis_status
 from backend.services.event_bus import EventBus
 from backend.services.persistence_service import PersistenceService
 from backend.services.deployment_engine import DeploymentEngine
-from backend.services.options_collector_service import get_options_collector_service
 
 import asyncio
 
@@ -74,19 +71,10 @@ async def lifespan(app: FastAPI):
     else:
         print("INFO: SmartAPI not authenticated. Market Data Service will start on-demand after login.")
     
-    # Initialize Options Collector Scheduler (always start; it will no-op if SmartAPI not available)
-    print("INFO: Initializing OptionsCollectorService...")
-    options_collector = get_options_collector_service()
-    options_collector.start()
-    print("INFO: OptionsCollectorService started.")
-    
     yield
     
     # Shutdown
     print("INFO: Shutting down services...")
-    
-    options_collector = get_options_collector_service()
-    options_collector.stop()
     
     mds = MarketDataService.get_instance()
     mds.stop()
@@ -111,7 +99,7 @@ app = FastAPI(title="QuantLab Backend", version="2.0.0", lifespan=lifespan)
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(300[0-9])",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -163,7 +151,6 @@ app.include_router(deployments.router)
 app.include_router(live_trading.router)
 app.include_router(cleanup_router, prefix="/api/cleanup")
 app.include_router(groups_router.router)
-app.include_router(options_router)
 
 
 if __name__ == "__main__":

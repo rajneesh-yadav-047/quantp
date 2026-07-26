@@ -2,13 +2,16 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white" />
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js&logoColor=white" />
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" />
+  <img src="https://img.shields.io/badge/FastAPI-0.136+-009688?logo=fastapi&logoColor=white" />
   <img src="https://img.shields.io/badge/Market-India%20%7C%20NSE-green" />
   <img src="https://img.shields.io/badge/Data-Real%20Candles%20Only-critical" />
 </p>
 
-**QuantLab** is a professional-grade quantitative trading platform built for Indian markets. It connects to **Angel One SmartAPI** for real historical data, runs sandboxed Python strategies, simulates real Indian market charges (STT, GST, SEBI, Stamp Duty), and visualizes everything through a premium Next.js dashboard with TradingView Lightweight Charts, ECharts, and the Monaco Editor.
+**QuantLab** is a professional-grade quantitative trading platform built for Indian **equity** markets. It connects to **Angel One SmartAPI** for real historical data, runs sandboxed Python strategies, simulates real Indian market charges (STT, GST, SEBI, Stamp Duty), and visualizes everything through a premium Next.js dashboard with TradingView Lightweight Charts, ECharts, and the Monaco Editor.
+
+> **Scope: equities only.** QuantLab trades cash equities (NSE/BSE delivery and intraday). Options, futures, and the Dhan HQ pipeline have been removed — there is no options strategy builder, no F&O bhavcopy import, and no Dhan integration. Every feature below operates on equity candles.
 
 ---
 
@@ -17,16 +20,16 @@
 | Feature | Description |
 |---------|-------------|
 | **Dashboard** | System health, connection status, quick backtest launch, and live notifications |
-| **Datasets** | Download real historical candles from SmartAPI with From/To date range filtering, async background jobs with progress tracking, universal data aggregator (chunking, merge, dedup, forward-fill), preview with interactive charts, file export (CSV/Excel), and symbol group / basket management |
+| **Datasets** | Download real historical equity candles from SmartAPI with From/To date range filtering, async background jobs with progress tracking, universal data aggregator (chunking, merge, dedup, forward-fill), preview with interactive charts, file export (CSV/Excel/Parquet), and symbol group / basket management |
 | **Strategy Workspace** | Monaco Editor with Python templates, dual runtime support (`legacy_on_bar` / `prosperity_trader`), symbol/interval/capital configuration, auto max-position sizing from volatility, risk settings, and parameter JSON |
 | **Backtests & Replay** | Event-driven engine with Indian charge simulation, equity/drawdown charts, per-symbol analytics, auto max-position sizing, data coverage validation, and frame-by-frame replay studio with speed controls |
 | **Live Trading (Mock)** | Dedicated `/live` trading page with real-time market data, manual order placement, live PnL tracking, full charge breakdown, SSE event streaming, pause/resume deployments, reset capital, and deployment event logs |
-| **Deployments** | Paper and live deployment management with status monitoring, pause/resume, capital reset, and full event history |
+| **Deployments** | Paper and live deployment management with status monitoring, pause/resume, capital reset, PnL snapshots, event history, and service-oriented orchestration |
 | **Research Lab** | Deep statistical analysis — returns, volatility, regime detection (HMM), seasonality, strategy-suitability scoring, mean-reversion diagnostics (Hurst, half-life), gap analysis, intraday behavior, volatility structure, tail risk, order-flow proxies, multi-timeframe analysis, factor exposure, walk-forward stability, feature-importance engine, and AI strategy generator |
 | **Multi-Asset Research** | Correlation matrices, pair discovery, cointegration, spread analysis, lead-lag, sector breadth, rolling correlation, and cross-sectional factor ranking with From/To date range filtering |
 | **Portfolio Risk** | Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, confidence intervals, and daily PnL heatmaps |
 | **Optimization Lab** | Grid/random search with Sharpe/Sortino/Calmar objectives, walk-forward validation, sensitivity analysis, and 3D surface plots |
-| **Strategy Registry** | Market analysis, auto-ranking of registered strategies, walk-forward optimization with robustness scoring, overfit detection, and one-click deployment of the best configuration |
+| **Strategy Registry** | Backend market-analysis pipeline that auto-ranks strategies by suitability, runs walk-forward optimization with robustness scoring, overfit detection, and grading profiles |
 | **System Cleanup** | Log and dataset cleanup, database vacuum, and disk usage analytics |
 
 > **Real Data Only.** The platform enforces real downloaded candles for all production backtests. No simulated or mock data is injected into the backtest engine.
@@ -46,6 +49,17 @@ Both runtimes are sandboxed, charge-aware, and replay-compatible. The engine aut
 
 ---
 
+## Trade Types
+
+Backtests and live trades support two equity trade modes:
+
+- **INTRADAY** — squared off within the session; uses a 5× intraday margin multiplier and intraday brokerage.
+- **DELIVERY** — carried overnight; full capital margin and delivery brokerage.
+
+Options and futures are not supported.
+
+---
+
 ## Symbol Format
 
 All symbols are automatically normalized to the canonical `NSE:SYMBOL-EQ` format across the entire stack:
@@ -60,55 +74,40 @@ You never need to think about it. Just type the symbol name and everything resol
 
 ## Screenshots
 
-All screenshots were captured live from the running application on `localhost:3000` via Kimi WebBridge.
+All screenshots were captured live from the running application on `localhost:3000`.
 
 **Dashboard**
-![Dashboard](/docs/screenshots/webbridge_homepage.png)
+![Dashboard](docs/screenshots/01-dashboard.png)
 
 **Datasets — Real Historical Data Catalog**
-![Datasets](/docs/screenshots/webbridge_datasets.png)
+![Datasets](docs/screenshots/02-datasets.png)
 
 **Strategy Workspace — Monaco Editor & Configuration**
-![Strategies](/docs/screenshots/webbridge_strategies.png)
+![Strategies](docs/screenshots/03-strategies.png)
 
 **Backtest Simulation Engine**
-![Backtests](/docs/screenshots/webbridge_backtests.png)
-
-**Live Mock Trading (Paper Mode)**
-![Live Trading](/docs/screenshots/webbridge_live.png)
-
-**Live Trading — Order Book & Trades**
-![Live Trades](/docs/screenshots/webbridge_live_trading.png)
-
-**Research Lab — Statistical Diagnostics**
-![Research Lab](/docs/screenshots/webbridge_tab_research.png)
-
-**Multi-Asset Research — Correlation & Pair Analysis**
-![Multi-Asset](/docs/screenshots/webbridge_tab_multiasset.png)
-
-**Portfolio Risk — Monte Carlo Simulation**
-![Portfolio Risk](/docs/screenshots/webbridge_tab_portfolio_risk.png)
+![Backtests](docs/screenshots/04-backtests.png)
 
 **Optimizer — Grid Search Parameter Sweeps**
-![Optimizer](/docs/screenshots/webbridge_tab_optimizer.png)
+![Optimizer](docs/screenshots/05-optimizer.png)
+
+**Deployments — Paper / Live Management**
+![Deployments](docs/screenshots/06-deployments.png)
+
+**Live Mock Trading (Paper Mode)**
+![Live Trading](docs/screenshots/07-live-trading.png)
 
 **System Cleanup — Disk & Database Maintenance**
-![Cleanup](/docs/screenshots/webbridge_tab_cleanup.png)
+![Cleanup](docs/screenshots/08-cleanup.png)
 
-**Dashboard Tab**
-![Dashboard Tab](/docs/screenshots/webbridge_tab_dashboard.png)
+**Research Lab — Statistical Diagnostics**
+![Research Lab](docs/screenshots/09-research-lab.png)
 
-**Backtests Tab**
-![Backtests Tab](/docs/screenshots/webbridge_tab_backtests.png)
+**Multi-Asset Research — Correlation & Pair Analysis**
+![Multi-Asset](docs/screenshots/10-multi-asset.png)
 
-**Datasets Tab**
-![Datasets Tab](/docs/screenshots/webbridge_tab_datasets.png)
-
-**Deployments Tab**
-![Deployments Tab](/docs/screenshots/webbridge_tab_deployments.png)
-
-**Strategies Tab**
-![Strategies Tab](/docs/screenshots/webbridge_tab_strategies.png)
+**Portfolio Risk — Monte Carlo Simulation**
+![Portfolio Risk](docs/screenshots/11-portfolio-risk.png)
 
 ---
 
@@ -116,25 +115,28 @@ All screenshots were captured live from the running application on `localhost:30
 
 ```mermaid
 graph TD
-    A[Next.js Frontend: Port 3000] -->|REST API / WebSockets| B[FastAPI Backend: Port 8000]
+    A[Next.js Frontend: Port 3000] -->|REST API / WebSockets / SSE| B[FastAPI Backend: Port 8000]
     B -->|Metadata & Run Catalog| C[(SQLite Database: quantlab.db)]
     B -->|SmartAPI Client| D[Angel One SmartAPI Gateway]
-    B -->|Historical Data Download| E[Parquet Storage: /datasets]
+    B -->|Historical Data Download| E[Parquet/CSV/Excel Storage: /datasets]
     B -->|Task Trigger| F[Backtest Engine]
     F -->|Executes Code| G[Sandboxed Runtime]
     G -->|Runs| H[User Strategy: trader.py]
     F -->|Transaction Details| I[Execution Simulator]
     I -->|Calculates Fees| J[Indian Charges: STT/GST/Stamp Duty]
-    F -->|Writes Logs| K[Replay Log Generator: /test_logs]
+    F -->|Writes Logs| K[Replay Log Generator: /logs]
     B -->|Reads Logs| K
+    B -->|Event Bus| N[EventBus / PersistenceService]
+    B -->|Market Data| O[MarketDataService: Redis-backed tick/candle cache]
+    B -->|Deployments| P[DeploymentEngine: Orchestrator per deployment]
 ```
 
 ### Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | Next.js 15, React, Tailwind CSS, TypeScript, Monaco Editor, TradingView Lightweight Charts, ECharts, Lucide Icons |
-| **Backend** | FastAPI, Uvicorn, SQLAlchemy, SQLite, Pydantic, WebSockets, SSE, async background jobs |
+| **Frontend** | Next.js 16, React 19, Tailwind CSS v4, TypeScript, Monaco Editor, TradingView Lightweight Charts, ECharts, Lucide Icons |
+| **Backend** | FastAPI, Uvicorn, SQLAlchemy, SQLite (WAL mode), Pydantic, WebSockets, SSE, async background jobs, APScheduler |
 | **Engine** | Python 3.10+, NumPy, Pandas, Parquet, sandboxed exec, event-driven loop, universal data aggregator |
 | **Data** | Angel One SmartAPI, TOTP 2FA, CSV/Parquet/Excel storage, Redis-backed tick/candle cache |
 | **AI/LLM** | Ollama integration for strategy assistance, research summarization, and AI strategy generation |
@@ -145,57 +147,130 @@ graph TD
 
 ```
 quantp/
-├── backend/            # FastAPI application (main.py, database.py, smartapi.py, routers/)
-│   ├── routers/        # API endpoints: auth, backtest, data, deployments, groups, live_trading, research, strategies
-│   └── services/       # Data service, market data service, SmartAPI manager, Redis, Ollama, download jobs
-├── engine/             # Core backtest, execution, analytics, and optimization modules
-│   ├── runtime/        # Sandboxed strategy execution, adapters, datamodels
-│   ├── analytics.py    # Risk metrics and performance attribution
-│   ├── backtester.py   # Event-driven backtesting loop
-│   ├── capital.py      # Capital requirements analysis
-│   ├── data_analyzer.py# Deep independent dataset statistical analysis
-│   ├── datamodels.py   # Core data models
-│   ├── execution.py    # Order matching and charge calculation
-│   ├── execution_engine.py # Order execution engine
-│   ├── market.py       # Market data interface and regime detection
-│   ├── market_interface.py # Unified market data interface
-│   ├── monte_carlo.py  # Portfolio simulation
-│   ├── optimization.py # Parameter search and walk-forward analysis
-│   ├── order_manager.py# Order lifecycle management
-│   ├── portfolio.py    # Portfolio tracking and sizing
-│   ├── quant_analysis.py # Full quantitative analysis engine
-│   ├── regime.py       # Market regime classification
-│   ├── research.py     # Statistical research tools
-│   ├── research_extras.py  # Seasonality, volume profile, S/R detection
-│   ├── research_multiasset.py  # Multi-asset correlation and cointegration
-│   ├── replay_logger.py        # Replay log generation
-│   ├── sizing.py             # Position sizing logic
-│   ├── strategy_codegen.py   # Auto-generated strategy code builder
-│   ├── strategy_executor.py# Strategy execution wrapper
-│   ├── strategy_generator.py # Strategy fitness scoring and config generator
-│   ├── strategy_registry/    # Registry package: market analyzer, auto optimizer, performance metrics, reports
-│   └── walk_forward.py       # Walk-forward optimization
-├── frontend/           # Next.js 15 client app
-│   ├── src/app/        # Pages, hooks, and layout
-│   ├── src/components/ # React components: ResearchLab, MultiAssetResearch, PortfolioAnalytics, charts, StrategyRegistryTab
-│   └── public/         # Static assets
-├── datasets/           # Parquet/CSV/Excel historical candle storage
-│   ├── csv/            # Symbol-named CSV files
-│   ├── parquet/        # Efficient columnar storage
-│   ├── excel/          # Excel exports
-│   ├── catalog.json    # Dataset metadata index
-│   ├── groups.yaml     # Symbol grouping definitions
-│   └── symbol_tokens.json  # SmartAPI token mapping
-├── docs/               # Documentation and screenshots
-│   └── screenshots/    # UI screenshots captured via Kimi WebBridge
-├── tests/              # Python unit tests and backtest verification scripts
-├── sample_strategy_legacy.py      # EMA crossover example — legacy_on_bar runtime
-├── sample_strategy_prosperity.py  # EMA crossover example — prosperity_trader runtime
-├── .env                # Local secrets (ignored by Git)
-├── .env.example        # Environment variable template
-├── requirements.txt    # Python dependencies
-├── quantlab.db         # SQLite database (auto-created)
-└── README.md           # This file
+├── backend/                      # FastAPI application
+│   ├── main.py                   # App entrypoint, lifespan management, router inclusion
+│   ├── database.py               # SQLAlchemy models: StrategyDB, DeploymentDB, BacktestResultDB, DownloadJobDB, etc.
+│   ├── smartapi.py               # SmartAPI client wrapper with TOTP 2FA
+│   ├── data_loader.py            # Data loading utilities
+│   ├── cleanup_api.py            # Cleanup router (logs, datasets, DB vacuum)
+│   ├── routers/                  # API endpoint modules
+│   │   ├── __init__.py           # Router aggregation for clean imports
+│   │   ├── auth.py               # SmartAPI authentication, TOTP
+│   │   ├── data.py               # Dataset download, catalog, search, preview
+│   │   ├── strategies.py         # Strategy CRUD
+│   │   ├── backtest.py           # Backtest execution, results, replay logs
+│   │   ├── research.py           # Research lab, regime, capital analysis, optimization
+│   │   ├── deployments.py        # Deployment lifecycle management
+│   │   ├── live_trading.py       # Live mock trading, SSE streaming, manual orders
+│   │   └── groups.py             # Symbol group / basket management
+│   └── services/                 # Core backend services
+│       ├── data_aggregator.py    # Universal data aggregator (chunk, merge, dedup, fill)
+│       ├── data_service.py       # Data service layer
+│       ├── download_job_service.py # Async download job tracking
+│       ├── market_data_service.py  # Redis-backed tick/candle cache
+│       ├── market_feed.py        # Market feed handler
+│       ├── smartapi_manager.py   # SmartAPI connection manager
+│       ├── redis_client.py       # Redis connection wrapper
+│       ├── shared_cache.py       # In-memory shared cache
+│       ├── event_bus.py          # Pub/sub event bus for deployments
+│       ├── persistence_service.py  # Periodic state persistence
+│       ├── deployment_engine.py    # Central deployment orchestrator manager
+│       ├── deployment_orchestrator.py # Per-deployment orchestrator
+│       ├── mock_deployment_engine.py  # Legacy mock engine (backwards compat)
+│       ├── sizing_service.py     # Auto position sizing from volatility
+│       ├── ollama_manager.py     # Ollama LLM integration
+│       └── pnl_snapshot_scheduler.py   # PnL snapshot scheduling
+│
+├── engine/                       # Core backtest, execution, analytics, and optimization modules
+│   ├── backtester.py             # Event-driven backtesting loop
+│   ├── execution.py              # Order matching and charge calculation (INTRADAY / DELIVERY)
+│   ├── execution_engine.py       # Order execution engine
+│   ├── analytics.py              # Risk metrics and performance attribution
+│   ├── portfolio.py              # Portfolio tracking and sizing
+│   ├── sizing.py                 # Position sizing logic
+│   ├── capital.py                # Capital requirements analysis
+│   ├── order_manager.py          # Order lifecycle management
+│   ├── datamodels.py             # Core data models
+│   ├── market.py                 # Market data interface and regime detection
+│   ├── market_interface.py       # Unified market data interface
+│   ├── regime.py                 # Market regime classification
+│   ├── quant_analysis.py         # Full quantitative analysis engine
+│   ├── data_analyzer.py          # Deep independent dataset statistical analysis
+│   ├── research.py               # Statistical research tools
+│   ├── research_extras.py        # Seasonality, volume profile, S/R detection
+│   ├── research_multiasset.py    # Multi-asset correlation and cointegration
+│   ├── monte_carlo.py            # Portfolio simulation
+│   ├── optimization.py           # Parameter search and walk-forward analysis
+│   ├── walk_forward.py           # Walk-forward optimization
+│   ├── replay_logger.py          # Replay log generation
+│   ├── runtime/                  # Sandboxed strategy execution
+│   │   ├── __init__.py
+│   │   ├── sandbox.py            # Sandboxed exec environment
+│   │   ├── adapters.py           # Runtime adapters (legacy / prosperity)
+│   │   ├── runtimes.py           # Runtime implementations
+│   │   ├── datamodels.py         # Runtime data models (Order, State, etc.)
+│   │   ├── strategies.py         # Strategy base classes
+│   │   └── multi_asset_strategy.py # Multi-asset strategy support
+│   └── strategy_executor.py      # Strategy execution wrapper
+│
+├── frontend/                     # Next.js 16 client app
+│   ├── src/app/
+│   │   ├── page.tsx              # Main layout with tab router, top nav, sidebar
+│   │   ├── layout.tsx            # Root layout
+│   │   ├── globals.css           # Global styles + Tailwind v4
+│   │   ├── live/page.tsx         # Dedicated live trading page
+│   │   ├── hooks/
+│   │   │   └── useAxon.ts        # Central state management hook
+│   │   ├── components/
+│   │   │   ├── DailyPnLHeatmap.tsx     # Daily PnL heatmap visualization
+│   │   │   ├── shared/
+│   │   │   │   └── AxonSidebar.tsx     # Main sidebar navigation (single-section mapping)
+│   │   │   ├── ResearchLab.tsx          # Deep statistical research panel
+│   │   │   ├── MultiAssetResearch.tsx   # Correlation / pair analysis
+│   │   │   ├── PortfolioAnalytics.tsx   # Monte Carlo / risk analytics
+│   │   │   ├── LightweightChart.tsx      # TradingView chart wrapper
+│   │   │   ├── PnLChart.tsx              # PnL visualization
+│   │   │   ├── PositionChart.tsx         # Position tracking chart
+│   │   │   └── tabs/
+│   │   │       ├── DashboardTab.tsx      # Dashboard + TOTP modal + error banners
+│   │   │       ├── DatasetsTab.tsx       # Dataset management, download, preview
+│   │   │       ├── StrategiesTab.tsx     # Strategy workspace with Monaco
+│   │   │       ├── BacktestsTab.tsx      # Backtest config, results, replay
+│   │   │       ├── DeploymentsTab.tsx    # Deployment list and controls
+│   │   │       ├── OptimizerTab.tsx      # Grid/random search UI
+│   │   │       ├── LiveTradingTab.tsx    # Live mock trading UI
+│   │   │       └── CleanupTab.tsx        # Disk / DB cleanup
+│   │   ├── lib/
+│   │   │   └── api-client.ts             # Frontend API client
+│   │   └── public/                       # Static assets
+│
+├── datasets/                     # Historical candle storage
+│   ├── csv/                      # Symbol-named CSV files
+│   ├── parquet/                  # Efficient columnar storage
+│   ├── excel/                    # Excel exports
+│   ├── catalog.json              # Dataset metadata index
+│   ├── groups.yaml               # Symbol grouping definitions
+│   └── symbol_tokens.json        # SmartAPI token mapping
+│
+├── docs/                         # Documentation and extra samples
+│   ├── screenshots/              # UI screenshots (live captures)
+│   ├── sample_strategy_legacy.py # EMA crossover sample
+│   ├── sample_strategy_prosperity.py # Prosperity-style sample
+│   └── test_live_trading.py      # Live trading test script
+│
+├── logs/                         # Backtest replay logs (JSONL)
+│
+├── strategies/                   # Saved strategy configs
+│
+├── sample_strategy_legacy.py     # EMA crossover — legacy_on_bar runtime
+├── sample_strategy_prosperity.py # EMA crossover — prosperity_trader runtime
+├── test_aggregator.py            # Data aggregator unit test
+├── test_live_trading.py          # Live trading integration test
+├── requirements.txt              # Python dependencies
+├── .env.example                  # Environment variable template
+├── .env                          # Local secrets (ignored by Git)
+├── quantlab.db                   # SQLite database (auto-created, WAL mode)
+└── README.md                     # This file
 ```
 
 ---
@@ -206,6 +281,7 @@ quantp/
 - **Node.js v18.0.0+**
 - **NPM** (packaged with Node.js)
 - **Git** (optional)
+- **Redis** (optional — falls back to in-memory caching)
 
 ---
 
@@ -216,7 +292,8 @@ quantp/
 Create a copy of `.env.example` and rename it to `.env`:
 
 ```bash
-copy .env.example .env
+copy .env.example .env        # Windows
+cp .env.example .env          # Linux / macOS
 ```
 
 Fill in your Angel One SmartAPI credentials:
@@ -225,6 +302,17 @@ Fill in your Angel One SmartAPI credentials:
 SMARTAPI_CLIENT_CODE="YOUR_CLIENT_CODE"
 SMARTAPI_PASSWORD="YOUR_PASSWORD"
 SMARTAPI_API_KEY="YOUR_API_KEY"
+
+# Optional: network identifiers for SmartAPI headers
+# SMARTAPI_CLIENT_LOCAL_IP=127.0.0.1
+# SMARTAPI_CLIENT_PUBLIC_IP=127.0.0.1
+# SMARTAPI_MAC_ADDRESS=00:00:00:00:00:00
+
+# Optional: Redis
+# REDIS_URL=redis://localhost:6379/0
+
+# Optional: custom database
+# DATABASE_URL=sqlite:///./quantlab.db
 ```
 
 > **Note:** Without credentials, the platform still boots in a basic mode. You can still write and edit strategies, but live data download and mock trading require SmartAPI authentication.
@@ -256,7 +344,7 @@ pip install -r requirements.txt
 .venv\Scripts\python -m backend.main
 ```
 
-The server starts on `http://0.0.0.0:8000` and auto-creates `quantlab.db`.
+The server starts on `http://0.0.0.0:8000` and auto-creates `quantlab.db` with WAL mode enabled.
 
 > **Important:** Always run with `python -m backend.main`, not `python backend/main.py`. The module path matters for imports.
 
@@ -280,9 +368,15 @@ Open `http://localhost:3000`.
 pytest tests/
 ```
 
-Or run the core test directly:
+Or run a core test directly:
 ```bash
 python tests/test_backtest.py
+```
+
+Standalone root-level test scripts:
+```bash
+python test_aggregator.py
+python test_live_trading.py
 ```
 
 ---
@@ -331,15 +425,13 @@ The engine parses your strategy in a sandbox, steps through every candle, execut
 - **Replay Studio** — frame-by-frame playback with speed controls
 - **Research Lab** — regime attribution, performance maps, mean-reversion diagnostics, and AI strategy generation
 - **Portfolio Risk** — Monte Carlo simulations and stress tests
-- **Optimization Lab** — parameter sweeps with walk-forward validation and sensitivity analysis
-- **Strategy Registry** — market analysis, auto-ranking, walk-forward tuning, and one-click deployment of the best configuration
 
 ### Step 6 — Live Mock Trading
 
 1. Go to the **Live Trading** page (`/live`) or the **Deployments** tab
 2. Create a paper deployment with your strategy
 3. Pause, resume, or reset capital at any time without restarting
-4. View the full deployment event log for audit trails
+4. View the full deployment event log and periodic PnL snapshots for audit trails
 
 ---
 
@@ -374,15 +466,18 @@ A full market-analysis pipeline that:
 2. Ranks every registered strategy by suitability score
 3. Runs walk-forward optimization with train/validation/test splits
 4. Detects overfitting via robustness scoring and sensitivity analysis
-5. Enables **one-click deployment** of the best configuration
+5. Applies dynamic grading profiles (Balanced, Conservative, Aggressive)
+6. Enables **one-click deployment** of the best configuration
 
 ### Live Trading Controls
 
-Deployments support a full lifecycle:
+Deployments support a full lifecycle via the service-oriented architecture:
 - **Pause / Resume** — freeze a running paper deployment without losing state
 - **Reset Capital** — adjust starting cash/equity mid-run
+- **PnL Snapshots** — periodic portfolio snapshots with position breakdowns
 - **Event Log** — full audit trail of fills, errors, margin calls, and state transitions
 - **Market Data Service** — centralized Redis-backed tick and candle cache shared across all deployments
+- **Event Bus** — pub/sub architecture for real-time deployment events
 
 ### AI Strategy Generator
 
@@ -397,7 +492,7 @@ The Research Lab can auto-generate a complete strategy from quantitative analysi
 | [`sample_strategy_legacy.py`](sample_strategy_legacy.py) | EMA crossover — `legacy_on_bar` runtime |
 | [`sample_strategy_prosperity.py`](sample_strategy_prosperity.py) | EMA crossover — `prosperity_trader` runtime |
 | [`requirements.txt`](requirements.txt) | Python dependencies |
-| [`.env.example`](.env.example) | SmartAPI, Redis, and Ollama credentials template |
+| [`.env.example`](.env.example) | SmartAPI, Redis, and database credentials template |
 | [`datasets/groups.yaml`](datasets/groups.yaml) | Symbol basket definitions |
 | [`datasets/catalog.json`](datasets/catalog.json) | Dataset metadata index |
 
@@ -411,7 +506,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
 **Backend offline on frontend**
-Ensure `python -m backend.main` is running on `http://127.0.0.1:8000`. Check `API_BASE` in `frontend/src/app/page.tsx` if you use a custom port.
+Ensure `python -m backend.main` is running on `http://127.0.0.1:8000`. If you run the frontend dev server on a port other than 3000, CORS allows `localhost` / `127.0.0.1` on port 3000–3009. For a custom port, update `backend/main.py`.
 
 **Dataset not found**
 Download the symbol first in the **Datasets** tab. Bare symbols like `SBIN` are auto-resolved to `NSE:SBIN-EQ` — old records in the database are also canonicalized on read.
@@ -451,5 +546,5 @@ This project is open-source and available for personal and research use. Check t
 ---
 
 <p align="center">
-  <b>Built for Indian markets. Powered by real data. No shortcuts.</b>
+  <b>Built for Indian equity markets. Powered by real data. No shortcuts.</b>
 </p>

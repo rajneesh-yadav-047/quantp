@@ -229,12 +229,7 @@ class LegacyRuntime:
                 order_dict = dict(order)
                 if 'qty' in order_dict and 'quantity' not in order_dict:
                     order_dict['quantity'] = order_dict.pop('qty')
-                if 'quantity_lots' in order_dict and 'quantity' not in order_dict:
-                    order_dict['quantity'] = order_dict['quantity_lots'] * order_dict.get('lot_size', 1)
-                allowed_keys = {
-                    'symbol', 'direction', 'price', 'quantity', 'type', 'order_id',
-                    'instrument_type', 'expiry', 'strike', 'option_type', 'action', 'quantity_lots', 'lot_size',
-                }
+                allowed_keys = {'symbol', 'direction', 'price', 'quantity', 'type', 'order_id'}
                 filtered = {k: v for k, v in order_dict.items() if k in allowed_keys}
                 normalized_orders.append(Order(**filtered))
 

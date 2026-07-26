@@ -26,12 +26,6 @@ export function TotpModal({
             ? "Authorize SmartAPI session via Angel One TOTP."
             : pendingAction === "DOWNLOAD"
             ? "Authorize market data download request."
-            : pendingAction === "OPTIONS_DOWNLOAD"
-            ? "Authorize options data download request."
-            : pendingAction === "BHAVCOPY_IMPORT"
-            ? "Authorize NSE bhavcopy import request."
-            : pendingAction === "OPTIONS_BACKTEST"
-            ? "Authorize options backtest — SmartAPI TOTP required for auto-download."
             : "Authorize request."}
         </p>
         <input
