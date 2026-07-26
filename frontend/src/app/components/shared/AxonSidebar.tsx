@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import {
   LayoutDashboard, Database, Code, PlayCircle, Rocket, Radio,
-  FlaskConical, Network, BarChart3, TrendingUp, Settings, Trash2,
+  FlaskConical, Network, BarChart3, Settings, Trash2,
   Sun, Moon, CheckCircle2, AlertCircle
 } from "lucide-react";
 import type { Notif } from "../../hooks/useAxon";
@@ -23,11 +23,14 @@ const topSections = [
   { id: "overview", label: "Overview", tab: "dashboard" },
   { id: "data",     label: "Data",     tab: "datasets" },
   { id: "strategies", label: "Strategies", tab: "strategies" },
-  { id: "trading",  label: "Trading",  tab: "backtests" },
+  { id: "trading",  label: "Trading",  tab: "deployments" },
   { id: "research", label: "Research", tab: "research" },
 ];
 
-/* ── Sidebar nav groups per section ── */
+/* ── Sidebar nav groups per section ──
+   Each tab id belongs to exactly ONE section so the active-section
+   derivation is unambiguous (prevents the sidebar from "jumping"
+   between sections when a shared tab is opened). */
 const sidebarGroups: Record<string, { label: string; items: { id: string; label: string }[] }[]> = {
   overview: [
     { label: "Dashboard", items: [{ id: "dashboard", label: "Overview" }] },
@@ -44,15 +47,9 @@ const sidebarGroups: Record<string, { label: string; items: { id: string; label:
   ],
   trading: [
     { label: "Trading", items: [
-      { id: "backtests", label: "Backtests" },
       { id: "deployments", label: "Deployments" },
       { id: "live", label: "Live Trading" },
-      { id: "options", label: "Options" },
-      { id: "optimizer", label: "Optimizer" },
       { id: "cleanup", label: "Cleanup" },
-    ]},
-    { label: "Tools", items: [
-      { id: "portfolio-risk", label: "Portfolio Risk" },
     ]},
   ],
   research: [
@@ -103,15 +100,12 @@ export default function AxonSidebar({
             </div>
             {group.items.map((item) => {
               const isActive = activeTab === item.id;
-              const isAccent = isActive && item.id === "options";
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 text-xs w-full text-left border-l-2 transition-colors ${
-                    isAccent
-                      ? "text-[#93b4ff] bg-[#0f1520] border-l-[#4a7fcc]"
-                      : isActive
+                    isActive
                       ? "text-[#c0c0c0] bg-[#161616] border-l-[#444]"
                       : "text-[#a0a0a0] border-transparent hover:text-[#888]"
                   }`}

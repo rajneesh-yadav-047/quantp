@@ -305,28 +305,6 @@ def run_cleanup(req: CleanupRequest):
                         details.append(f"{'Would clean' if req.dry_run else 'Cleaned'} {len(orphaned)} orphaned backtest record(s)")
                     else:
                         details.append("No orphaned backtest records found")
-
-                    # ── orphaned option-strategy shadow records in strategies ──
-                    # Option strategies create a shadow StrategyDB entry so they can be backtested.
-                    # When the option strategy is deleted, the shadow record should be cleaned too.
-                    result2 = conn.execute(text(
-                        "SELECT s.id, s.name FROM strategies s "
-                        "WHERE s.id GLOB '[0-9]*' "
-                        "AND s.id NOT IN (SELECT CAST(id AS TEXT) FROM option_strategies)"
-                    ))
-                    shadow_rows = result2.fetchall()
-                    if shadow_rows:
-                        if req.dry_run:
-                            for sid, sname in shadow_rows:
-                                details.append(f"[WOULD DELETE] Strategy shadow orphan: {sname} ({sid})")
-                        else:
-                            for sid, sname in shadow_rows:
-                                conn.execute(text("DELETE FROM strategies WHERE id = :id"), {"id": sid})
-                                details.append(f"[DELETED] Strategy shadow orphan: {sname} ({sid})")
-                            conn.commit()
-                        details.append(f"{'Would clean' if req.dry_run else 'Cleaned'} {len(shadow_rows)} orphaned strategy shadow record(s)")
-                    else:
-                        details.append("No orphaned strategy shadow records found")
             except Exception as e:
                 details.append(f"[ERROR] DB orphan cleanup failed: {e}")
 

@@ -21,7 +21,7 @@ def calculate_suggested_position_size(
     Args:
         price_series: recent close prices (e.g. last 100 bars)
         initial_capital: starting capital
-        trade_type: INTRADAY, DELIVERY, FUTURES, or OPTIONS
+        trade_type: INTRADAY or DELIVERY
         risk_pct: risk per trade as decimal (default 2%)
         
     Returns:
@@ -36,10 +36,6 @@ def calculate_suggested_position_size(
     
     if trade_type == "INTRADAY":
         margin_mult = 0.20
-    elif trade_type == "FUTURES":
-        margin_mult = 0.15
-    elif trade_type == "OPTIONS":
-        margin_mult = 0.15
     else:
         margin_mult = 1.0
     leverage = 1.0 / margin_mult if margin_mult > 0 else 1.0
@@ -63,7 +59,7 @@ def calculate_backtest_max_position(
     Args:
         df: price DataFrame
         initial_capital: starting capital
-        trade_type: INTRADAY, DELIVERY, FUTURES, or OPTIONS
+        trade_type: INTRADAY or DELIVERY
         requested_max: user-provided max position size (None = auto)
         
     Returns:

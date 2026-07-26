@@ -11,7 +11,6 @@ import { BacktestsTab } from "./components/tabs/BacktestsTab";
 import { DeploymentsTab } from "./components/tabs/DeploymentsTab";
 import { OptimizerTab } from "./components/tabs/OptimizerTab";
 import { CleanupTab } from "./components/tabs/CleanupTab";
-import { OptionsTab } from "./components/tabs/OptionsTab";
 
 const ResearchLab = dynamic(() => import("../components/ResearchLab"), { ssr: false });
 const MultiAssetResearch = dynamic(() => import("../components/MultiAssetResearch"), { ssr: false });
@@ -22,7 +21,7 @@ const topSections = [
   { id: "overview", label: "Overview", tab: "dashboard" },
   { id: "data", label: "Data", tab: "datasets" },
   { id: "strategies", label: "Strategies", tab: "strategies" },
-  { id: "trading", label: "Trading", tab: "backtests" },
+  { id: "trading", label: "Trading", tab: "deployments" },
   { id: "research", label: "Research", tab: "research" },
 ];
 
@@ -30,7 +29,8 @@ function getSectionForTab(tab: string): string {
   for (const s of topSections) {
     if (s.tab === tab) return s.id;
   }
-  if (["backtests", "deployments", "live", "options", "optimizer", "cleanup"].includes(tab)) return "trading";
+  if (["backtests", "optimizer"].includes(tab)) return "strategies";
+  if (["deployments", "live", "cleanup"].includes(tab)) return "trading";
   if (["research", "multi-asset", "portfolio-risk"].includes(tab)) return "research";
   return "overview";
 }
@@ -78,7 +78,6 @@ export default function Home() {
     "portfolio-risk": "Portfolio risk analytics: Monte Carlo simulation, stress testing, risk-of-ruin, drawdown projections, and confidence intervals.",
     optimizer: "Execute grid-search and random-search sweeps to find mathematically optimal strategy weights.",
     cleanup: "Manage disk space by deleting old backtest logs and downloaded CSV datasets.",
-    options: "Options Strategy Builder — build multi-leg option strategies (straddles, strangles, spreads) with live option chain, payoff chart, and backtest support.",
   };
 
   return (
@@ -94,13 +93,7 @@ export default function Home() {
             <button
               key={section.id}
               onClick={() => {
-                if (section.id === "trading") {
-                  q.setActiveTab("backtests");
-                } else if (section.id === "research") {
-                  q.setActiveTab("research");
-                } else {
-                  q.setActiveTab(section.tab);
-                }
+                q.setActiveTab(section.tab);
               }}
               className={`h-11 px-3 text-xs flex items-center gap-1 border-b-2 transition-colors ${
                 isActive
@@ -145,28 +138,18 @@ export default function Home() {
             <div className="flex items-center gap-1 text-xs">
               <span className="text-[#a0a0a0]">{sectionLabel}</span>
               <span className="text-[#606060]">›</span>
-              <span className={q.activeTab === "options" ? "text-[#93b4ff]" : "text-[#c0c0c0]"}>
+              <span className="text-[#c0c0c0]">
                 {q.activeTab === "strategies" ? "Strategy Workspace" : q.activeTab.replace("-", " ")}
               </span>
             </div>
             <div className="flex-1" />
             {/* Page-level action buttons */}
-            {q.activeTab === "options" && (
-              <div className="flex items-center gap-2">
-                <button className="text-[10px] px-2 py-1 rounded border border-[var(--ax-border)] text-[#888] hover:text-[#c0c0c0] transition-colors">
-                  Templates
-                </button>
-                <button className="text-[10px] px-2 py-1 rounded bg-[#1c2030] text-[#93b4ff] border border-[#2a3a5a] hover:bg-[#232a40] transition-colors">
-                  Save strategy
-                </button>
-              </div>
-            )}
-            {q.selectedStrategyId && q.activeTab !== "options" && (
+            {q.selectedStrategyId && (
               <div className="px-3 py-1 text-[10px] rounded-full font-mono font-medium bg-[var(--ax-surface-2)] border border-[var(--ax-border)] text-[var(--ax-accent-blue-light)]">
                 Strategy: {q.strategies.find((s: any) => s.id === q.selectedStrategyId)?.name || q.selectedStrategyId}
               </div>
             )}
-            {q.selectedRunId && q.activeTab !== "options" && (
+            {q.selectedRunId && (
               <div className="px-3 py-1 text-[10px] rounded-full font-mono font-medium bg-[var(--ax-surface-2)] border border-[var(--ax-border)] text-emerald-400">
                 Run: {q.selectedRunId}
               </div>
@@ -413,83 +396,8 @@ export default function Home() {
                   handleVacuumDB={q.handleVacuumDB}
                 />
               )}
-
-              {q.activeTab === "options" && (
-                <OptionsTab
-                  triggerNotif={q.triggerNotif}
-                  smartapiConnected={q.smartapiConnected}
-                  backendOnline={q.backendOnline}
-                  datasets={q.datasets}
-                  checkDataCoverage={q.checkDataCoverage}
-                  isTotpModalOpen={q.isTotpModalOpen}
-                  setIsTotpModalOpen={q.setIsTotpModalOpen}
-                  totpInput={q.totpInput}
-                  setTotpInput={q.setTotpInput}
-                  pendingAction={q.pendingAction}
-                  setPendingAction={q.setPendingAction}
-                  handleTotpConfirm={q.handleTotpConfirm}
-                  optionsDlSymbol={q.optionsDlSymbol}
-                  setOptionsDlSymbol={q.setOptionsDlSymbol}
-                  optionsDlExpiry={q.optionsDlExpiry}
-                  setOptionsDlExpiry={q.setOptionsDlExpiry}
-                  optionsDlStrikes={q.optionsDlStrikes}
-                  setOptionsDlStrikes={q.setOptionsDlStrikes}
-                  optionsDlOptionTypes={q.optionsDlOptionTypes}
-                  setOptionsDlOptionTypes={q.setOptionsDlOptionTypes}
-                  optionsDlFromDate={q.optionsDlFromDate}
-                  setOptionsDlFromDate={q.setOptionsDlFromDate}
-                  optionsDlToDate={q.optionsDlToDate}
-                  setOptionsDlToDate={q.setOptionsDlToDate}
-                  optionsDlJobId={q.optionsDlJobId}
-                  bhavcopyFromDate={q.bhavcopyFromDate}
-                  setBhavcopyFromDate={q.setBhavcopyFromDate}
-                  bhavcopyToDate={q.bhavcopyToDate}
-                  setBhavcopyToDate={q.setBhavcopyToDate}
-                  bhavcopyJobId={q.bhavcopyJobId}
-                  triggerOptionsDownload={q.triggerOptionsDownload}
-                  triggerOptionsBhavcopyImport={q.triggerOptionsBhavcopyImport}
-                  handleOptionsBacktest={q.handleOptionsBacktest}
-                  handleOptionsBacktestFullFlow={q.handleOptionsBacktestFullFlow}
-                  btStartDate={q.btStartDate}
-                  setBtStartDate={q.setBtStartDate}
-                  btEndDate={q.btEndDate}
-                  setBtEndDate={q.setBtEndDate}
-                  btSlippage={q.btSlippage}
-                  setBtSlippage={q.setBtSlippage}
-                />
-              )}
             </div>
           </div>
-
-          {/* ── Persistent Summary Strip (Options only) ── */}
-          {q.activeTab === "options" && (
-            <div className="h-9 bg-[var(--ax-summary-bg)] border-t border-[var(--ax-border)] flex items-center px-4 gap-4 shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[#606060]">Net premium</span>
-                <span className="text-xs font-medium font-mono text-[#93b4ff]">—</span>
-              </div>
-              <div className="w-px h-3.5 bg-[var(--ax-border)]" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[#606060]">Max profit</span>
-                <span className="text-xs font-medium font-mono text-emerald-500">—</span>
-              </div>
-              <div className="w-px h-3.5 bg-[var(--ax-border)]" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[#606060]">Max loss</span>
-                <span className="text-xs font-medium font-mono text-red-400">—</span>
-              </div>
-              <div className="w-px h-3.5 bg-[var(--ax-border)]" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[#606060]">Breakeven</span>
-                <span className="text-xs font-medium font-mono text-[#93b4ff]">—</span>
-              </div>
-              <div className="w-px h-3.5 bg-[var(--ax-border)]" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-[#606060]">Margin req</span>
-                <span className="text-xs font-medium font-mono text-[#93b4ff]">—</span>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
